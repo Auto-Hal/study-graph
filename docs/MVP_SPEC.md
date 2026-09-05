@@ -15,12 +15,6 @@ Phase 1の対象は「くずし字学習」。AI生成、Knowledge Graph、他�
 - Next.jsアプリ基盤
 - Notion Lectures / Characters / Mistakes のサーバー側取得
 - Home dashboard
-  - 今日の復習候補
-  - 完了講義数
-  - 要定着文字数
-  - 未克服誤読数
-  - 最近の講義
-  - 文字の定着状況
 - Demo fallback
 - Notion read-onlyを維持
 
@@ -30,10 +24,6 @@ Phase 1の対象は「くずし字学習」。AI生成、Knowledge Graph、他�
 - 1問ずつ問題を表示
 - 答えの表示
 - 4段階自己評価
-  - もう一度
-  - 難しい
-  - できた
-  - 即答
 - セッション結果表示
 - Mobile-first review UI
 
@@ -43,10 +33,6 @@ Phase 1の対象は「くずし字学習」。AI生成、Knowledge Graph、他�
 - `review_attempts` に回答履歴を追記保存
 - `review_state` に現在の復習状態を保存
 - 初期スケジューリング
-  - again: 10分
-  - hard: 初回1日
-  - good: 初回2日
-  - easy: 初回5日
 - Home / Review は期限到来項目だけを表示
 - RLS + server-only app token
 - Notionは引き続きread-only
@@ -55,50 +41,50 @@ Phase 1の対象は「くずし字学習」。AI生成、Knowledge Graph、他�
 
 - Projects一覧
 - くずし字Project詳細
-- Lectures一覧 / 詳細
-- Characters一覧 / 詳細
-- Mistakes一覧 / 詳細
+- Lectures / Characters / Mistakes の一覧・詳細
 - HomeからStudy Graph内の各詳細へ遷移
 - 詳細画面からNotion原本を開ける
-- Supabaseに復習状態がある項目は最終評価・次回復習も表示
+- Supabase復習状態を詳細へ統合
 - 復習日時はAsia/Tokyoで表示
 
 ### Phase 1.4 — Progress & review history ✅
 
 - 保護されたSupabase RPC経由で復習履歴を取得
 - 復習履歴一覧
-- 直近の学習活動
 - 次回復習予定の可視化
 - 自己評価別の件数・傾向
 - 文字 / 誤読単位の履歴表示
 - Project詳細に進捗サマリーと学習記録への導線
 
-Phase 1.4では高度な分析やAI診断は行わず、Supabaseに既に存在する履歴を「見返せる」ことを優先する。
-
-### Phase 1.5 — MVP polish & release readiness 🚧
-
-実装済み:
+### Phase 1.5 — MVP polish & release readiness ✅
 
 - Home / Learn / Review / Settings の共通ナビゲーション
-- 未実装GraphをPhase 2予定として明示し、誤操作を防止
+- 未実装GraphをPhase 2予定として明示
 - 空状態、404、再試行可能なエラー画面を整備
 - Notion / Supabase接続状態を確認できるSettings画面
 - Supabaseスケジュール取得失敗時のfallback表示を明示
-- iPhoneのsafe areaを考慮した下部ナビゲーション
-- Mobile向けカード・接続状態表示・余白の調整
-- focus-visible、review progressbar、aria-live、reduced motionなど基本アクセシビリティ対応
-- 全復習日時をAsia/Tokyo表示へ統一
+- iPhone safe areaを考慮したMobile UI調整
+- focus-visible、progressbar、aria-live、reduced motionなど基本アクセシビリティ対応
+- 全復習日時をAsia/Tokyoへ統一
 - Study Graph正式グラフアイコンをfavicon / UIブランドマークへ適用
 - Web App Manifest / Apple Home Screen icon / theme colorを追加
 - README / architectureを現行MVPへ更新
+- GitHub CI成功
+- Productionスモークテスト成功
 
-残作業:
+### Phase 1 production smoke test — 2026-09-06
 
-- GitHub CI成功確認
-- mainへのマージ
-- ProductionでNotion / Supabase実接続を含む本番スモークテスト
+- Home: Notion実データ接続、期限到来0問を確認
+- Settings: Notion / Supabaseとも接続中、Supabase管理4項目を確認
+- Progress: 復習履歴4回、Confident 100%、Tracked items 4、次回復習 9/8 08:08 JSTを確認
+- Review: 期限前のため「今日は復習項目がありません」を確認
+- `manifest.webmanifest`: 200 / standalone / Study Graph正式アイコンを確認
+- `icon.svg`: 200 / `image/svg+xml` を確認
+- `apple-icon`: 200 / `image/png` / 180×180を確認
+- 存在しないURL: 独自404を確認
+- Production runtime logs: error / fatal 0件
 
-**Phase 1.5完了を「くずし字MVP完成」とする。**
+**Phase 1完了。くずし字MVP完成。**
 
 ## 3. Phase 1に含めないもの
 
@@ -131,7 +117,7 @@ Phase 1.4では高度な分析やAI診断は行わず、Supabaseに既に存在�
 - [x] 過去の復習履歴と今後の復習予定を確認できる
 - [x] 空状態・失敗状態・主要画面のMobile向けUIを実装している
 - [x] 正式なStudy GraphアプリアイコンとPWAメタデータが設定されている
-- [ ] Phase 1本番スモークテストが完了している
+- [x] Phase 1本番スモークテストが完了している
 
 ## 6. Phase 2 direction
 
