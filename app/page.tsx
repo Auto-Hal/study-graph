@@ -1,5 +1,7 @@
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const data = await getKuzushijiDashboard();
   const completedLectures = data.lectures.filter((lecture) => lecture.status === "完了").length;
@@ -23,8 +25,8 @@ export default async function Home() {
 
       {data.mode === "demo" && (
         <section className="notice">
-          <strong>まずは画面を確認できます。</strong>
-          <span> `.env.local` に Notion integration token を設定すると、実データへ切り替わります。</span>
+          <strong>Notion接続を確認できません。</strong>
+          <span> Vercelの `NOTION_TOKEN` と、Notion側でIntegrationが「くずし字学習」に接続されているか確認してください。</span>
         </section>
       )}
 
