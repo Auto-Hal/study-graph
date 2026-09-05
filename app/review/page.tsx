@@ -10,15 +10,16 @@ function displayGlyph(value: string) {
 
 export default async function ReviewPage() {
   const data = await getKuzushijiDashboard();
+  const cards: ReviewCard[] = [];
 
-  const cards: ReviewCard[] = data.reviewQueue.flatMap((item) => {
+  for (const item of data.reviewQueue) {
     if (item.kind === "character") {
       const character = data.characters.find((candidate) => candidate.id === item.id);
-      if (!character) return [];
+      if (!character) continue;
 
-      return [{
+      cards.push({
         id: character.id,
-        kind: "character" as const,
+        kind: "character",
         label: character.glyph,
         prompt: "この文字の読みと字母を思い出してください。",
         front: displayGlyph(character.glyph),
@@ -30,15 +31,16 @@ export default async function ReviewPage() {
           { label: "習得状態", value: character.mastery },
         ],
         sourceUrl: character.url,
-      }];
+      });
+      continue;
     }
 
     const mistake = data.mistakes.find((candidate) => candidate.id === item.id);
-    if (!mistake) return [];
+    if (!mistake) continue;
 
-    return [{
+    cards.push({
       id: mistake.id,
-      kind: "mistake" as const,
+      kind: "mistake",
       label: mistake.title,
       prompt: "この誤読の問題点と、正しい判断を思い出してください。",
       front: mistake.title || "誤読記録",
@@ -49,8 +51,8 @@ export default async function ReviewPage() {
         { label: "原因", value: mistake.cause },
       ],
       sourceUrl: mistake.url,
-    }];
-  });
+    });
+  }
 
   return (
     <main className="review-page-shell">
