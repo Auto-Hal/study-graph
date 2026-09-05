@@ -18,12 +18,15 @@ type RecordReviewResult = {
   repetitions: number;
 };
 
-function config() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY;
-  const token = process.env.STUDY_GRAPH_APP_TOKEN;
+const DEFAULT_SUPABASE_URL = "https://uhckdhdkywhsqjcquvyj.supabase.co";
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ElvBv2EvS6jlN-Zd3P5GVA_SYV1Hztc";
 
-  if (!url || !key || !token) return null;
+function config() {
+  const url = process.env.SUPABASE_URL ?? DEFAULT_SUPABASE_URL;
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+  const token = process.env.STUDY_GRAPH_APP_TOKEN ?? process.env.StudyGraph_APP_TOKEN;
+
+  if (!token) return null;
   return { url: url.replace(/\/$/, ""), key, token };
 }
 
