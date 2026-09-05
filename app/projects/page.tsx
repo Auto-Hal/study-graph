@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import { getDueReviewItems } from "@/src/lib/supabase/review";
 
@@ -13,7 +14,7 @@ export default async function ProjectsPage() {
     <main className="learn-shell">
       <header className="learn-header">
         <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark">SG</span>
+          <span className="learn-brand-mark" aria-hidden="true">SG</span>
           <span>
             <strong>Study Graph</strong>
             <small>学習プロジェクト</small>
@@ -35,7 +36,7 @@ export default async function ProjectsPage() {
 
       <section className="project-list" aria-label="学習プロジェクト一覧">
         <Link className="project-entry" href="/projects/kuzushiji">
-          <span className="project-entry-icon">く</span>
+          <span className="project-entry-icon" aria-hidden="true">く</span>
           <div>
             <p className="eyebrow">ACTIVE PROJECT</p>
             <h2>くずし字</h2>
@@ -49,13 +50,7 @@ export default async function ProjectsPage() {
         </Link>
       </section>
 
-      <footer className="learn-bottom-nav" aria-label="Primary navigation">
-        <Link href="/">Home</Link>
-        <Link className="active" href="/projects">Learn</Link>
-        <Link href="/review">Review</Link>
-        <span>Graph</span>
-        <span>Settings</span>
-      </footer>
+      <PrimaryNav active="learn" />
     </main>
   );
 }
