@@ -1,0 +1,36 @@
+.persistence-note {
+  margin-top: -4px !important;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #f3f0e8;
+  color: #81765f !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  line-height: 1.5;
+}
+
+.save-error {
+  margin: 0 0 12px !important;
+  padding: 10px 12px;
+  border: 1px solid #e4c6c1;
+  border-radius: 10px;
+  background: #fbefed;
+  color: #8b4b43 !important;
+  font-size: 11px !important;
+  line-height: 1.5;
+}
+
+.grade-buttons button:disabled {
+  cursor: wait;
+  opacity: .58;
+}
+
+.result-grid strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  .result-grid strong {
+    font-size: 20px;
+  }
+}
