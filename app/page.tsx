@@ -71,7 +71,7 @@ export default async function Home() {
           )}
         </article>
 
-        <aside className="project-card">
+        <Link className="project-card" href="/projects/kuzushiji">
           <p className="eyebrow">PROJECT</p>
           <div className="project-title">
             <span className="project-icon">く</span>
@@ -86,7 +86,7 @@ export default async function Home() {
             <div><strong>{weakCharacters}</strong><span>要定着文字</span></div>
             <div><strong>{openMistakes}</strong><span>未克服誤読</span></div>
           </div>
-        </aside>
+        </Link>
       </section>
 
       <section className="content-grid">
@@ -96,19 +96,19 @@ export default async function Home() {
               <p className="eyebrow">LECTURES</p>
               <h2>最近の講義</h2>
             </div>
-            <span>{data.lectures.length} lessons</span>
+            <Link href="/projects/kuzushiji/lectures">{data.lectures.length} lessons</Link>
           </div>
 
           <div className="lecture-list">
             {recentLectures.map((lecture) => (
-              <a className="lecture-row" href={lecture.url} target="_blank" rel="noreferrer" key={lecture.id}>
+              <Link className="lecture-row" href={`/projects/kuzushiji/lectures/${lecture.id}`} key={lecture.id}>
                 <span className="lecture-number">{String(lecture.sequence).padStart(2, "0")}</span>
                 <div className="lecture-copy">
                   <strong>{lecture.title}</strong>
                   <p>{lecture.theme || "学習テーマ未設定"}</p>
                 </div>
                 <span className="status">{lecture.status || "未設定"}</span>
-              </a>
+              </Link>
             ))}
           </div>
         </article>
@@ -119,15 +119,16 @@ export default async function Home() {
               <p className="eyebrow">FOCUS</p>
               <h2>定着状況</h2>
             </div>
+            <Link href="/projects/kuzushiji/characters">すべて見る</Link>
           </div>
 
           <div className="character-grid">
             {data.characters.slice(0, 8).map((character) => (
-              <a className="character-card" href={character.url} target="_blank" rel="noreferrer" key={character.id}>
+              <Link className="character-card" href={`/projects/kuzushiji/characters/${character.id}`} key={character.id}>
                 <strong>{character.glyph || "?"}</strong>
                 <span>{character.mastery || "未設定"}</span>
                 <small>誤読 {character.errorCount}回</small>
-              </a>
+              </Link>
             ))}
           </div>
         </article>
@@ -135,7 +136,7 @@ export default async function Home() {
 
       <footer className="bottom-nav" aria-label="Primary navigation">
         <Link className="active" href="/">Home</Link>
-        <span>Learn</span>
+        <Link href="/projects">Learn</Link>
         <Link href="/review">Review</Link>
         <span>Graph</span>
         <span>Settings</span>
