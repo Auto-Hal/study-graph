@@ -13,6 +13,13 @@ const sectionLabels: Record<Section, string> = {
   mistakes: "誤読記録",
 };
 
+const gradeLabels: Record<ReviewState["last_grade"], string> = {
+  again: "もう一度",
+  hard: "難しい",
+  good: "できた",
+  easy: "即答",
+};
+
 function isSection(value: string): value is Section {
   return value === "lectures" || value === "characters" || value === "mistakes";
 }
@@ -21,12 +28,14 @@ function formatDate(value: string | null | undefined) {
   if (!value) return "未設定";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
+  const hasTime = value.includes("T") || /\d{2}:\d{2}/.test(value);
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "numeric",
     day: "numeric",
-    hour: value.includes("T") || value.includes(" ") ? "2-digit" : undefined,
-    minute: value.includes("T") || value.includes(" ") ? "2-digit" : undefined,
+    hour: hasTime ? "2-digit" : undefined,
+    minute: hasTime ? "2-digit" : undefined,
   }).format(date);
 }
 
@@ -145,7 +154,7 @@ export default async function KuzushijiEntityDetailPage({
 
           {reviewState && (
             <>
-              <Property label="Study Graph 最終評価" value={reviewState.last_grade} />
+              <Property label="Study Graph 最終評価" value={gradeLabels[reviewState.last_grade]} />
               <Property label="反復回数" value={reviewState.repetitions} />
               <Property label="最終復習" value={formatDate(reviewState.last_reviewed_at)} />
               <Property label="次回復習" value={formatDate(reviewState.due_at)} />
