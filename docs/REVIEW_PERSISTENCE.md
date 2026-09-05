@@ -43,24 +43,21 @@ This can later be replaced by FSRS without changing the Notion data model or the
 
 ## Security
 
-The tables have RLS enabled and expose no direct `anon` or `authenticated` table permissions.
+The public review tables have RLS enabled and expose no direct `anon` or `authenticated` table permissions. The private token-hash table also has RLS enabled with no public policies.
 
-The app calls two `security definer` RPCs using:
-
-1. the Supabase publishable key, held server-side in Vercel, and
-2. a separate random `STUDY_GRAPH_APP_TOKEN`, also held server-side.
+The app calls two `security definer` RPCs using the Supabase publishable key plus a separate random `STUDY_GRAPH_APP_TOKEN`. The RPCs validate that token before reading or writing review data.
 
 Only a SHA-256 hash of the app token is stored in `private.study_graph_config`.
 
-The browser never receives the Supabase key or Study Graph app token. Browser grading requests go only to `/api/review/attempt` on the same Vercel origin.
+The browser never receives the Study Graph app token. Browser grading requests go only to `/api/review/attempt` on the same Vercel origin.
 
-## Required Vercel environment variables
+## Required Vercel environment variable
 
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
 - `STUDY_GRAPH_APP_TOKEN`
 
-All three are server-only and must not use the `NEXT_PUBLIC_` prefix.
+This value is server-only and must not use the `NEXT_PUBLIC_` prefix.
+
+The dedicated Study Graph Supabase project URL and publishable key are non-secret values and are built in as safe defaults. `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` remain optional overrides for local or future migrations.
 
 ## Failure behavior
 
