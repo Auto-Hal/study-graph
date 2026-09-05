@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import {
   getReviewHistory,
@@ -82,7 +83,7 @@ export default async function KuzushijiProgressPage() {
     <main className="learn-shell">
       <header className="learn-header">
         <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark">SG</span>
+          <span className="learn-brand-mark" aria-hidden="true">SG</span>
           <span>
             <strong>Study Graph</strong>
             <small>くずし字・学習記録</small>
@@ -94,7 +95,7 @@ export default async function KuzushijiProgressPage() {
         </div>
       </header>
 
-      <nav className="breadcrumbs" aria-label="Breadcrumb">
+      <nav className="breadcrumbs" aria-label="パンくずリスト">
         <Link href="/projects">Projects</Link>
         <span><Link href="/projects/kuzushiji">くずし字</Link></span>
         <span>学習記録</span>
@@ -107,6 +108,13 @@ export default async function KuzushijiProgressPage() {
           Supabaseに残した自己評価を、履歴・評価傾向・次回予定として見返します。Notionの知識データには書き戻しません。
         </p>
       </section>
+
+      {!review.connected && (
+        <section className="settings-warning" role="status">
+          <strong>復習履歴へ接続できていません。</strong>
+          <p>Review自体はNotion由来のキューへフォールバックできます。Settingsで保存系の接続状態を確認してください。</p>
+        </section>
+      )}
 
       <section className="progress-summary-grid" aria-label="復習サマリー">
         <article className="progress-summary-card">
@@ -172,7 +180,9 @@ export default async function KuzushijiProgressPage() {
                 return (
                   <div className="grade-meter-row" key={grade}>
                     <span>{gradeLabels[grade]}</span>
-                    <div className="grade-meter-track"><i style={{ width: `${percent}%` }} /></div>
+                    <div className="grade-meter-track" aria-label={`${gradeLabels[grade]} ${percent}%`}>
+                      <i style={{ width: `${percent}%` }} />
+                    </div>
                     <strong>{counts[grade]}</strong>
                   </div>
                 );
@@ -208,13 +218,7 @@ export default async function KuzushijiProgressPage() {
         </div>
       </section>
 
-      <footer className="learn-bottom-nav" aria-label="Primary navigation">
-        <Link href="/">Home</Link>
-        <Link className="active" href="/projects">Learn</Link>
-        <Link href="/review">Review</Link>
-        <span>Graph</span>
-        <span>Settings</span>
-      </footer>
+      <PrimaryNav active="learn" />
     </main>
   );
 }
