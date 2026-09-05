@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Study Graph">
+  <rect width="512" height="512" rx="116" fill="#243c2c"/>
+  <path d="M153 164 L270 126 L365 202 L324 335 L190 366 L126 270 Z" fill="none" stroke="#e9e5dc" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M270 126 L252 255 L365 202 M252 255 L324 335 M252 255 L126 270" fill="none" stroke="#aebda9" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="153" cy="164" r="35" fill="#f4f2ed"/>
+  <circle cx="270" cy="126" r="35" fill="#d9c8aa"/>
+  <circle cx="365" cy="202" r="35" fill="#f4f2ed"/>
+  <circle cx="324" cy="335" r="35" fill="#d9c8aa"/>
+  <circle cx="190" cy="366" r="35" fill="#f4f2ed"/>
+  <circle cx="126" cy="270" r="35" fill="#d9c8aa"/>
+  <circle cx="252" cy="255" r="47" fill="#f4f2ed" stroke="#243c2c" stroke-width="16"/>
+</svg>
