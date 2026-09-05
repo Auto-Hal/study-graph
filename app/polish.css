@@ -8,6 +8,14 @@ button:focus-visible {
   outline-offset: 3px;
 }
 
+.brand-mark,
+.learn-brand-mark {
+  overflow: hidden;
+  background: #243c2c url("/icon.svg") center / cover no-repeat;
+  color: transparent;
+  font-size: 0;
+}
+
 .bottom-nav,
 .learn-bottom-nav {
   bottom: max(14px, env(safe-area-inset-bottom));
@@ -31,6 +39,46 @@ button:focus-visible {
 
 .nav-disabled small {
   display: none;
+}
+
+.empty-panel {
+  margin: 18px 0 0;
+  padding: 17px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  background: #f8f6f1;
+  color: var(--muted);
+}
+
+.character-grid > .empty-panel {
+  grid-column: 1 / -1;
+}
+
+.empty-state-inline {
+  padding: 28px 20px;
+  text-align: center;
+}
+
+.empty-state-inline strong,
+.empty-state-inline p {
+  display: block;
+}
+
+.empty-state-inline strong {
+  font-size: 13px;
+}
+
+.empty-state-inline p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.single-action-row {
+  max-width: 430px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .settings-hero h1 {
@@ -254,9 +302,12 @@ button:focus-visible {
 
 @media (max-width: 520px) {
   .shell,
-  .learn-shell,
-  .review-page-shell {
+  .learn-shell {
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .review-page-shell {
+    padding-bottom: calc(42px + env(safe-area-inset-bottom));
   }
 
   .bottom-nav,
