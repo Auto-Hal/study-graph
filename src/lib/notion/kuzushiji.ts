@@ -1,6 +1,6 @@
-const DEFAULT_LECTURES_DATA_SOURCE_ID = "1da45577-aa7d-44e1-a304-9e33e5feb9e2";
-const DEFAULT_CHARACTERS_DATA_SOURCE_ID = "4a9814ba-7c44-47ec-8c46-e5d558a62085";
-const DEFAULT_MISTAKES_DATA_SOURCE_ID = "12c37554-c7fa-424f-9590-f2f756bf284a";
+const LECTURES_DATA_SOURCE_ID = "1da45577-aa7d-44e1-a304-9e33e5feb9e2";
+const CHARACTERS_DATA_SOURCE_ID = "4a9814ba-7c44-47ec-8c46-e5d558a62085";
+const MISTAKES_DATA_SOURCE_ID = "12c37554-c7fa-424f-9590-f2f756bf284a";
 const NOTION_API_VERSION = "2026-03-11";
 
 type NotionProperty = {
@@ -19,9 +19,7 @@ type NotionPage = {
   properties: Record<string, NotionProperty>;
 };
 
-type NotionQueryResponse = {
-  results?: unknown[];
-};
+type NotionQueryResponse = { results?: unknown[] };
 
 export type Lecture = {
   id: string;
@@ -79,19 +77,16 @@ function getNotionToken() {
 }
 
 async function queryDataSource(dataSourceId: string, token: string): Promise<NotionQueryResponse> {
-  const response = await fetch(
-    `https://api.notion.com/v1/data_sources/${encodeURIComponent(dataSourceId)}/query`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Notion-Version": NOTION_API_VERSION,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ page_size: 100 }),
-      cache: "no-store",
+  const response = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": NOTION_API_VERSION,
+      "Content-Type": "application/json",
     },
-  );
+    body: JSON.stringify({ page_size: 100 }),
+    cache: "no-store",
+  });
 
   if (!response.ok) {
     const body = await response.text();
@@ -102,8 +97,7 @@ async function queryDataSource(dataSourceId: string, token: string): Promise<Not
 }
 
 function text(property?: NotionProperty) {
-  if (!property) return "";
-  const values = property.type === "title" ? property.title : property.rich_text;
+  const values = property?.type === "title" ? property.title : property?.rich_text;
   return values?.map((item) => item.plain_text ?? "").join("") ?? "";
 }
 
@@ -199,23 +193,13 @@ function demoData(): KuzushijiDashboard {
 
 export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
   const token = getNotionToken();
-
-  if (!token) {
-    return demoData();
-  }
-
-  const lecturesId =
-    process.env.NOTION_KUZUSHIJI_LECTURES_DATA_SOURCE_ID ?? DEFAULT_LECTURES_DATA_SOURCE_ID;
-  const charactersId =
-    process.env.NOTION_KUZUSHIJI_CHARACTERS_DATA_SOURCE_ID ?? DEFAULT_CHARACTERS_DATA_SOURCE_ID;
-  const mistakesId =
-    process.env.NOTION_KUZUSHIJI_MISTAKES_DATA_SOURCE_ID ?? DEFAULT_MISTAKES_DATA_SOURCE_ID;
+  if (!token) return demoData();
 
   try {
     const [lecturesResponse, charactersResponse, mistakesResponse] = await Promise.all([
-      queryDataSource(lecturesId, token),
-      queryDataSource(charactersId, token),
-      queryDataSource(mistakesId, token),
+      queryDataSource(LECTURES_DATA_SOURCE_ID, token),
+      queryDataSource(CHARACTERS_DATA_SOURCE_ID, token),
+      queryDataSource(MISTAKES_DATA_SOURCE_ID, token),
     ]);
 
     const lectures = asPages(lecturesResponse.results).map((page) => ({
@@ -229,7 +213,6 @@ export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
       reviewAccuracy: number(page.properties["復習正答率"]),
       newCharactersCount: number(page.properties["新規字数"]),
     }));
-
     lectures.sort((a, b) => a.sequence - b.sequence);
 
     const characters = asPages(charactersResponse.results).map((page) => ({
