@@ -38,6 +38,7 @@ export type Character = {
   url: string;
   glyph: string;
   reading: string;
+  mother: string;
   category: string;
   mastery: string;
   importance: string;
@@ -150,6 +151,7 @@ function demoData(): KuzushijiDashboard {
         url: "#",
         glyph: "あ",
         reading: "あ",
+        mother: "安",
         category: "変体仮名",
         mastery: "学習中",
         importance: "A",
@@ -161,6 +163,7 @@ function demoData(): KuzushijiDashboard {
         url: "#",
         glyph: "い",
         reading: "い",
+        mother: "以",
         category: "変体仮名",
         mastery: "学習中",
         importance: "A",
@@ -172,6 +175,7 @@ function demoData(): KuzushijiDashboard {
         url: "#",
         glyph: "う",
         reading: "う",
+        mother: "宇",
         category: "変体仮名",
         mastery: "学習中",
         importance: "A",
@@ -220,6 +224,7 @@ export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
       url: page.url,
       glyph: text(page.properties["文字"]),
       reading: text(page.properties["読み"]),
+      mother: text(page.properties["字母"]),
       category: select(page.properties["分類"]),
       mastery: select(page.properties["習得状態"]),
       importance: select(page.properties["重要度"]),
