@@ -1,8 +1,7 @@
-import { getNotionClient } from "./client";
-
 const DEFAULT_LECTURES_DATA_SOURCE_ID = "1da45577-aa7d-44e1-a304-9e33e5feb9e2";
 const DEFAULT_CHARACTERS_DATA_SOURCE_ID = "4a9814ba-7c44-47ec-8c46-e5d558a62085";
 const DEFAULT_MISTAKES_DATA_SOURCE_ID = "12c37554-c7fa-424f-9590-f2f756bf284a";
+const NOTION_API_VERSION = "2026-03-11";
 
 type NotionProperty = {
   type?: string;
@@ -18,6 +17,10 @@ type NotionPage = {
   id: string;
   url: string;
   properties: Record<string, NotionProperty>;
+};
+
+type NotionQueryResponse = {
+  results?: unknown[];
 };
 
 export type Lecture = {
@@ -71,6 +74,33 @@ export type KuzushijiDashboard = {
   reviewQueue: ReviewItem[];
 };
 
+function getNotionToken() {
+  return process.env.NOTION_TOKEN ?? process.env.StudyGraph_NOTION_TOKEN ?? null;
+}
+
+async function queryDataSource(dataSourceId: string, token: string): Promise<NotionQueryResponse> {
+  const response = await fetch(
+    `https://api.notion.com/v1/data_sources/${encodeURIComponent(dataSourceId)}/query`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Notion-Version": NOTION_API_VERSION,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ page_size: 100 }),
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Notion query failed (${response.status}): ${body}`);
+  }
+
+  return (await response.json()) as NotionQueryResponse;
+}
+
 function text(property?: NotionProperty) {
   if (!property) return "";
   const values = property.type === "title" ? property.title : property.rich_text;
@@ -93,7 +123,7 @@ function checkbox(property?: NotionProperty) {
   return property?.checkbox ?? false;
 }
 
-function asPages(results: unknown[]) {
+function asPages(results: unknown[] = []) {
   return results.filter(
     (result): result is NotionPage =>
       typeof result === "object" &&
@@ -168,9 +198,9 @@ function demoData(): KuzushijiDashboard {
 }
 
 export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
-  const notion = getNotionClient();
+  const token = getNotionToken();
 
-  if (!notion) {
+  if (!token) {
     return demoData();
   }
 
@@ -183,9 +213,9 @@ export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
 
   try {
     const [lecturesResponse, charactersResponse, mistakesResponse] = await Promise.all([
-      notion.dataSources.query({ data_source_id: lecturesId, page_size: 100 }),
-      notion.dataSources.query({ data_source_id: charactersId, page_size: 100 }),
-      notion.dataSources.query({ data_source_id: mistakesId, page_size: 100 }),
+      queryDataSource(lecturesId, token),
+      queryDataSource(charactersId, token),
+      queryDataSource(mistakesId, token),
     ]);
 
     const lectures = asPages(lecturesResponse.results).map((page) => ({
