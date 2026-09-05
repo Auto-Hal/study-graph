@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ReviewSession, { type ReviewCard } from "@/src/components/ReviewSession";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
+import { getDueReviewItems } from "@/src/lib/supabase/review";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,10 @@ function displayGlyph(value: string) {
 
 export default async function ReviewPage() {
   const data = await getKuzushijiDashboard();
+  const scheduledReview = await getDueReviewItems(data.reviewQueue);
   const cards: ReviewCard[] = [];
 
-  for (const item of data.reviewQueue) {
+  for (const item of scheduledReview.items) {
     if (item.kind === "character") {
       const character = data.characters.find((candidate) => candidate.id === item.id);
       if (!character) continue;
@@ -70,7 +72,7 @@ export default async function ReviewPage() {
         </div>
       </header>
 
-      <ReviewSession cards={cards} />
+      <ReviewSession cards={cards} persistence={scheduledReview.persistence} />
     </main>
   );
 }

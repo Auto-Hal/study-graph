@@ -19,6 +19,16 @@ type Grade = "again" | "hard" | "good" | "easy";
 type Result = {
   id: string;
   grade: Grade;
+  saved: boolean;
+  dueAt: string | null;
+};
+
+type SaveResponse = {
+  saved?: boolean;
+  dueAt?: string;
+  intervalDays?: number;
+  repetitions?: number;
+  error?: string;
 };
 
 const gradeOptions: Array<{
@@ -32,11 +42,32 @@ const gradeOptions: Array<{
   { grade: "easy", label: "即答", hint: "迷わず答えられた" },
 ];
 
-export default function ReviewSession({ cards }: { cards: ReviewCard[] }) {
+function formatNextDue(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export default function ReviewSession({
+  cards,
+  persistence,
+}: {
+  cards: ReviewCard[];
+  persistence: "supabase" | "fallback";
+}) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [results, setResults] = useState<Result[]>([]);
   const [finished, setFinished] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const summary = useMemo(() => {
     const counts: Record<Grade, number> = { again: 0, hard: 0, good: 0, easy: 0 };
@@ -44,12 +75,20 @@ export default function ReviewSession({ cards }: { cards: ReviewCard[] }) {
     return counts;
   }, [results]);
 
+  const nextDue = useMemo(() => {
+    const dates = results
+      .map((result) => result.dueAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    return formatNextDue(dates[0] ?? null);
+  }, [results]);
+
   if (cards.length === 0) {
     return (
       <section className="review-stage empty-stage">
         <p className="eyebrow">REVIEW</p>
         <h1>今日は復習項目がありません。</h1>
-        <p>Notion側で再出題対象や未定着文字が追加されると、ここに自動で出てきます。</p>
+        <p>次回復習日になった項目や、新しくNotionに追加された弱点がここに自動で出てきます。</p>
         <Link className="secondary-action" href="/">ホームへ戻る</Link>
       </section>
     );
@@ -58,17 +97,23 @@ export default function ReviewSession({ cards }: { cards: ReviewCard[] }) {
   if (finished) {
     const confident = summary.good + summary.easy;
     const needsWork = summary.again + summary.hard;
+    const savedCount = results.filter((result) => result.saved).length;
+    const fullySaved = savedCount === results.length && results.length > 0;
 
     return (
       <section className="review-stage result-stage">
         <p className="eyebrow">SESSION COMPLETE</p>
         <h1>今日の復習は完了です。</h1>
-        <p className="result-lead">{cards.length}問を確認しました。まずは学習体験を固める段階なので、この結果はまだNotionには書き戻しません。</p>
+        <p className="result-lead">
+          {fullySaved
+            ? "今回の評価を保存し、次回復習日を更新しました。Homeには期限が来た項目だけが再表示されます。"
+            : "復習セッションは完了しました。Supabase接続前のため、この結果はまだ永続保存されていません。"}
+        </p>
 
         <div className="result-grid">
           <div><strong>{confident}</strong><span>自力でできた</span></div>
           <div><strong>{needsWork}</strong><span>要再確認</span></div>
-          <div><strong>{summary.easy}</strong><span>即答</span></div>
+          <div><strong>{nextDue ?? "—"}</strong><span>最短の次回復習</span></div>
         </div>
 
         <div className="grade-summary">
@@ -89,6 +134,7 @@ export default function ReviewSession({ cards }: { cards: ReviewCard[] }) {
               setRevealed(false);
               setResults([]);
               setFinished(false);
+              setSaveError(null);
             }}
           >
             もう一度復習する
@@ -102,17 +148,48 @@ export default function ReviewSession({ cards }: { cards: ReviewCard[] }) {
   const card = cards[index];
   const progress = ((index + 1) / cards.length) * 100;
 
-  function gradeCurrent(grade: Grade) {
-    const nextResults = [...results, { id: card.id, grade }];
-    setResults(nextResults);
+  async function gradeCurrent(grade: Grade) {
+    if (saving) return;
 
-    if (index >= cards.length - 1) {
-      setFinished(true);
-      return;
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      const response = await fetch("/api/review/attempt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: card.id, itemKind: card.kind, grade }),
+      });
+
+      const payload = (await response.json()) as SaveResponse;
+      if (!response.ok) {
+        throw new Error(payload.error || "save_failed");
+      }
+
+      const nextResults = [
+        ...results,
+        {
+          id: card.id,
+          grade,
+          saved: payload.saved === true,
+          dueAt: typeof payload.dueAt === "string" ? payload.dueAt : null,
+        },
+      ];
+      setResults(nextResults);
+
+      if (index >= cards.length - 1) {
+        setFinished(true);
+        return;
+      }
+
+      setIndex((current) => current + 1);
+      setRevealed(false);
+    } catch (error) {
+      console.error("Study Graph: review save failed", error);
+      setSaveError("評価を保存できませんでした。通信状態を確認して、もう一度押してください。");
+    } finally {
+      setSaving(false);
     }
-
-    setIndex((current) => current + 1);
-    setRevealed(false);
   }
 
   return (
@@ -164,10 +241,19 @@ export default function ReviewSession({ cards }: { cards: ReviewCard[] }) {
       {revealed && (
         <div className="grade-area">
           <p>どのくらい思い出せましたか？</p>
+          {persistence === "fallback" && (
+            <p className="persistence-note">Supabase接続前のため、現在は評価を保存せずに進みます。</p>
+          )}
+          {saveError && <p className="save-error" role="alert">{saveError}</p>}
           <div className="grade-buttons">
             {gradeOptions.map((option) => (
-              <button key={option.grade} type="button" onClick={() => gradeCurrent(option.grade)}>
-                <strong>{option.label}</strong>
+              <button
+                key={option.grade}
+                type="button"
+                disabled={saving}
+                onClick={() => void gradeCurrent(option.grade)}
+              >
+                <strong>{saving ? "保存中…" : option.label}</strong>
                 <span>{option.hint}</span>
               </button>
             ))}
