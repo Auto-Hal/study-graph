@@ -12,6 +12,17 @@ export type ReviewState = {
   due_at: string;
 };
 
+export type ReviewAttempt = {
+  id: number;
+  item_id: string;
+  item_kind: "character" | "mistake";
+  grade: ReviewGrade;
+  previous_interval_days: number;
+  interval_days: number;
+  reviewed_at: string;
+  due_at: string;
+};
+
 type RecordReviewResult = {
   due_at: string;
   interval_days: number;
@@ -59,6 +70,11 @@ async function callRpc<T>(name: string, body: Record<string, unknown>): Promise<
 
 export async function getReviewStates(): Promise<ReviewState[]> {
   return callRpc<ReviewState[]>("study_graph_review_states", {});
+}
+
+export async function getReviewHistory(limit = 50): Promise<ReviewAttempt[]> {
+  const normalizedLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
+  return callRpc<ReviewAttempt[]>("study_graph_review_history", { p_limit: normalizedLimit });
 }
 
 export async function getDueReviewItems<T extends { id: string }>(items: T[]) {
