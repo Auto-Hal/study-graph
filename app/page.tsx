@@ -35,6 +35,13 @@ export default async function Home() {
         </section>
       )}
 
+      {scheduledReview.persistence === "fallback" && (
+        <section className="notice" role="status">
+          <strong>復習スケジュールを取得できません。</strong>
+          <span> Notion由来の候補を表示しています。Settingsから接続状態を確認できます。</span>
+        </section>
+      )}
+
       <section className="hero-grid">
         <article className="review-card primary-card">
           <div className="card-heading">
