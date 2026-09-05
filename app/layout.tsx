@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./review-persistence.css";
 
 export const metadata: Metadata = {
   title: "Study Graph",
