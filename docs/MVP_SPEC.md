@@ -75,16 +75,28 @@ Phase 1の対象は「くずし字学習」。AI生成、Knowledge Graph、他�
 
 Phase 1.4では高度な分析やAI診断は行わず、Supabaseに既に存在する履歴を「見返せる」ことを優先する。
 
-### Phase 1.5 — MVP polish & release readiness
+### Phase 1.5 — MVP polish & release readiness 🚧
 
-- ナビゲーション・空状態・エラー状態の統一
-- Mobile / iPad実機でのUI調整
-- アクセシビリティの基本確認
-- アプリ名・favicon / Home Screen iconを正式化
-- 現在の仮 `S` / `SG` アイコンをStudy Graph正式アイコンへ置換
-- 設定・接続状態の最低限の可視化
-- README / architecture / setup docsの最終整理
-- 本番スモークテスト
+実装済み:
+
+- Home / Learn / Review / Settings の共通ナビゲーション
+- 未実装GraphをPhase 2予定として明示し、誤操作を防止
+- 空状態、404、再試行可能なエラー画面を整備
+- Notion / Supabase接続状態を確認できるSettings画面
+- Supabaseスケジュール取得失敗時のfallback表示を明示
+- iPhoneのsafe areaを考慮した下部ナビゲーション
+- Mobile向けカード・接続状態表示・余白の調整
+- focus-visible、review progressbar、aria-live、reduced motionなど基本アクセシビリティ対応
+- 全復習日時をAsia/Tokyo表示へ統一
+- Study Graph正式グラフアイコンをfavicon / UIブランドマークへ適用
+- Web App Manifest / Apple Home Screen icon / theme colorを追加
+- README / architectureを現行MVPへ更新
+
+残作業:
+
+- GitHub CI成功確認
+- mainへのマージ
+- ProductionでNotion / Supabase実接続を含む本番スモークテスト
 
 **Phase 1.5完了を「くずし字MVP完成」とする。**
 
@@ -117,8 +129,8 @@ Phase 1.4では高度な分析やAI診断は行わず、Supabaseに既に存在�
 - [x] 次回復習日を計算し期限前項目をHomeから除外できる
 - [x] Project / entity navigationを本番で利用できる
 - [x] 過去の復習履歴と今後の復習予定を確認できる
-- [ ] 空状態・失敗状態・主要画面のMobile UIが整っている
-- [ ] 正式なStudy Graphアプリアイコンが設定されている
+- [x] 空状態・失敗状態・主要画面のMobile向けUIを実装している
+- [x] 正式なStudy GraphアプリアイコンとPWAメタデータが設定されている
 - [ ] Phase 1本番スモークテストが完了している
 
 ## 6. Phase 2 direction
