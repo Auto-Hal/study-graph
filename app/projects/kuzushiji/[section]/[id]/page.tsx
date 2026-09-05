@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
-import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
+import {
+  getReviewHistory,
+  getReviewStates,
+  isReviewPersistenceConfigured,
+  type ReviewAttempt,
+  type ReviewGrade,
+  type ReviewState,
+} from "@/src/lib/supabase/review";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +20,7 @@ const sectionLabels: Record<Section, string> = {
   mistakes: "誤読記録",
 };
 
-const gradeLabels: Record<ReviewState["last_grade"], string> = {
+const gradeLabels: Record<ReviewGrade, string> = {
   again: "もう一度",
   hard: "難しい",
   good: "できた",
@@ -45,13 +52,16 @@ function formatPercent(value: number | null) {
   return `${Math.round(normalized * 10) / 10}%`;
 }
 
-async function findReviewState(id: string): Promise<ReviewState | null> {
-  if (!isReviewPersistenceConfigured()) return null;
+async function reviewDataForItem(id: string): Promise<{ state: ReviewState | null; attempts: ReviewAttempt[] }> {
+  if (!isReviewPersistenceConfigured()) return { state: null, attempts: [] };
   try {
-    const states = await getReviewStates();
-    return states.find((state) => state.item_id === id) ?? null;
+    const [states, history] = await Promise.all([getReviewStates(), getReviewHistory(100)]);
+    return {
+      state: states.find((state) => state.item_id === id) ?? null,
+      attempts: history.filter((attempt) => attempt.item_id === id),
+    };
   } catch {
-    return null;
+    return { state: null, attempts: [] };
   }
 }
 
@@ -72,8 +82,8 @@ export default async function KuzushijiEntityDetailPage({
   const { section, id } = await params;
   if (!isSection(section)) notFound();
 
-  const data = await getKuzushijiDashboard();
-  const reviewState = await findReviewState(id);
+  const [data, review] = await Promise.all([getKuzushijiDashboard(), reviewDataForItem(id)]);
+  const reviewState = review.state;
 
   const lecture = section === "lectures" ? data.lectures.find((item) => item.id === id) : null;
   const character = section === "characters" ? data.characters.find((item) => item.id === id) : null;
@@ -162,8 +172,27 @@ export default async function KuzushijiEntityDetailPage({
           )}
         </div>
 
+        {review.attempts.length > 0 && (
+          <section className="item-history">
+            <h2>復習履歴</h2>
+            <div className="activity-list">
+              {review.attempts.slice(0, 12).map((attempt) => (
+                <div className="activity-row" key={attempt.id}>
+                  <span className="activity-time">{formatDate(attempt.reviewed_at)}</span>
+                  <div className="activity-copy">
+                    <strong>{gradeLabels[attempt.grade]}</strong>
+                    <p>間隔 {attempt.interval_days === 0 ? "10分" : `${attempt.interval_days}日`}・次回 {formatDate(attempt.due_at)}</p>
+                  </div>
+                  <span className="activity-grade">{attempt.previous_interval_days === 0 ? "初回" : `前 ${attempt.previous_interval_days}日`}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="detail-actions">
           <Link href={`/projects/kuzushiji/${section}`}>← {sectionLabels[section]}一覧へ</Link>
+          <Link href="/projects/kuzushiji/progress">学習記録を見る</Link>
           {item.url !== "#" && (
             <a className="primary-detail-action" href={item.url} target="_blank" rel="noreferrer">
               Notionで元データを開く

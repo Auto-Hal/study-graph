@@ -51,7 +51,7 @@ Phase 1の対象は「くずし字学習」。AI生成、Knowledge Graph、他�
 - RLS + server-only app token
 - Notionは引き続きread-only
 
-### Phase 1.3 — Project navigation & knowledge browsing 🚧
+### Phase 1.3 — Project navigation & knowledge browsing ✅
 
 - Projects一覧
 - くずし字Project詳細
@@ -61,15 +61,17 @@ Phase 1の対象は「くずし字学習」。AI生成、Knowledge Graph、他�
 - HomeからStudy Graph内の各詳細へ遷移
 - 詳細画面からNotion原本を開ける
 - Supabaseに復習状態がある項目は最終評価・次回復習も表示
+- 復習日時はAsia/Tokyoで表示
 
-### Phase 1.4 — Progress & review history
+### Phase 1.4 — Progress & review history ✅
 
+- 保護されたSupabase RPC経由で復習履歴を取得
 - 復習履歴一覧
 - 直近の学習活動
 - 次回復習予定の可視化
 - 自己評価別の件数・傾向
 - 文字 / 誤読単位の履歴表示
-- HomeまたはProject詳細に最低限の進捗サマリー
+- Project詳細に進捗サマリーと学習記録への導線
 
 Phase 1.4では高度な分析やAI診断は行わず、Supabaseに既に存在する履歴を「見返せる」ことを優先する。
 
@@ -113,8 +115,8 @@ Phase 1.4では高度な分析やAI診断は行わず、Supabaseに既に存在�
 - [x] Mobileで復習セッションを完走できる
 - [x] 自己評価をSupabaseへ永続保存できる
 - [x] 次回復習日を計算し期限前項目をHomeから除外できる
-- [ ] Project / entity navigationを本番で利用できる
-- [ ] 過去の復習履歴と今後の復習予定を確認できる
+- [x] Project / entity navigationを本番で利用できる
+- [x] 過去の復習履歴と今後の復習予定を確認できる
 - [ ] 空状態・失敗状態・主要画面のMobile UIが整っている
 - [ ] 正式なStudy Graphアプリアイコンが設定されている
 - [ ] Phase 1本番スモークテストが完了している

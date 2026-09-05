@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./review-persistence.css";
 import "./project-navigation.css";
+import "./progress.css";
 
 export const metadata: Metadata = {
   title: "Study Graph",
