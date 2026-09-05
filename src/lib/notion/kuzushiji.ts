@@ -1,5 +1,9 @@
 import { getNotionClient } from "./client";
 
+const DEFAULT_LECTURES_DATA_SOURCE_ID = "1da45577-aa7d-44e1-a304-9e33e5feb9e2";
+const DEFAULT_CHARACTERS_DATA_SOURCE_ID = "4a9814ba-7c44-47ec-8c46-e5d558a62085";
+const DEFAULT_MISTAKES_DATA_SOURCE_ID = "12c37554-c7fa-424f-9590-f2f756bf284a";
+
 type NotionProperty = {
   type?: string;
   title?: Array<{ plain_text?: string }>;
@@ -165,85 +169,94 @@ function demoData(): KuzushijiDashboard {
 
 export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
   const notion = getNotionClient();
-  const lecturesId = process.env.NOTION_KUZUSHIJI_LECTURES_DATA_SOURCE_ID;
-  const charactersId = process.env.NOTION_KUZUSHIJI_CHARACTERS_DATA_SOURCE_ID;
-  const mistakesId = process.env.NOTION_KUZUSHIJI_MISTAKES_DATA_SOURCE_ID;
 
-  if (!notion || !lecturesId || !charactersId || !mistakesId) {
+  if (!notion) {
     return demoData();
   }
 
-  const [lecturesResponse, charactersResponse, mistakesResponse] = await Promise.all([
-    notion.dataSources.query({ data_source_id: lecturesId, page_size: 100 }),
-    notion.dataSources.query({ data_source_id: charactersId, page_size: 100 }),
-    notion.dataSources.query({ data_source_id: mistakesId, page_size: 100 }),
-  ]);
+  const lecturesId =
+    process.env.NOTION_KUZUSHIJI_LECTURES_DATA_SOURCE_ID ?? DEFAULT_LECTURES_DATA_SOURCE_ID;
+  const charactersId =
+    process.env.NOTION_KUZUSHIJI_CHARACTERS_DATA_SOURCE_ID ?? DEFAULT_CHARACTERS_DATA_SOURCE_ID;
+  const mistakesId =
+    process.env.NOTION_KUZUSHIJI_MISTAKES_DATA_SOURCE_ID ?? DEFAULT_MISTAKES_DATA_SOURCE_ID;
 
-  const lectures = asPages(lecturesResponse.results).map((page) => ({
-    id: page.id,
-    url: page.url,
-    title: text(page.properties["講義名"]),
-    sequence: number(page.properties["回次"]) ?? 0,
-    theme: text(page.properties["学習テーマ"]),
-    status: select(page.properties["状態"]),
-    completedAt: date(page.properties["実施日"]),
-    reviewAccuracy: number(page.properties["復習正答率"]),
-    newCharactersCount: number(page.properties["新規字数"]),
-  }));
+  try {
+    const [lecturesResponse, charactersResponse, mistakesResponse] = await Promise.all([
+      notion.dataSources.query({ data_source_id: lecturesId, page_size: 100 }),
+      notion.dataSources.query({ data_source_id: charactersId, page_size: 100 }),
+      notion.dataSources.query({ data_source_id: mistakesId, page_size: 100 }),
+    ]);
 
-  lectures.sort((a, b) => a.sequence - b.sequence);
-
-  const characters = asPages(charactersResponse.results).map((page) => ({
-    id: page.id,
-    url: page.url,
-    glyph: text(page.properties["文字"]),
-    reading: text(page.properties["読み"]),
-    category: select(page.properties["分類"]),
-    mastery: select(page.properties["習得状態"]),
-    importance: select(page.properties["重要度"]),
-    errorCount: number(page.properties["誤読回数"]) ?? 0,
-    lastReviewedAt: date(page.properties["最終復習日"]),
-  }));
-
-  const mistakes = asPages(mistakesResponse.results).map((page) => ({
-    id: page.id,
-    url: page.url,
-    title: text(page.properties["誤読項目"]),
-    answer: text(page.properties["自分の回答"]),
-    correctAnswer: text(page.properties["正解"]),
-    cause: select(page.properties["原因"]),
-    retry: checkbox(page.properties["再出題"]),
-    resolved: checkbox(page.properties["克服済み"]),
-    errorDate: date(page.properties["誤読日"]),
-  }));
-
-  const retryMistakes: ReviewItem[] = mistakes
-    .filter((item) => item.retry && !item.resolved)
-    .map((item) => ({
-      id: item.id,
-      kind: "mistake",
-      label: item.title || item.correctAnswer || "誤読記録",
-      reason: item.cause || "再出題対象",
+    const lectures = asPages(lecturesResponse.results).map((page) => ({
+      id: page.id,
+      url: page.url,
+      title: text(page.properties["講義名"]),
+      sequence: number(page.properties["回次"]) ?? 0,
+      theme: text(page.properties["学習テーマ"]),
+      status: select(page.properties["状態"]),
+      completedAt: date(page.properties["実施日"]),
+      reviewAccuracy: number(page.properties["復習正答率"]),
+      newCharactersCount: number(page.properties["新規字数"]),
     }));
 
-  const weakCharacters: ReviewItem[] = characters
-    .filter((item) => item.mastery !== "即読")
-    .sort((a, b) => b.errorCount - a.errorCount)
-    .slice(0, 12)
-    .map((item) => ({
-      id: item.id,
-      kind: "character",
-      label: item.glyph || item.reading || "文字",
-      reason: [item.mastery, item.importance ? `重要度${item.importance}` : ""]
-        .filter(Boolean)
-        .join("・"),
+    lectures.sort((a, b) => a.sequence - b.sequence);
+
+    const characters = asPages(charactersResponse.results).map((page) => ({
+      id: page.id,
+      url: page.url,
+      glyph: text(page.properties["文字"]),
+      reading: text(page.properties["読み"]),
+      category: select(page.properties["分類"]),
+      mastery: select(page.properties["習得状態"]),
+      importance: select(page.properties["重要度"]),
+      errorCount: number(page.properties["誤読回数"]) ?? 0,
+      lastReviewedAt: date(page.properties["最終復習日"]),
     }));
 
-  return {
-    mode: "notion",
-    lectures,
-    characters,
-    mistakes,
-    reviewQueue: [...retryMistakes, ...weakCharacters].slice(0, 12),
-  };
+    const mistakes = asPages(mistakesResponse.results).map((page) => ({
+      id: page.id,
+      url: page.url,
+      title: text(page.properties["誤読項目"]),
+      answer: text(page.properties["自分の回答"]),
+      correctAnswer: text(page.properties["正解"]),
+      cause: select(page.properties["原因"]),
+      retry: checkbox(page.properties["再出題"]),
+      resolved: checkbox(page.properties["克服済み"]),
+      errorDate: date(page.properties["誤読日"]),
+    }));
+
+    const retryMistakes: ReviewItem[] = mistakes
+      .filter((item) => item.retry && !item.resolved)
+      .map((item) => ({
+        id: item.id,
+        kind: "mistake",
+        label: item.title || item.correctAnswer || "誤読記録",
+        reason: item.cause || "再出題対象",
+      }));
+
+    const weakCharacters: ReviewItem[] = characters
+      .filter((item) => item.mastery !== "即読")
+      .sort((a, b) => b.errorCount - a.errorCount)
+      .slice(0, 12)
+      .map((item) => ({
+        id: item.id,
+        kind: "character",
+        label: item.glyph || item.reading || "文字",
+        reason: [item.mastery, item.importance ? `重要度${item.importance}` : ""]
+          .filter(Boolean)
+          .join("・"),
+      }));
+
+    return {
+      mode: "notion",
+      lectures,
+      characters,
+      mistakes,
+      reviewQueue: [...retryMistakes, ...weakCharacters].slice(0, 12),
+    };
+  } catch (error) {
+    console.error("Study Graph: Notion sync failed", error);
+    return demoData();
+  }
 }
