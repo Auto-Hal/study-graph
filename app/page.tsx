@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
+import { getDueReviewItems } from "@/src/lib/supabase/review";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const data = await getKuzushijiDashboard();
+  const scheduledReview = await getDueReviewItems(data.reviewQueue);
+  const reviewQueue = scheduledReview.items;
   const completedLectures = data.lectures.filter((lecture) => lecture.status === "完了").length;
   const weakCharacters = data.characters.filter((character) => character.mastery !== "即読").length;
   const openMistakes = data.mistakes.filter((mistake) => !mistake.resolved).length;
@@ -38,14 +41,14 @@ export default async function Home() {
               <p className="eyebrow">TODAY</p>
               <h2>今日の復習</h2>
             </div>
-            <span className="count-badge">{data.reviewQueue.length}</span>
+            <span className="count-badge">{reviewQueue.length}</span>
           </div>
 
           <div className="review-list">
-            {data.reviewQueue.length === 0 ? (
-              <p className="empty">現在、優先して復習する項目はありません。</p>
+            {reviewQueue.length === 0 ? (
+              <p className="empty">現在、期限が来ている復習項目はありません。</p>
             ) : (
-              data.reviewQueue.slice(0, 5).map((item) => (
+              reviewQueue.slice(0, 5).map((item) => (
                 <div className="review-row" key={`${item.kind}-${item.id}`}>
                   <span className="kind">{item.kind === "mistake" ? "誤読" : "文字"}</span>
                   <div>
@@ -57,13 +60,13 @@ export default async function Home() {
             )}
           </div>
 
-          {data.reviewQueue.length > 0 ? (
+          {reviewQueue.length > 0 ? (
             <Link className="start-button" href="/review">
-              復習を開始 <span>{data.reviewQueue.length}問</span>
+              復習を開始 <span>{reviewQueue.length}問</span>
             </Link>
           ) : (
             <span className="start-button is-disabled">
-              復習項目はありません <span>0問</span>
+              次の復習まで待機 <span>0問</span>
             </span>
           )}
         </article>
