@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ export default async function KuzushijiSectionPage({
     <main className="learn-shell">
       <header className="learn-header">
         <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark">SG</span>
+          <span className="learn-brand-mark" aria-hidden="true">SG</span>
           <span>
             <strong>Study Graph</strong>
             <small>くずし字・{meta.title}</small>
@@ -61,7 +62,7 @@ export default async function KuzushijiSectionPage({
         </div>
       </header>
 
-      <nav className="breadcrumbs" aria-label="Breadcrumb">
+      <nav className="breadcrumbs" aria-label="パンくずリスト">
         <Link href="/projects">Projects</Link>
         <span><Link href="/projects/kuzushiji">くずし字</Link></span>
         <span>{meta.title}</span>
@@ -110,16 +111,15 @@ export default async function KuzushijiSectionPage({
           </Link>
         ))}
 
-        {count === 0 && <p className="empty" style={{ padding: 20 }}>まだ項目がありません。</p>}
+        {count === 0 && (
+          <div className="empty-state-inline">
+            <strong>まだ項目がありません。</strong>
+            <p>Notionに追加すると、次回の表示時にここへ反映されます。</p>
+          </div>
+        )}
       </section>
 
-      <footer className="learn-bottom-nav" aria-label="Primary navigation">
-        <Link href="/">Home</Link>
-        <Link className="active" href="/projects">Learn</Link>
-        <Link href="/review">Review</Link>
-        <span>Graph</span>
-        <span>Settings</span>
-      </footer>
+      <PrimaryNav active="learn" />
     </main>
   );
 }
