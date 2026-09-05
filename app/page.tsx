@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 
 export const dynamic = "force-dynamic";
@@ -56,9 +57,15 @@ export default async function Home() {
             )}
           </div>
 
-          <button className="start-button" type="button" disabled>
-            復習を開始 <span>Phase 1.1</span>
-          </button>
+          {data.reviewQueue.length > 0 ? (
+            <Link className="start-button" href="/review">
+              復習を開始 <span>{data.reviewQueue.length}問</span>
+            </Link>
+          ) : (
+            <span className="start-button is-disabled">
+              復習項目はありません <span>0問</span>
+            </span>
+          )}
         </article>
 
         <aside className="project-card">
@@ -124,9 +131,9 @@ export default async function Home() {
       </section>
 
       <footer className="bottom-nav" aria-label="Primary navigation">
-        <span className="active">Home</span>
+        <Link className="active" href="/">Home</Link>
         <span>Learn</span>
-        <span>Review</span>
+        <Link href="/review">Review</Link>
         <span>Graph</span>
         <span>Settings</span>
       </footer>
