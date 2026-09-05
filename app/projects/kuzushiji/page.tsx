@@ -1,12 +1,46 @@
 import Link from "next/link";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
-import { getDueReviewItems } from "@/src/lib/supabase/review";
+import {
+  getDueReviewItems,
+  getReviewHistory,
+  getReviewStates,
+  isReviewPersistenceConfigured,
+} from "@/src/lib/supabase/review";
 
 export const dynamic = "force-dynamic";
 
+function formatDateTime(value: string | null) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+async function progressSummary() {
+  if (!isReviewPersistenceConfigured()) return { attempts: 0, nextDue: null as string | null };
+  try {
+    const [history, states] = await Promise.all([getReviewHistory(100), getReviewStates()]);
+    const now = Date.now();
+    const nextDue = states
+      .map((state) => state.due_at)
+      .filter((value) => new Date(value).getTime() > now)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null;
+    return { attempts: history.length, nextDue };
+  } catch {
+    return { attempts: 0, nextDue: null as string | null };
+  }
+}
+
 export default async function KuzushijiProjectPage() {
   const data = await getKuzushijiDashboard();
-  const scheduledReview = await getDueReviewItems(data.reviewQueue);
+  const [scheduledReview, progress] = await Promise.all([
+    getDueReviewItems(data.reviewQueue),
+    progressSummary(),
+  ]);
   const completedLectures = data.lectures.filter((lecture) => lecture.status === "完了").length;
   const weakCharacters = data.characters.filter((character) => character.mastery !== "即読").length;
   const openMistakes = data.mistakes.filter((mistake) => !mistake.resolved).length;
@@ -100,6 +134,10 @@ export default async function KuzushijiProjectPage() {
           ) : (
             <span className="quick-action is-muted">次の復習まで待機</span>
           )}
+          <Link className="progress-link-card" href="/projects/kuzushiji/progress">
+            <strong>学習記録を見る →</strong>
+            <span>保存済み {progress.attempts}回・次回 {formatDateTime(progress.nextDue)}</span>
+          </Link>
         </aside>
       </section>
 
