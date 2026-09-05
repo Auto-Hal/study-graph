@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import { getDueReviewItems } from "@/src/lib/supabase/review";
 
@@ -28,9 +29,16 @@ export default async function Home() {
       </header>
 
       {data.mode === "demo" && (
-        <section className="notice">
+        <section className="notice" role="status">
           <strong>Notion接続を確認できません。</strong>
-          <span> Vercelの `NOTION_TOKEN` と、Notion側でIntegrationが「くずし字学習」に接続されているか確認してください。</span>
+          <span> Demo dataで表示しています。Settingsから接続状態を確認できます。</span>
+        </section>
+      )}
+
+      {scheduledReview.persistence === "fallback" && (
+        <section className="notice" role="status">
+          <strong>復習スケジュールを取得できません。</strong>
+          <span> Notion由来の候補を表示しています。Settingsから接続状態を確認できます。</span>
         </section>
       )}
 
@@ -41,7 +49,7 @@ export default async function Home() {
               <p className="eyebrow">TODAY</p>
               <h2>今日の復習</h2>
             </div>
-            <span className="count-badge">{reviewQueue.length}</span>
+            <span className="count-badge" aria-label={`${reviewQueue.length}問`}>{reviewQueue.length}</span>
           </div>
 
           <div className="review-list">
@@ -65,16 +73,16 @@ export default async function Home() {
               復習を開始 <span>{reviewQueue.length}問</span>
             </Link>
           ) : (
-            <span className="start-button is-disabled">
-              次の復習まで待機 <span>0問</span>
-            </span>
+            <Link className="start-button is-disabled" href="/projects/kuzushiji/progress">
+              次回予定を見る <span>0問</span>
+            </Link>
           )}
         </article>
 
         <Link className="project-card" href="/projects/kuzushiji">
           <p className="eyebrow">PROJECT</p>
           <div className="project-title">
-            <span className="project-icon">く</span>
+            <span className="project-icon" aria-hidden="true">く</span>
             <div>
               <h2>くずし字</h2>
               <p>博物館・文書館の実物資料を自力で読む</p>
@@ -100,7 +108,9 @@ export default async function Home() {
           </div>
 
           <div className="lecture-list">
-            {recentLectures.map((lecture) => (
+            {recentLectures.length === 0 ? (
+              <p className="empty empty-panel">講義がまだ登録されていません。</p>
+            ) : recentLectures.map((lecture) => (
               <Link className="lecture-row" href={`/projects/kuzushiji/lectures/${lecture.id}`} key={lecture.id}>
                 <span className="lecture-number">{String(lecture.sequence).padStart(2, "0")}</span>
                 <div className="lecture-copy">
@@ -123,7 +133,9 @@ export default async function Home() {
           </div>
 
           <div className="character-grid">
-            {data.characters.slice(0, 8).map((character) => (
+            {data.characters.length === 0 ? (
+              <p className="empty empty-panel">文字がまだ登録されていません。</p>
+            ) : data.characters.slice(0, 8).map((character) => (
               <Link className="character-card" href={`/projects/kuzushiji/characters/${character.id}`} key={character.id}>
                 <strong>{character.glyph || "?"}</strong>
                 <span>{character.mastery || "未設定"}</span>
@@ -134,13 +146,7 @@ export default async function Home() {
         </article>
       </section>
 
-      <footer className="bottom-nav" aria-label="Primary navigation">
-        <Link className="active" href="/">Home</Link>
-        <Link href="/projects">Learn</Link>
-        <Link href="/review">Review</Link>
-        <span>Graph</span>
-        <span>Settings</span>
-      </footer>
+      <PrimaryNav active="home" variant="home" />
     </main>
   );
 }

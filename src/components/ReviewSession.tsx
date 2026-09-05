@@ -48,6 +48,7 @@ function formatNextDue(value: string | null) {
   if (Number.isNaN(date.getTime())) return null;
 
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -89,7 +90,10 @@ export default function ReviewSession({
         <p className="eyebrow">REVIEW</p>
         <h1>今日は復習項目がありません。</h1>
         <p>次回復習日になった項目や、新しくNotionに追加された弱点がここに自動で出てきます。</p>
-        <Link className="secondary-action" href="/">ホームへ戻る</Link>
+        <div className="result-actions single-action-row">
+          <Link className="secondary-action" href="/projects/kuzushiji/progress">次回予定を見る</Link>
+          <Link className="secondary-action" href="/">ホームへ戻る</Link>
+        </div>
       </section>
     );
   }
@@ -101,7 +105,7 @@ export default function ReviewSession({
     const fullySaved = savedCount === results.length && results.length > 0;
 
     return (
-      <section className="review-stage result-stage">
+      <section className="review-stage result-stage" aria-live="polite">
         <p className="eyebrow">SESSION COMPLETE</p>
         <h1>今日の復習は完了です。</h1>
         <p className="result-lead">
@@ -139,7 +143,7 @@ export default function ReviewSession({
           >
             もう一度復習する
           </button>
-          <Link className="secondary-action" href="/">ホームへ戻る</Link>
+          <Link className="secondary-action" href="/projects/kuzushiji/progress">学習記録を見る</Link>
         </div>
       </section>
     );
@@ -202,7 +206,15 @@ export default function ReviewSession({
         <Link href="/">終了</Link>
       </div>
 
-      <div className="progress-track" aria-label={`復習進捗 ${index + 1}/${cards.length}`}>
+      <div
+        className="progress-track"
+        role="progressbar"
+        aria-label="復習進捗"
+        aria-valuemin={1}
+        aria-valuemax={cards.length}
+        aria-valuenow={index + 1}
+        aria-valuetext={`${index + 1}/${cards.length}`}
+      >
         <span style={{ width: `${progress}%` }} />
       </div>
 
@@ -242,7 +254,7 @@ export default function ReviewSession({
         <div className="grade-area">
           <p>どのくらい思い出せましたか？</p>
           {persistence === "fallback" && (
-            <p className="persistence-note">Supabase接続前のため、現在は評価を保存せずに進みます。</p>
+            <p className="persistence-note" role="status">Supabase接続前のため、現在は評価を保存せずに進みます。</p>
           )}
           {saveError && <p className="save-error" role="alert">{saveError}</p>}
           <div className="grade-buttons">
@@ -251,6 +263,7 @@ export default function ReviewSession({
                 key={option.grade}
                 type="button"
                 disabled={saving}
+                aria-busy={saving}
                 onClick={() => void gradeCurrent(option.grade)}
               >
                 <strong>{saving ? "保存中…" : option.label}</strong>

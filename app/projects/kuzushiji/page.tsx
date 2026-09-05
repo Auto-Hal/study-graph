@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import {
   getDueReviewItems,
@@ -50,7 +51,7 @@ export default async function KuzushijiProjectPage() {
     <main className="learn-shell">
       <header className="learn-header">
         <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark">SG</span>
+          <span className="learn-brand-mark" aria-hidden="true">SG</span>
           <span>
             <strong>Study Graph</strong>
             <small>くずし字</small>
@@ -62,7 +63,7 @@ export default async function KuzushijiProjectPage() {
         </div>
       </header>
 
-      <nav className="breadcrumbs" aria-label="Breadcrumb">
+      <nav className="breadcrumbs" aria-label="パンくずリスト">
         <Link href="/projects">Projects</Link>
         <span>くずし字</span>
       </nav>
@@ -110,7 +111,7 @@ export default async function KuzushijiProjectPage() {
             <div><strong>{weakCharacters}</strong><span>要定着文字</span></div>
             <div><strong>{openMistakes}</strong><span>未克服誤読</span></div>
           </div>
-          {latestLecture && (
+          {latestLecture ? (
             <div className="entity-list">
               <Link className="entity-row" href={`/projects/kuzushiji/lectures/${latestLecture.id}`}>
                 <span className="entity-row-leading">{String(latestLecture.sequence).padStart(2, "0")}</span>
@@ -121,6 +122,8 @@ export default async function KuzushijiProjectPage() {
                 <span className="entity-row-status">{latestLecture.status || "未設定"}</span>
               </Link>
             </div>
+          ) : (
+            <p className="empty empty-panel">講義がまだ登録されていません。</p>
           )}
         </article>
 
@@ -132,7 +135,7 @@ export default async function KuzushijiProjectPage() {
           {scheduledReview.items.length > 0 ? (
             <Link className="quick-action" href="/review">復習を開始する</Link>
           ) : (
-            <span className="quick-action is-muted">次の復習まで待機</span>
+            <Link className="quick-action is-muted" href="/projects/kuzushiji/progress">次の復習予定を見る</Link>
           )}
           <Link className="progress-link-card" href="/projects/kuzushiji/progress">
             <strong>学習記録を見る →</strong>
@@ -141,13 +144,7 @@ export default async function KuzushijiProjectPage() {
         </aside>
       </section>
 
-      <footer className="learn-bottom-nav" aria-label="Primary navigation">
-        <Link href="/">Home</Link>
-        <Link className="active" href="/projects">Learn</Link>
-        <Link href="/review">Review</Link>
-        <span>Graph</span>
-        <span>Settings</span>
-      </footer>
+      <PrimaryNav active="learn" />
     </main>
   );
 }
