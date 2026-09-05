@@ -1,0 +1,175 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
+import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
+
+export const dynamic = "force-dynamic";
+
+type Section = "lectures" | "characters" | "mistakes";
+
+const sectionLabels: Record<Section, string> = {
+  lectures: "講義",
+  characters: "文字",
+  mistakes: "誤読記録",
+};
+
+function isSection(value: string): value is Section {
+  return value === "lectures" || value === "characters" || value === "mistakes";
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "未設定";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: value.includes("T") || value.includes(" ") ? "2-digit" : undefined,
+    minute: value.includes("T") || value.includes(" ") ? "2-digit" : undefined,
+  }).format(date);
+}
+
+function formatPercent(value: number | null) {
+  if (value === null) return "未設定";
+  const normalized = value <= 1 ? value * 100 : value;
+  return `${Math.round(normalized * 10) / 10}%`;
+}
+
+async function findReviewState(id: string): Promise<ReviewState | null> {
+  if (!isReviewPersistenceConfigured()) return null;
+  try {
+    const states = await getReviewStates();
+    return states.find((state) => state.item_id === id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function Property({ label, value, wide = false }: { label: string; value: string | number; wide?: boolean }) {
+  return (
+    <div className={`property-cell ${wide ? "wide" : ""}`}>
+      <span>{label}</span>
+      <strong>{value === "" ? "未設定" : value}</strong>
+    </div>
+  );
+}
+
+export default async function KuzushijiEntityDetailPage({
+  params,
+}: {
+  params: Promise<{ section: string; id: string }>;
+}) {
+  const { section, id } = await params;
+  if (!isSection(section)) notFound();
+
+  const data = await getKuzushijiDashboard();
+  const reviewState = await findReviewState(id);
+
+  const lecture = section === "lectures" ? data.lectures.find((item) => item.id === id) : null;
+  const character = section === "characters" ? data.characters.find((item) => item.id === id) : null;
+  const mistake = section === "mistakes" ? data.mistakes.find((item) => item.id === id) : null;
+  const item = lecture ?? character ?? mistake;
+  if (!item) notFound();
+
+  const title = lecture?.title || character?.glyph || mistake?.title || sectionLabels[section];
+  const status = lecture?.status || character?.mastery || (mistake ? (mistake.resolved ? "克服済み" : "未克服") : "");
+
+  return (
+    <main className="learn-shell">
+      <header className="learn-header">
+        <Link className="learn-brand" href="/">
+          <span className="learn-brand-mark">SG</span>
+          <span>
+            <strong>Study Graph</strong>
+            <small>くずし字・{sectionLabels[section]}</small>
+          </span>
+        </Link>
+        <div className={`sync-pill ${data.mode === "notion" ? "online" : "demo"}`}>
+          <span className="dot" />
+          {data.mode === "notion" ? "Notion 接続中" : "Demo data"}
+        </div>
+      </header>
+
+      <nav className="breadcrumbs" aria-label="Breadcrumb">
+        <Link href="/projects">Projects</Link>
+        <span><Link href="/projects/kuzushiji">くずし字</Link></span>
+        <span><Link href={`/projects/kuzushiji/${section}`}>{sectionLabels[section]}</Link></span>
+        <span>{title}</span>
+      </nav>
+
+      <article className="entity-detail-card">
+        <div className="entity-detail-title-row">
+          <div>
+            <p className="eyebrow">{section.toUpperCase()} DETAIL</p>
+            <h1>{title}</h1>
+          </div>
+          {status && <span className="mini-pill">{status}</span>}
+        </div>
+
+        <div className="property-grid">
+          {lecture && (
+            <>
+              <Property label="回次" value={lecture.sequence} />
+              <Property label="状態" value={lecture.status || "未設定"} />
+              <Property label="実施日" value={formatDate(lecture.completedAt)} />
+              <Property label="新規字数" value={lecture.newCharactersCount ?? "未設定"} />
+              <Property label="復習正答率" value={formatPercent(lecture.reviewAccuracy)} />
+              <Property label="学習テーマ" value={lecture.theme || "未設定"} wide />
+            </>
+          )}
+
+          {character && (
+            <>
+              <Property label="登録名" value={character.glyph || "未設定"} />
+              <Property label="読み" value={character.reading || "未設定"} />
+              <Property label="字母" value={character.mother || "未設定"} />
+              <Property label="分類" value={character.category || "未設定"} />
+              <Property label="習得状態" value={character.mastery || "未設定"} />
+              <Property label="重要度" value={character.importance || "未設定"} />
+              <Property label="Notion誤読回数" value={character.errorCount} />
+              <Property label="Notion最終復習日" value={formatDate(character.lastReviewedAt)} />
+            </>
+          )}
+
+          {mistake && (
+            <>
+              <Property label="原因" value={mistake.cause || "未設定"} />
+              <Property label="誤読日" value={formatDate(mistake.errorDate)} />
+              <Property label="再出題" value={mistake.retry ? "対象" : "対象外"} />
+              <Property label="克服状態" value={mistake.resolved ? "克服済み" : "未克服"} />
+              <Property label="自分の回答" value={mistake.answer || "未設定"} wide />
+              <Property label="正解" value={mistake.correctAnswer || "未設定"} wide />
+            </>
+          )}
+
+          {reviewState && (
+            <>
+              <Property label="Study Graph 最終評価" value={reviewState.last_grade} />
+              <Property label="反復回数" value={reviewState.repetitions} />
+              <Property label="最終復習" value={formatDate(reviewState.last_reviewed_at)} />
+              <Property label="次回復習" value={formatDate(reviewState.due_at)} />
+            </>
+          )}
+        </div>
+
+        <div className="detail-actions">
+          <Link href={`/projects/kuzushiji/${section}`}>← {sectionLabels[section]}一覧へ</Link>
+          {item.url !== "#" && (
+            <a className="primary-detail-action" href={item.url} target="_blank" rel="noreferrer">
+              Notionで元データを開く
+            </a>
+          )}
+        </div>
+      </article>
+
+      <footer className="learn-bottom-nav" aria-label="Primary navigation">
+        <Link href="/">Home</Link>
+        <Link className="active" href="/projects">Learn</Link>
+        <Link href="/review">Review</Link>
+        <span>Graph</span>
+        <span>Settings</span>
+      </footer>
+    </main>
+  );
+}
