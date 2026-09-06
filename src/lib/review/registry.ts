@@ -2,12 +2,12 @@ import "server-only";
 
 import { loadProjectGraph } from "@/src/lib/graph/registry";
 import type { GraphNode } from "@/src/lib/graph/types";
-import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
+import { getKuzushijiDashboard, type Character, type ReviewItem } from "@/src/lib/notion/kuzushiji";
 import { defaultStudyProjectId, getActiveStudyProjects, getStudyProject, type StudyProjectDefinition } from "@/src/lib/projects/registry";
 import { reviewAssetProvider } from "@/src/lib/review/assets/manifest";
 import { attachReviewAssets } from "@/src/lib/review/assets/provider";
 import { createDomainExercise } from "@/src/lib/review/domain-exercises";
-import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
+import type { ReviewAsset, ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getDueReviewItems, getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
 
 export type ReviewProjectPayload = {
@@ -19,6 +19,21 @@ export type ReviewProjectPayload = {
   session: ReviewSessionContext;
 };
 
+const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
+  "あ": {
+    type: "image",
+    src: "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/100241706.jpg",
+    alt: "日本古典籍くずし字データセットに収録された「あ」の複数字形",
+    width: 968,
+    height: 506,
+    presentation: "full",
+    caption: "同じ「あ」でも資料・筆跡によって形が大きく変わります。",
+    attribution: "『日本古典籍くずし字データセット』（国文研ほか所蔵／CODH加工） doi:10.20676/00000340",
+    sourceUrl: "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/",
+    license: "CC BY-SA 4.0",
+  },
+};
+
 function displayGlyph(value: string) {
   return value.replace(/（.*?）/g, "").trim() || value || "?";
 }
@@ -28,38 +43,63 @@ function acceptedValues(value: string) {
   return Array.from(new Set([value.trim(), ...candidates].filter(Boolean)));
 }
 
+function visualAssetForCharacter(character: Character) {
+  const readings = acceptedValues(character.reading);
+  return readings.map((reading) => kuzushijiVisualAssets[reading]).find(Boolean);
+}
+
+function characterCard(project: StudyProjectDefinition, character: Character, item: ReviewItem): ReviewCard {
+  const asset = visualAssetForCharacter(character);
+  return {
+    id: character.id,
+    exerciseId: asset ? `${character.id}:visual-reading` : `${character.id}:reading`,
+    projectId: project.id,
+    kind: "character",
+    kindLabel: asset ? "実字形" : "文字",
+    eyebrow: asset ? "VISUAL" : "CHARACTER",
+    label: character.glyph,
+    prompt: asset
+      ? "実資料由来のくずし字画像を見て、読みを入力してください。字形差があっても同じ文字です。"
+      : "この文字の読みを入力してください。",
+    front: asset ? "実資料由来の字形から読む" : displayGlyph(character.glyph),
+    frontStyle: asset ? "title" : "glyph",
+    reason: item.reason,
+    asset,
+    answer: { type: "text", acceptedAnswers: acceptedValues(character.reading), placeholder: "読みを入力" },
+    answerRows: [
+      { label: "登録名", value: character.glyph },
+      { label: "読み", value: character.reading },
+      { label: "字母", value: character.mother },
+      { label: "習得状態", value: character.mastery },
+      ...(asset
+        ? [{ label: "学習ポイント", value: "一つの固定字形ではなく、実資料に現れる複数の崩れ方を同一文字として認識する" }]
+        : []),
+    ],
+    sourceUrl: character.url,
+  };
+}
+
 async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
   const data = await getKuzushijiDashboard();
   const scheduled = data.mode === "notion"
     ? await getDueReviewItems(data.reviewQueue)
     : { items: data.reviewQueue, persistence: "fallback" as const };
-  const cards: ReviewCard[] = [];
 
-  for (const item of scheduled.items.slice(0, project.review.sessionSize)) {
+  const selected: ReviewItem[] = [...scheduled.items];
+  const selectedIds = new Set(selected.map((item) => item.id));
+  for (const item of data.reviewQueue) {
+    if (selected.length >= project.review.sessionSize) break;
+    if (selectedIds.has(item.id)) continue;
+    selected.push(item);
+    selectedIds.add(item.id);
+  }
+
+  const cards: ReviewCard[] = [];
+  for (const item of selected.slice(0, project.review.sessionSize)) {
     if (item.kind === "character") {
       const character = data.characters.find((candidate) => candidate.id === item.id);
       if (!character) continue;
-      cards.push({
-        id: character.id,
-        exerciseId: `${character.id}:reading`,
-        projectId: project.id,
-        kind: "character",
-        kindLabel: "文字",
-        eyebrow: "CHARACTER",
-        label: character.glyph,
-        prompt: "この文字の読みを入力してください。",
-        front: displayGlyph(character.glyph),
-        frontStyle: "glyph",
-        reason: item.reason,
-        answer: { type: "text", acceptedAnswers: acceptedValues(character.reading), placeholder: "読みを入力" },
-        answerRows: [
-          { label: "登録名", value: character.glyph },
-          { label: "読み", value: character.reading },
-          { label: "字母", value: character.mother },
-          { label: "習得状態", value: character.mastery },
-        ],
-        sourceUrl: character.url,
-      });
+      cards.push(characterCard(project, character, item));
       continue;
     }
 
@@ -93,7 +133,13 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
     cards: attachReviewAssets(cards, reviewAssetProvider),
     persistence: scheduled.persistence,
     sourceMode: data.mode,
-    session: { projectId: project.id, projectTitle: project.title, projectHref: project.href, mode: "scheduled", historyHref: "/projects/kuzushiji/progress" },
+    session: {
+      projectId: project.id,
+      projectTitle: project.title,
+      projectHref: project.href,
+      mode: scheduled.items.length > 0 ? "scheduled" : "practice",
+      historyHref: "/projects/kuzushiji/progress",
+    },
   };
 }
 
