@@ -5,6 +5,7 @@ import "./project-navigation.css";
 import "./progress.css";
 import "./polish.css";
 import "./graph.css";
+import "./graph-depth.css";
 
 export const metadata: Metadata = {
   title: {

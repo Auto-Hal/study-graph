@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
+import { getKuzushijiReferenceData } from "@/src/lib/notion/kuzushiji-reference";
 
 export const dynamic = "force-dynamic";
 
-type Section = "lectures" | "characters" | "mistakes";
+type Section = "lectures" | "characters" | "mistakes" | "sources" | "expressions";
 
 const sectionMeta: Record<Section, { eyebrow: string; title: string; description: string }> = {
   lectures: {
@@ -23,10 +24,20 @@ const sectionMeta: Record<Section, { eyebrow: string; title: string; description
     title: "誤読記録",
     description: "誤った判断と原因を残し、再出題・克服状況を振り返ります。",
   },
+  sources: {
+    eyebrow: "SOURCES",
+    title: "資料",
+    description: "講義で扱った原資料・教材と、種別・難易度・所蔵情報を確認します。",
+  },
+  expressions: {
+    eyebrow: "EXPRESSIONS",
+    title: "頻出表現",
+    description: "候文などの表現を、読み・意味・用例・習得状態とともに確認します。",
+  },
 };
 
 function isSection(value: string): value is Section {
-  return value === "lectures" || value === "characters" || value === "mistakes";
+  return ["lectures", "characters", "mistakes", "sources", "expressions"].includes(value);
 }
 
 export default async function KuzushijiSectionPage({
@@ -37,14 +48,23 @@ export default async function KuzushijiSectionPage({
   const { section } = await params;
   if (!isSection(section)) notFound();
 
-  const data = await getKuzushijiDashboard();
+  const needsReference = section === "sources" || section === "expressions";
+  const [data, reference] = await Promise.all([
+    getKuzushijiDashboard(),
+    needsReference ? getKuzushijiReferenceData() : Promise.resolve(null),
+  ]);
   const meta = sectionMeta[section];
+  const mode = reference?.mode ?? data.mode;
 
   const count = section === "lectures"
     ? data.lectures.length
     : section === "characters"
       ? data.characters.length
-      : data.mistakes.length;
+      : section === "mistakes"
+        ? data.mistakes.length
+        : section === "sources"
+          ? reference?.sources.length ?? 0
+          : reference?.expressions.length ?? 0;
 
   return (
     <main className="learn-shell">
@@ -56,9 +76,9 @@ export default async function KuzushijiSectionPage({
             <small>くずし字・{meta.title}</small>
           </span>
         </Link>
-        <div className={`sync-pill ${data.mode === "notion" ? "online" : "demo"}`}>
+        <div className={`sync-pill ${mode === "notion" ? "online" : "demo"}`}>
           <span className="dot" />
-          {data.mode === "notion" ? "Notion 接続中" : "Demo data"}
+          {mode === "notion" ? "Notion 接続中" : "Demo data"}
         </div>
       </header>
 
@@ -108,6 +128,28 @@ export default async function KuzushijiSectionPage({
               <p>{mistake.cause || "原因未設定"}{mistake.errorDate ? `・${mistake.errorDate}` : ""}</p>
             </div>
             <span className="entity-row-status">{mistake.resolved ? "克服済み" : mistake.retry ? "再出題" : "記録中"}</span>
+          </Link>
+        ))}
+
+        {section === "sources" && reference?.sources.map((source) => (
+          <Link className="entity-row" href={`/projects/kuzushiji/sources/${source.id}`} key={source.id}>
+            <span className="entity-row-leading">資料</span>
+            <div>
+              <strong>{source.title || "資料名未設定"}</strong>
+              <p>{[source.usage, source.materialType, source.institution].filter(Boolean).join("・") || "詳細未設定"}</p>
+            </div>
+            <span className="entity-row-status">{source.difficulty || "未設定"}</span>
+          </Link>
+        ))}
+
+        {section === "expressions" && reference?.expressions.map((expression) => (
+          <Link className="entity-row" href={`/projects/kuzushiji/expressions/${expression.id}`} key={expression.id}>
+            <span className="entity-row-leading">{expression.reading || "?"}</span>
+            <div>
+              <strong>{expression.expression || "表現未設定"}</strong>
+              <p>{[expression.category, expression.meaning].filter(Boolean).join("・") || "詳細未設定"}</p>
+            </div>
+            <span className="entity-row-status">{expression.mastery || expression.importance || "未設定"}</span>
           </Link>
         ))}
 
