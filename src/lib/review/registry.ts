@@ -19,21 +19,19 @@ export type ReviewProjectPayload = {
   session: ReviewSessionContext;
 };
 
-// Preview quality gate: render one glyph as its own image and serve it through
-// Study Graph, so mobile Safari never has to request the CODH image directly.
 const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
   "あ": {
     type: "image",
-    src: "/api/kuzushiji-glyph",
-    alt: "『日本永代蔵』に現れる「あ」のくずし字1字形",
-    width: 77,
-    height: 97,
+    src: "/assets/kuzushiji/a-k49.png",
+    alt: "Kuzushiji-49に収録された「あ」のくずし字字形",
+    width: 224,
+    height: 224,
     presentation: "full",
   },
 };
 
-const KUZUSHIJI_SOURCE = "『日本永代蔵』／『日本古典籍くずし字データセット』（国文研所蔵／CODH加工）";
-const KUZUSHIJI_SOURCE_URL = "https://codh.rois.ac.jp/char-shape/book/200015843/";
+const KUZUSHIJI_SOURCE = "KMNIST Dataset (CODH), adapted from Kuzushiji Dataset (NIJL and others), doi:10.20676/00000341";
+const KUZUSHIJI_SOURCE_URL = "https://github.com/rois-codh/kmnist";
 
 function acceptedValues(value: string) {
   const candidates = value.split(/[、,，/／・\n]/g).map((entry) => entry.trim()).filter(Boolean);
@@ -51,13 +49,13 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
 
   return {
     id: character.id,
-    exerciseId: `${character.id}:visual-reading-v4`,
+    exerciseId: `${character.id}:visual-reading-v5`,
     projectId: project.id,
     kind: "character",
     kindLabel: "実字形",
     eyebrow: "VISUAL",
     label: character.glyph,
-    prompt: "この江戸期資料から切り出されたくずし字1字を、ひらがなで読んでください。",
+    prompt: "江戸期古典籍由来のくずし字1字を、ひらがなで読んでください。",
     front: "1字形から読む",
     frontStyle: "title",
     reason: item.reason,
@@ -67,10 +65,10 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
       { label: "正解", value: character.reading },
       { label: "字母", value: character.mother },
       { label: "登録名", value: character.glyph },
-      { label: "資料", value: "日本永代蔵" },
+      { label: "データ", value: "Kuzushiji-49" },
       { label: "出典", value: KUZUSHIJI_SOURCE },
       { label: "ライセンス", value: "CC BY-SA 4.0" },
-      { label: "学習ポイント", value: "一覧画像や現代仮名ではなく、江戸期の実資料に現れる一字形から読みを判断する" },
+      { label: "学習ポイント", value: "現代仮名ではなく、実際のくずし字字形から読みを判断する" },
     ],
     sourceUrl: KUZUSHIJI_SOURCE_URL,
   };
