@@ -1,4 +1,5 @@
 import ReviewSession from "@/src/components/ReviewSession";
+import { attachReviewAssets, createManifestAssetProvider } from "@/src/lib/review/assets/provider";
 import type { ReviewCard, ReviewSessionContext } from "@/src/lib/review/types";
 
 function demoAsset() {
@@ -16,7 +17,7 @@ function demoAsset() {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-const cards: ReviewCard[] = [
+const baseCards: ReviewCard[] = [
   {
     id: "phase-3-3-asset-demo",
     exerciseId: "phase-3-3-asset-demo:crop",
@@ -40,6 +41,13 @@ const cards: ReviewCard[] = [
       { label: "保存", value: "このデモ回答は永続保存しません" },
     ],
     sourceUrl: "#",
+  },
+];
+
+const demoAssetProvider = createManifestAssetProvider([
+  {
+    projectId: "kuzushiji",
+    exerciseId: "phase-3-3-asset-demo:crop",
     asset: {
       type: "image",
       src: demoAsset(),
@@ -53,7 +61,9 @@ const cards: ReviewCard[] = [
       license: "Internal demo",
     },
   },
-];
+]);
+
+const cards = attachReviewAssets(baseCards, demoAssetProvider);
 
 const session: ReviewSessionContext = {
   projectId: "kuzushiji",
