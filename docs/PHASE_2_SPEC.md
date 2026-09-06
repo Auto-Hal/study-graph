@@ -18,58 +18,51 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 
 ## 3. Phase 2 roadmap
 
-### Phase 2.0 — Knowledge Graph foundation
+### Phase 2.0 — Knowledge Graph foundation ✅
 
 対象: くずし字
 
 - `/graph` をPrimary Navigationへ追加
 - Notion Relationをserver-side / read-onlyで取得
-- 5種類のノードを共通Graph型へ変換
-  - Lecture
-  - Character
-  - Mistake
-  - Source
-  - Expression
-- RelationをGraphEdgeへ変換
-  - 講義 → 重要・弱点字
-  - 講義 → 誤読記録
-  - 講義 → 使用資料
-  - 講義 → 頻出表現
-  - 誤読 → 関連文字
-  - 誤読 → 関連資料
+- Lecture / Character / Mistake / Source / ExpressionをGraph化
 - SVG Knowledge Graph
-- ノード選択
-- 接続ノード / Relationの強調
-- テキスト検索
-- 種類別の強調
+- ノード選択、接続強調、検索、種類別強調
 - Study Graph詳細 / Notion原本への遷移
-- 100件を超えるData Sourceも取得できるページネーション
+- 100件超のData Source向けページネーション
 - Demo fallback
 
-**完了条件**
+**Production確認済み**
 
-- [ ] GitHub CI成功
-- [ ] PreviewでNotion実Relationを可視化
-- [ ] `/graph` がPrimary Navigationから利用可能
-- [ ] Productionで実データのノード数・Relation数を確認
-- [ ] Production error/fatalログに新規問題がない
+- [x] GitHub CI成功
+- [x] PreviewでNotion実Relationを可視化
+- [x] `/graph` がPrimary Navigationから利用可能
+- [x] Productionで10 nodes / 10 Relationsを確認
+- [x] Production error/fatalログに新規問題なし
 
-### Phase 2.1 — Graph browsing depth
+### Phase 2.1 — Graph browsing depth ✅
 
-- Sources / ExpressionsをStudy Graph内でも一覧・詳細表示
-- Graphから全ノード種類へ内部遷移可能にする
-- 選択ノード中心の表示モード
-- Relation種類による絞り込み
-- URL queryで選択ノードを共有できる状態にする
-- 大規模Graph向け表示密度調整
+- [x] Sources / ExpressionsをStudy Graph内でも一覧・詳細表示
+- [x] Graphから全ノード種類へ内部遷移
+- [x] 選択ノード中心の表示モード
+- [x] Relation種類による絞り込み
+- [x] URL queryで選択ノード / Relation / focus modeを保持
+- [x] 大規模Graph向け表示密度調整
 
 ### Phase 2.2 — Multi-project graph architecture
 
-- Project registry
-- 共通Graph adapter interface
-- Project selector
-- Graph Node kindをプロジェクト別に拡張可能にする
-- 既存くずし字Adapterをregistry方式へ移行
+- [x] Project Registry
+- [x] 共通Graph adapter interface
+- [x] Project selector
+- [x] Graph Node kindをプロジェクト別に拡張可能にする
+- [x] 既存くずし字Adapterをregistry方式へ移行
+- [x] 西洋美術史・西洋哲学史をplanned projectとして事前登録
+
+**設計上の境界**
+
+- Project Registryはプロジェクトの表示情報とNode kind定義を持つ。
+- Adapter Registryはactive projectとデータ取得関数を対応付ける。
+- Graph UIはNotion schemaを知らず、`GraphData` と `GraphNodeKindDefinition[]` のみを受け取る。
+- planned projectはAdapterが追加されるまでNotion APIを呼ばない。
 
 ### Phase 2.3 — Western Art History pilot
 
@@ -135,9 +128,9 @@ Notion Relationそのものへ復習状態を書き戻さない。
 - 博物館フィールドモード
 - 高度なFSRSへの全面移行
 
-## 5. Phase 2.0 production validation target
+## 5. Current Kuzushiji validation baseline
 
-現在のくずし字Notionデータでは、少なくとも以下が確認できることを期待する。
+現在のNotion実データ:
 
 - Lecture: 1
 - Character: 3
@@ -145,5 +138,6 @@ Notion Relationそのものへ復習状態を書き戻さない。
 - Source: 1
 - Expression: 4
 - Total nodes: 10
+- Relations: 10
 
-RelationはNotionの実データを基準とし、件数をコードへ固定しない。
+件数は検証用baselineであり、コードへ固定しない。

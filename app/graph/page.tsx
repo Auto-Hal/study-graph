@@ -1,62 +1,66 @@
 import Link from "next/link";
 import PrimaryNav from "@/src/components/PrimaryNav";
-import { getKuzushijiGraph, type GraphNodeKind } from "@/src/lib/notion/kuzushiji-graph";
+import { getGraphProject, listGraphProjects, loadProjectGraph } from "@/src/lib/graph/registry";
 import GraphExplorer from "./GraphExplorer";
 
 export const dynamic = "force-dynamic";
 
-const kindLabels: Record<GraphNodeKind, string> = {
-  lecture: "講義",
-  character: "文字",
-  mistake: "誤読",
-  source: "資料",
-  expression: "表現",
-};
-
 export default async function KnowledgeGraphPage({
   searchParams,
 }: {
-  searchParams: Promise<{ node?: string; relation?: string; view?: string }>;
+  searchParams: Promise<{ project?: string; node?: string; relation?: string; view?: string }>;
 }) {
-  const [graph, query] = await Promise.all([getKuzushijiGraph(), searchParams]);
-  const kinds = Object.keys(kindLabels) as GraphNodeKind[];
-  const counts = kinds.reduce<Record<GraphNodeKind, number>>((acc, kind) => {
-    acc[kind] = graph.nodes.filter((node) => node.kind === kind).length;
-    return acc;
-  }, { lecture: 0, character: 0, mistake: 0, source: 0, expression: 0 });
+  const query = await searchParams;
+  const project = getGraphProject(query.project);
+  const [graph, graphProjects] = await Promise.all([
+    loadProjectGraph(project.id),
+    Promise.resolve(listGraphProjects()),
+  ]);
+  const counts = Object.fromEntries(project.graphNodeKinds.map((kind) => [kind.id, graph.nodes.filter((node) => node.kind === kind.id).length]));
   const initialNodeId = query.node && graph.nodes.some((node) => node.id === query.node) ? query.node : undefined;
   const initialRelation = query.relation && graph.edges.some((edge) => edge.label === query.relation) ? query.relation : undefined;
   const initialView = query.view === "focus" ? "focus" as const : "overview" as const;
+  const populatedKinds = project.graphNodeKinds.filter((kind) => (counts[kind.id] ?? 0) > 0).length;
 
   return (
     <main className="learn-shell graph-page-shell">
       <header className="learn-header">
-        <Link className="learn-brand" href="/"><span className="learn-brand-mark" aria-hidden="true">SG</span><span><strong>Study Graph</strong><small>Knowledge Graph</small></span></Link>
+        <Link className="learn-brand" href="/"><span className="learn-brand-mark" aria-hidden="true">SG</span><span><strong>Study Graph</strong><small>Knowledge Graph · {project.shortLabel}</small></span></Link>
         <div className={`sync-pill ${graph.mode === "notion" ? "online" : "demo"}`}><span className="dot" />{graph.mode === "notion" ? "Notion Relations 接続中" : "Demo graph"}</div>
       </header>
 
-      <nav className="breadcrumbs" aria-label="パンくずリスト"><Link href="/">Home</Link><span>Graph</span></nav>
+      <nav className="breadcrumbs" aria-label="パンくずリスト"><Link href="/">Home</Link><span>Graph</span><span>{project.shortLabel}</span></nav>
 
       <section className="learn-hero graph-hero">
-        <p className="eyebrow">KNOWLEDGE GRAPH · PHASE 2.1</p>
-        <h1>知識の関係を、学習の地図として見る。</h1>
-        <p className="learn-hero-copy">NotionのRelationをそのまま読み取り、講義・文字・誤読・資料・表現がどこでつながっているかを可視化します。ノードを中心表示した状態やRelation絞り込みはURLにも保持できます。</p>
+        <p className="eyebrow">KNOWLEDGE GRAPH · PHASE 2.2</p>
+        <h1>プロジェクトごとの知識を、同じ地図で辿る。</h1>
+        <p className="learn-hero-copy">Notion schemaはプロジェクトごとに保ったまま、Adapterが共通Node / Edgeへ変換します。Graph UIは同じまま、学習分野ごとにノード種類だけを差し替えられます。</p>
       </section>
+
+      <nav className="graph-project-selector" aria-label="Graphプロジェクト選択">
+        {graphProjects.map((item) => item.graphAvailable ? (
+          <Link className={item.id === project.id ? "active" : undefined} href={`/graph?project=${encodeURIComponent(item.id)}`} key={item.id} aria-current={item.id === project.id ? "page" : undefined}>
+            <span>{item.shortLabel}</span><small>{item.phase}</small>
+          </Link>
+        ) : (
+          <span className="planned" key={item.id} aria-disabled="true"><span>{item.shortLabel}</span><small>{item.phase}予定</small></span>
+        ))}
+      </nav>
 
       {graph.mode === "demo" && <section className="notice" role="status"><strong>Notion Relationを取得できていません。</strong><span> 現在はDemo graphです。Settingsから接続状態を確認できます。</span></section>}
 
       <section className="graph-summary-grid" aria-label="Graphサマリー">
         <article><span>NODES</span><strong>{graph.nodes.length}</strong><small>可視化している知識</small></article>
         <article><span>RELATIONS</span><strong>{graph.edges.length}</strong><small>Notion由来の接続</small></article>
-        <article><span>LECTURES</span><strong>{counts.lecture}</strong><small>中心となる講義</small></article>
-        <article><span>KNOWLEDGE TYPES</span><strong>{kinds.filter((kind) => counts[kind] > 0).length}</strong><small>現在のノード種類</small></article>
+        <article><span>PROJECT</span><strong className="graph-summary-project">{project.shortLabel}</strong><small>{project.eyebrow}</small></article>
+        <article><span>NODE TYPES</span><strong>{populatedKinds}/{project.graphNodeKinds.length}</strong><small>現在データあり / 定義済み</small></article>
       </section>
 
-      <GraphExplorer nodes={graph.nodes} edges={graph.edges} initialNodeId={initialNodeId} initialRelation={initialRelation} initialView={initialView} />
+      <GraphExplorer projectId={project.id} kindDefinitions={project.graphNodeKinds} nodes={graph.nodes} edges={graph.edges} initialNodeId={initialNodeId} initialRelation={initialRelation} initialView={initialView} />
 
       <section className="graph-policy-note">
-        <div><p className="eyebrow">GRAPH POLICY</p><h2>Notionを正本のまま使う。</h2></div>
-        <p>Graph専用DBへRelationを複製せず、既存RelationをStudy Graph側の共通ノード・エッジへ変換します。Sources / ExpressionsもStudy Graph内で詳細確認でき、Graphから全ノード種類へ移動できます。</p>
+        <div><p className="eyebrow">ADAPTER ARCHITECTURE</p><h2>DBを揃えず、Graph型だけを揃える。</h2></div>
+        <p>くずし字・西洋美術史・哲学史でNotionのDB構造が異なっていても問題ありません。各AdapterがNode / Edgeへ変換し、Project Registryがノード種類と表示名をGraph UIへ渡します。</p>
       </section>
 
       <PrimaryNav active="graph" />
