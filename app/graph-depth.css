@@ -93,6 +93,69 @@
   background: linear-gradient(145deg, rgba(226, 234, 223, .78), rgba(255, 255, 255, .92));
 }
 
+.graph-project-selector {
+  display: flex;
+  gap: 8px;
+  margin: 22px 0 12px;
+  overflow-x: auto;
+  padding: 2px 0 5px;
+  scrollbar-width: thin;
+}
+
+.graph-project-selector > a,
+.graph-project-selector > span {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 150px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255,255,255,.75);
+}
+
+.graph-project-selector span span,
+.graph-project-selector a span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.graph-project-selector small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.graph-project-selector a.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.graph-project-selector a.active small { color: rgba(255,255,255,.7); }
+.graph-project-selector > .planned { opacity: .58; }
+
+.graph-summary-project {
+  font-size: clamp(18px, 2.2vw, 28px) !important;
+  line-height: 1.2;
+}
+
+.project-entry-planned {
+  opacity: .72;
+  background: rgba(255,255,255,.58);
+}
+
+.project-entry-planned .project-entry-icon {
+  filter: grayscale(.6);
+}
+
+.graph-node:not(.kind-lecture):not(.kind-character):not(.kind-mistake):not(.kind-source):not(.kind-expression) rect {
+  fill: #efefed;
+  stroke: #c9c8c3;
+}
+
 @media (max-width: 900px) {
   .graph-toolbar-depth { grid-template-columns: 1fr 1fr; }
   .graph-view-actions { grid-column: 1 / -1; justify-content: flex-start; }
@@ -103,4 +166,6 @@
   .graph-view-actions { grid-column: auto; }
   .graph-view-actions button { flex: 1 1 auto; }
   .reference-link-panel { align-items: flex-start; flex-direction: column; }
+  .graph-project-selector > a,
+  .graph-project-selector > span { min-width: 138px; }
 }

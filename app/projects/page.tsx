@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import { studyProjects } from "@/src/lib/projects/registry";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import { getDueReviewItems } from "@/src/lib/supabase/review";
 
@@ -13,41 +14,30 @@ export default async function ProjectsPage() {
   return (
     <main className="learn-shell">
       <header className="learn-header">
-        <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark" aria-hidden="true">SG</span>
-          <span>
-            <strong>Study Graph</strong>
-            <small>学習プロジェクト</small>
-          </span>
-        </Link>
-        <div className={`sync-pill ${data.mode === "notion" ? "online" : "demo"}`}>
-          <span className="dot" />
-          {data.mode === "notion" ? "Notion 接続中" : "Demo data"}
-        </div>
+        <Link className="learn-brand" href="/"><span className="learn-brand-mark" aria-hidden="true">SG</span><span><strong>Study Graph</strong><small>学習プロジェクト</small></span></Link>
+        <div className={`sync-pill ${data.mode === "notion" ? "online" : "demo"}`}><span className="dot" />{data.mode === "notion" ? "Notion 接続中" : "Demo data"}</div>
       </header>
 
       <section className="learn-hero">
-        <p className="eyebrow">PROJECTS</p>
+        <p className="eyebrow">PROJECT REGISTRY · PHASE 2.2</p>
         <h1>学習を、プロジェクト単位で辿る。</h1>
-        <p className="learn-hero-copy">
-          Notionを知識の正本にしたまま、Study Graphでは講義・文字・誤読記録を学習しやすい形で横断します。
-        </p>
+        <p className="learn-hero-copy">分野ごとにNotionの構造は異なっていても、Study GraphではProject Registryから同じ入口へ接続します。現在はくずし字が稼働中で、美術史・哲学史を次のAdapter候補として登録しています。</p>
       </section>
 
       <section className="project-list" aria-label="学習プロジェクト一覧">
-        <Link className="project-entry" href="/projects/kuzushiji">
-          <span className="project-entry-icon" aria-hidden="true">く</span>
-          <div>
-            <p className="eyebrow">ACTIVE PROJECT</p>
-            <h2>くずし字</h2>
-            <p>博物館・文書館の実物資料を、訳文なしで自力読解できる状態を目指す。</p>
-          </div>
-          <div className="project-entry-meta">
-            <span className="mini-pill">講義 {data.lectures.length}</span>
-            <span className="mini-pill">完了 {completedLectures}</span>
-            <span className="mini-pill">今日 {scheduledReview.items.length}問</span>
-          </div>
-        </Link>
+        {studyProjects.map((project) => project.status === "active" ? (
+          <Link className="project-entry" href={project.href} key={project.id}>
+            <span className="project-entry-icon" aria-hidden="true">{project.icon}</span>
+            <div><p className="eyebrow">ACTIVE PROJECT · {project.phase}</p><h2>{project.title}</h2><p>{project.goal}</p></div>
+            <div className="project-entry-meta"><span className="mini-pill">講義 {data.lectures.length}</span><span className="mini-pill">完了 {completedLectures}</span><span className="mini-pill">今日 {scheduledReview.items.length}問</span></div>
+          </Link>
+        ) : (
+          <article className="project-entry project-entry-planned" key={project.id} aria-label={`${project.title} ${project.phase}予定`}>
+            <span className="project-entry-icon" aria-hidden="true">{project.icon}</span>
+            <div><p className="eyebrow">REGISTERED · {project.phase}</p><h2>{project.title}</h2><p>{project.goal}</p></div>
+            <div className="project-entry-meta"><span className="mini-pill">Adapter準備中</span><span className="mini-pill">{project.graphNodeKinds.length} node types</span></div>
+          </article>
+        ))}
       </section>
 
       <PrimaryNav active="learn" />
