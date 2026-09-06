@@ -1,0 +1,4 @@
+source_archive=200015843.zip
+source_file=200015843/characters/U+3042/U+3042_200015843_00032_1_X1086_Y1894.jpg
+native_size=93x127
+character=あ (U+3042)
