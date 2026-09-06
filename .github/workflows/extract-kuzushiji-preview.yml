@@ -1,0 +1,63 @@
+name: Extract Kuzushiji Preview Asset
+
+on:
+  push:
+    paths:
+      - '.github/workflows/extract-kuzushiji-preview.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/kuzushiji-exercise-quality
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy pillow
+      - name: Download official Kuzushiji-49 test data
+        run: |
+          curl -L --fail -o /tmp/k49-test-imgs.npz https://codh.rois.ac.jp/kmnist/dataset/k49/k49-test-imgs.npz
+          curl -L --fail -o /tmp/k49-test-labels.npz https://codh.rois.ac.jp/kmnist/dataset/k49/k49-test-labels.npz
+          curl -L --fail -o /tmp/k49_classmap.csv https://codh.rois.ac.jp/kmnist/dataset/k49/k49_classmap.csv
+      - name: Extract one 'あ' glyph
+        run: |
+          mkdir -p public/assets/kuzushiji
+          python - <<'PY'
+          import csv
+          import numpy as np
+          from PIL import Image
+
+          images = np.load('/tmp/k49-test-imgs.npz')['arr_0']
+          labels = np.load('/tmp/k49-test-labels.npz')['arr_0']
+          rows = list(csv.DictReader(open('/tmp/k49_classmap.csv', encoding='utf-8')))
+          label_key = next(k for k in rows[0] if 'index' in k.lower() or 'label' in k.lower())
+          char_key = next(k for k in rows[0] if k != label_key and ('char' in k.lower() or 'unicode' in k.lower()))
+
+          def row_char(row):
+              value = row[char_key]
+              if value.startswith('U+'):
+                  return chr(int(value[2:], 16))
+              if value.startswith('0x'):
+                  return chr(int(value, 16))
+              return value
+
+          target = next(int(r[label_key]) for r in rows if row_char(r) == 'あ')
+          candidates = images[labels == target]
+          # choose a reasonably ink-dense sample so the preview is legible at mobile size
+          sample = max(candidates[:500], key=lambda a: float(a.mean()))
+          canvas = Image.fromarray(sample.astype('uint8'), mode='L').resize((224, 224), Image.Resampling.NEAREST)
+          canvas.save('public/assets/kuzushiji/a-k49.png')
+          print('saved', target, len(candidates), int(sample.mean()))
+          PY
+      - name: Commit generated preview asset
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/assets/kuzushiji/a-k49.png
+          git commit -m 'Add local Kuzushiji preview glyph' || exit 0
+          git push origin HEAD:fix/kuzushiji-exercise-quality
