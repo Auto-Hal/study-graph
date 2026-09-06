@@ -19,118 +19,117 @@ export type ReviewProjectPayload = {
   session: ReviewSessionContext;
 };
 
-const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
-  "あ": {
-    type: "image",
-    src: "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/100241706.jpg",
-    alt: "日本古典籍くずし字データセットに収録された「あ」の複数字形",
-    width: 968,
-    height: 506,
-    presentation: "full",
-    caption: "同じ「あ」でも資料・筆跡によって形が大きく変わります。",
-    attribution: "『日本古典籍くずし字データセット』（国文研ほか所蔵／CODH加工） doi:10.20676/00000340",
-    sourceUrl: "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/",
-    license: "CC BY-SA 4.0",
-  },
+type KuzushijiVisualExercise = {
+  asset: ReviewAsset;
+  reading: string;
+  mother: string;
+  sourceTitle: string;
+  sourceImage: string;
+  sourceUrl: string;
+  attribution: string;
+  license: string;
+  learningPoint: string;
 };
 
-function displayGlyph(value: string) {
-  return value.replace(/（.*?）/g, "").trim() || value || "?";
-}
+// A visual exercise owns its image-specific reading, mother character and provenance.
+// Notion remains the learned-scope authority, but generic Notion character metadata is
+// not reused as if it described a particular historical glyph image.
+const kuzushijiVisualExercises: Record<string, KuzushijiVisualExercise> = {
+  "あ": {
+    asset: {
+      type: "image",
+      src: "/assets/kuzushiji/a-eitaigura-hires.png",
+      alt: "『日本永代蔵』から切り出したくずし字1字",
+      width: 222,
+      height: 290,
+      presentation: "full",
+    },
+    reading: "あ",
+    mother: "阿",
+    sourceTitle: "日本永代蔵",
+    sourceImage: "U+3042_200015843_00032_1_X1086_Y1894.jpg（原字形 93×127px）",
+    sourceUrl: "https://codh.rois.ac.jp/char-shape/book/200015843/",
+    attribution: "『日本古典籍くずし字データセット』（国文研所蔵／CODH加工） doi:10.20676/00000340",
+    license: "CC BY-SA 4.0",
+    learningPoint: "字母「阿」由来の「あ」。実資料の筆線・連綿・崩し方を一字形として認識する",
+  },
+};
 
 function acceptedValues(value: string) {
   const candidates = value.split(/[、,，/／・\n]/g).map((entry) => entry.trim()).filter(Boolean);
   return Array.from(new Set([value.trim(), ...candidates].filter(Boolean)));
 }
 
-function visualAssetForCharacter(character: Character) {
+function visualExerciseForCharacter(character: Character) {
   const readings = acceptedValues(character.reading);
-  return readings.map((reading) => kuzushijiVisualAssets[reading]).find(Boolean);
+  return readings.map((reading) => kuzushijiVisualExercises[reading]).find(Boolean);
 }
 
-function characterCard(project: StudyProjectDefinition, character: Character, item: ReviewItem): ReviewCard {
-  const asset = visualAssetForCharacter(character);
+function visualCharacterCard(project: StudyProjectDefinition, character: Character, item: ReviewItem): ReviewCard | null {
+  const exercise = visualExerciseForCharacter(character);
+  if (!exercise) return null;
+
   return {
     id: character.id,
-    exerciseId: asset ? `${character.id}:visual-reading` : `${character.id}:reading`,
+    exerciseId: `${character.id}:visual-reading:eitaigura-u3042-00032-1:v1`,
     projectId: project.id,
     kind: "character",
-    kindLabel: asset ? "実字形" : "文字",
-    eyebrow: asset ? "VISUAL" : "CHARACTER",
-    label: character.glyph,
-    prompt: asset
-      ? "実資料由来のくずし字画像を見て、読みを入力してください。字形差があっても同じ文字です。"
-      : "この文字の読みを入力してください。",
-    front: asset ? "実資料由来の字形から読む" : displayGlyph(character.glyph),
-    frontStyle: asset ? "title" : "glyph",
+    kindLabel: "実字形",
+    eyebrow: "VISUAL",
+    label: "くずし字1字",
+    prompt: `江戸期『${exercise.sourceTitle}』の実資料から切り出したくずし字1字を、ひらがなで読んでください。`,
+    front: "1字形から読む",
+    frontStyle: "title",
     reason: item.reason,
-    asset,
-    answer: { type: "text", acceptedAnswers: acceptedValues(character.reading), placeholder: "読みを入力" },
+    asset: exercise.asset,
+    answer: { type: "text", acceptedAnswers: acceptedValues(exercise.reading), placeholder: "読みを入力" },
     answerRows: [
-      { label: "登録名", value: character.glyph },
-      { label: "読み", value: character.reading },
-      { label: "字母", value: character.mother },
-      { label: "習得状態", value: character.mastery },
-      ...(asset
-        ? [{ label: "学習ポイント", value: "一つの固定字形ではなく、実資料に現れる複数の崩れ方を同一文字として認識する" }]
-        : []),
+      { label: "正解", value: exercise.reading },
+      { label: "字母", value: exercise.mother },
+      { label: "学習項目", value: character.glyph },
+      { label: "資料", value: exercise.sourceTitle },
+      { label: "原字形", value: exercise.sourceImage },
+      { label: "出典", value: exercise.attribution },
+      { label: "ライセンス", value: exercise.license },
+      { label: "学習ポイント", value: exercise.learningPoint },
     ],
-    sourceUrl: character.url,
+    sourceUrl: exercise.sourceUrl,
   };
 }
 
 async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
   const data = await getKuzushijiDashboard();
+  const visualCandidates = data.reviewQueue.filter((item) => {
+    if (item.kind !== "character") return false;
+    const character = data.characters.find((candidate) => candidate.id === item.id);
+    return Boolean(character && visualExerciseForCharacter(character));
+  });
+
   const scheduled = data.mode === "notion"
-    ? await getDueReviewItems(data.reviewQueue)
-    : { items: data.reviewQueue, persistence: "fallback" as const };
+    ? await getDueReviewItems(visualCandidates)
+    : { items: visualCandidates, persistence: "fallback" as const };
 
   const selected: ReviewItem[] = [...scheduled.items];
   const selectedIds = new Set(selected.map((item) => item.id));
-  for (const item of data.reviewQueue) {
+  for (const item of visualCandidates) {
     if (selected.length >= project.review.sessionSize) break;
     if (selectedIds.has(item.id)) continue;
     selected.push(item);
     selectedIds.add(item.id);
   }
 
-  const cards: ReviewCard[] = [];
-  for (const item of selected.slice(0, project.review.sessionSize)) {
-    if (item.kind === "character") {
+  const cards: ReviewCard[] = selected
+    .slice(0, project.review.sessionSize)
+    .map((item) => {
       const character = data.characters.find((candidate) => candidate.id === item.id);
-      if (!character) continue;
-      cards.push(characterCard(project, character, item));
-      continue;
-    }
-
-    const mistake = data.mistakes.find((candidate) => candidate.id === item.id);
-    if (!mistake) continue;
-    cards.push({
-      id: mistake.id,
-      exerciseId: `${mistake.id}:correct-answer`,
-      projectId: project.id,
-      kind: "mistake",
-      kindLabel: "誤読",
-      eyebrow: "MISTAKE",
-      label: mistake.title,
-      prompt: "この誤読に対する正しい読み・判断を入力してください。",
-      front: mistake.title || "誤読記録",
-      frontStyle: "title",
-      reason: item.reason,
-      answer: { type: "text", acceptedAnswers: acceptedValues(mistake.correctAnswer), placeholder: "正しい読み・判断を入力" },
-      answerRows: [
-        { label: "自分の回答", value: mistake.answer },
-        { label: "正解", value: mistake.correctAnswer },
-        { label: "原因", value: mistake.cause },
-      ],
-      sourceUrl: mistake.url,
-    });
-  }
+      return character ? visualCharacterCard(project, character, item) : null;
+    })
+    .filter((card): card is ReviewCard => Boolean(card));
 
   return {
     project,
     projects: getActiveStudyProjects(),
-    cards: attachReviewAssets(cards, reviewAssetProvider),
+    cards,
     persistence: scheduled.persistence,
     sourceMode: data.mode,
     session: {
