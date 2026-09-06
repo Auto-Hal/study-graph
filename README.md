@@ -4,7 +4,7 @@ Notionを知識の正本として使い、毎日の学習・復習・弱点管�
 
 ## Current phase
 
-Phase 1の **くずし字MVP** は完成済みです。Phase 2ではKnowledge Graphを複数学習プロジェクトへ展開できる共通基盤へ拡張しています。
+Phase 1の **くずし字MVP** と、Phase 2の **複数プロジェクトKnowledge Graph** は完成済みです。現在はPhase 3で、美術史・哲学史を含むCross-project Active Learningへ拡張しています。
 
 ### Phase 1 — Learning MVP ✅
 
@@ -17,21 +17,32 @@ Phase 1の **くずし字MVP** は完成済みです。Phase 2ではKnowledge Gr
 - SettingsでNotion / Supabaseの接続状態を確認
 - Mobile-first / iPad対応、PWAメタデータと正式アイコン
 
-### Phase 2.0–2.1 — Knowledge Graph ✅
+### Phase 2 — Multi-project Knowledge Graph ✅
 
 - Notionの既存Relationをread-onlyでGraph化
-- くずし字の講義 / 文字 / 誤読 / 資料 / 表現をNodeへ変換
+- Project Registry / 共通 `GraphNode` / `GraphEdge` / `GraphAdapter`
+- くずし字・西洋美術史・西洋哲学史を同じGraph UIへ接続
 - Node選択、検索、Relation絞り込み、選択中心表示、共有URL
-- Sources / ExpressionsをStudy Graph内でも一覧・詳細表示
+- Supabaseの復習状態をGraph nodeへOverlay
+- 100件単位pagination + project単位5分cache
+- Notion schemaは各学習プロジェクトで維持し、Adapterだけを個別実装
 
-### Phase 2.2 — Multi-project Graph architecture
+Production baseline:
 
-- Project Registry
-- 共通 `GraphNode` / `GraphEdge` / `GraphAdapter` interface
-- `/graph?project=...` のProject selector
-- プロジェクトごとにNode kindを定義可能
-- くずし字AdapterをRegistryへ登録
-- 西洋美術史（Phase 2.3）・西洋哲学史（Phase 2.4）を次のAdapterとして事前登録
+- くずし字: 10 nodes / 10 Relations
+- 西洋美術史: 36 nodes / 90 Relations
+- 西洋哲学史: 45 nodes / 187 Relations
+
+### Phase 3.0 — Cross-project Review
+
+- ReviewをProject Registry型へ移行
+- くずし字は従来の期限ベースScheduled Reviewを維持
+- 美術史はArtwork / Movement / Term / PeriodをAIなしでPractice
+- 哲学史はPhilosopher / Work / Term / ProblemをAIなしでPractice
+- Notion概要・接続Node・Relationから問題カードを構成
+- 初回Practiceで評価したKnowledge nodeだけSupabaseの間隔反復へ参加
+- Supabase `item_kind` に汎用 `knowledge` を追加
+- Preview fallbackでは評価保存APIを呼ばない
 
 OpenAI APIは現在使用していません。基本機能はAIなしで成立します。
 
@@ -39,7 +50,7 @@ OpenAI APIは現在使用していません。基本機能はAIなしで成立�
 
 - **Notion**: 講義・人物・作品・用語・資料・Relationなど、人間が整理する知識の正本
 - **Supabase**: 高頻度の復習履歴・スケジューリング状態
-- **Study Graph / Vercel**: Project Adapterを通して両者を統合する学習UIとKnowledge Graph
+- **Study Graph / Vercel**: Project Adapter / Review Providerを通して両者を統合する学習UIとKnowledge Graph
 
 秘密情報はサーバー側だけで使用し、ブラウザへ送信しません。Notionへの書き戻しは行いません。
 
@@ -48,9 +59,11 @@ OpenAI APIは現在使用していません。基本機能はAIなしで成立�
 - `/` — Home
 - `/projects` — Project Registry / 学習プロジェクト
 - `/projects/kuzushiji` — くずし字Project
-- `/review` — 今日の復習
-- `/projects/kuzushiji/progress` — 学習記録・次回予定
-- `/graph` — Knowledge Graph
+- `/review?project=kuzushiji` — くずし字Scheduled Review
+- `/review?project=western-art-history` — 西洋美術史Practice
+- `/review?project=philosophy` — 西洋哲学史Practice
+- `/projects/kuzushiji/progress` — くずし字学習記録・次回予定
+- `/graph?project=...` — Knowledge Graph
 - `/settings` — 接続状態・Adapter構成
 
 詳細な仕様・同期方針・セキュリティ設計は `docs/` を参照してください。
