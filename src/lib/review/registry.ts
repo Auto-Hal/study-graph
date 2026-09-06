@@ -10,29 +10,21 @@ import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import type { ReviewAsset, ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getDueReviewItems, getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
 
-export type ReviewProjectPayload = {
-  project: StudyProjectDefinition;
-  projects: StudyProjectDefinition[];
-  cards: ReviewCard[];
-  persistence: ReviewPersistenceMode;
-  sourceMode: "notion" | "demo";
-  session: ReviewSessionContext;
-};
-
+// Preview quality gate: use one glyph delivered as its own image from an Edo-period
+// source, rather than rendering a character by CSS-cropping the allographs sheet.
 const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
   "あ": {
     type: "image",
-    src: "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/100241706.jpg",
-    alt: "江戸期資料に収録された「あ」のくずし字字形",
-    width: 968,
-    height: 506,
-    presentation: "crop",
-    region: { x: 0.018, y: 0.018, width: 0.055, height: 0.15 },
+    src: "https://codh.rois.ac.jp/iiif/iiif-curation-viewer/image/200015843_00012_2/601,849,77,97/full/0/default.jpg",
+    alt: "『日本永代蔵』に現れる「あ」のくずし字1字形",
+    width: 77,
+    height: 97,
+    presentation: "full",
   },
 };
 
-const KUZUSHIJI_SOURCE = "『日本古典籍くずし字データセット』（国文研ほか所蔵／CODH加工）";
-const KUZUSHIJI_SOURCE_URL = "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/";
+const KUZUSHIJI_SOURCE = "『日本永代蔵』／『日本古典籍くずし字データセット』（国文研所蔵／CODH加工）";
+const KUZUSHIJI_SOURCE_URL = "https://codh.rois.ac.jp/char-shape/book/200015843/";
 
 function acceptedValues(value: string) {
   const candidates = value.split(/[、,，/／・\n]/g).map((entry) => entry.trim()).filter(Boolean);
@@ -50,14 +42,14 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
 
   return {
     id: character.id,
-    exerciseId: `${character.id}:visual-reading-v2`,
+    exerciseId: `${character.id}:visual-reading-v3`,
     projectId: project.id,
     kind: "character",
     kindLabel: "実字形",
     eyebrow: "VISUAL",
     label: character.glyph,
-    prompt: "この江戸期資料のくずし字1字を、ひらがなで読んでください。",
-    front: "字形だけを見て読む",
+    prompt: "この江戸期資料から切り出されたくずし字1字を、ひらがなで読んでください。",
+    front: "1字形から読む",
     frontStyle: "title",
     reason: item.reason,
     asset,
@@ -66,9 +58,10 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
       { label: "正解", value: character.reading },
       { label: "字母", value: character.mother },
       { label: "登録名", value: character.glyph },
+      { label: "資料", value: "日本永代蔵" },
       { label: "出典", value: KUZUSHIJI_SOURCE },
       { label: "ライセンス", value: "CC BY-SA 4.0" },
-      { label: "学習ポイント", value: "現代仮名の形ではなく、実資料の一字形から読みを判断する" },
+      { label: "学習ポイント", value: "一覧画像や現代仮名ではなく、江戸期の実資料に現れる一字形から読みを判断する" },
     ],
     sourceUrl: KUZUSHIJI_SOURCE_URL,
   };
