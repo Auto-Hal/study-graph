@@ -19,9 +19,9 @@ export default async function ProjectsPage() {
       </header>
 
       <section className="learn-hero">
-        <p className="eyebrow">PROJECT REGISTRY · PHASE 2.2</p>
+        <p className="eyebrow">PROJECT REGISTRY · PHASE 2.3</p>
         <h1>学習を、プロジェクト単位で辿る。</h1>
-        <p className="learn-hero-copy">分野ごとにNotionの構造は異なっていても、Study GraphではProject Registryから同じ入口へ接続します。現在はくずし字が稼働中で、美術史・哲学史を次のAdapter候補として登録しています。</p>
+        <p className="learn-hero-copy">NotionのDB構造は分野ごとに保ったまま、Study Graph側のAdapterで共通Graphへ接続します。くずし字に加えて、西洋美術史Knowledge Graph Pilotが利用可能になりました。</p>
       </section>
 
       <section className="project-list" aria-label="学習プロジェクト一覧">
@@ -29,7 +29,13 @@ export default async function ProjectsPage() {
           <Link className="project-entry" href={project.href} key={project.id}>
             <span className="project-entry-icon" aria-hidden="true">{project.icon}</span>
             <div><p className="eyebrow">ACTIVE PROJECT · {project.phase}</p><h2>{project.title}</h2><p>{project.goal}</p></div>
-            <div className="project-entry-meta"><span className="mini-pill">講義 {data.lectures.length}</span><span className="mini-pill">完了 {completedLectures}</span><span className="mini-pill">今日 {scheduledReview.items.length}問</span></div>
+            <div className="project-entry-meta">
+              {project.id === "kuzushiji" ? (
+                <><span className="mini-pill">講義 {data.lectures.length}</span><span className="mini-pill">完了 {completedLectures}</span><span className="mini-pill">今日 {scheduledReview.items.length}問</span></>
+              ) : (
+                <><span className="mini-pill">Knowledge Graph Pilot</span><span className="mini-pill">{project.graphNodeKinds.length} node types</span><span className="mini-pill">Notion read-only</span></>
+              )}
+            </div>
           </Link>
         ) : (
           <article className="project-entry project-entry-planned" key={project.id} aria-label={`${project.title} ${project.phase}予定`}>

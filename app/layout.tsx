@@ -6,6 +6,7 @@ import "./progress.css";
 import "./polish.css";
 import "./graph.css";
 import "./graph-depth.css";
+import "./graph-western-art.css";
 
 export const metadata: Metadata = {
   title: {
