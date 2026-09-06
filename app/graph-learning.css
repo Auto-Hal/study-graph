@@ -1,0 +1,302 @@
+.graph-learning-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(420px, .8fr);
+  gap: 22px;
+  align-items: center;
+  margin: 14px 0;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .84);
+  box-shadow: 0 12px 34px rgba(54, 48, 36, .035);
+}
+
+.graph-learning-summary.online {
+  border-color: #cfd9d1;
+}
+
+.graph-learning-summary.offline {
+  border-style: dashed;
+}
+
+.graph-learning-copy h2 {
+  margin: 0;
+  font-family: Georgia, "Yu Mincho", serif;
+  font-size: 21px;
+}
+
+.graph-learning-copy > p:last-child {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.75;
+}
+
+.graph-learning-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.graph-learning-metrics div {
+  min-width: 0;
+  padding: 11px 10px;
+  border-radius: 13px;
+  background: #f4f2ed;
+}
+
+.graph-learning-metrics dt,
+.graph-learning-metrics dd {
+  margin: 0;
+}
+
+.graph-learning-metrics dt {
+  color: var(--muted);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.graph-learning-metrics dd {
+  margin-top: 4px;
+  font-family: Georgia, "Yu Mincho", serif;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.graph-learning-metrics span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.graph-learning-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .68);
+}
+
+.graph-learning-filters > span {
+  margin-right: 3px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.graph-learning-filters button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.graph-learning-filters button b {
+  min-width: 17px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #f1eee8;
+  color: #6b6962;
+  font-size: 8px;
+  text-align: center;
+}
+
+.graph-learning-filters button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.graph-learning-filters button.active b {
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+}
+
+.graph-node.learning-due rect {
+  stroke-dasharray: 7 3;
+}
+
+.graph-node.learning-weak rect {
+  stroke-width: 3;
+}
+
+.graph-learning-dot {
+  stroke: #fff;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.graph-learning-dot.due,
+.graph-legend .learning-legend.due i,
+.learning-badge.due,
+.graph-connected-learning.due {
+  background: #a7655f;
+  fill: #a7655f;
+}
+
+.graph-learning-dot.weak,
+.graph-legend .learning-legend.weak i,
+.learning-badge.weak,
+.graph-connected-learning.weak {
+  background: #b28b58;
+  fill: #b28b58;
+}
+
+.graph-learning-dot.recent,
+.graph-legend .learning-legend.recent i,
+.learning-badge.recent,
+.graph-connected-learning.recent {
+  background: #5f7f69;
+  fill: #5f7f69;
+}
+
+.graph-learning-dot.tracked,
+.learning-badge.tracked,
+.graph-connected-learning.tracked {
+  background: #8a8a82;
+  fill: #8a8a82;
+}
+
+.graph-edges line.learning-weak-edge:not(.selected) {
+  stroke: #b9a28a;
+}
+
+.graph-legend .learning-legend {
+  margin-left: 3px;
+}
+
+.graph-legend .learning-legend i {
+  border-radius: 999px;
+}
+
+.graph-learning-detail {
+  margin-top: 15px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f5f3ee;
+}
+
+.graph-learning-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.learning-badge,
+.graph-connected-learning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #fff;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.learning-badge {
+  padding: 5px 8px;
+  font-size: 8px;
+}
+
+.learning-badge.untracked {
+  background: #ddd9d1;
+  color: #68665f;
+}
+
+.graph-learning-detail-heading strong {
+  font-size: 10px;
+}
+
+.graph-learning-detail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 10px 0 0;
+}
+
+.graph-learning-detail dl div {
+  min-width: 0;
+}
+
+.graph-learning-detail dt,
+.graph-learning-detail dd {
+  margin: 0;
+}
+
+.graph-learning-detail dt {
+  color: var(--muted);
+  font-size: 7px;
+}
+
+.graph-learning-detail dd {
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.graph-learning-detail.empty p,
+.graph-learning-detail.empty strong {
+  display: block;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.graph-connected-list button {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.graph-connected-learning {
+  padding: 3px 5px;
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .graph-learning-filters button:hover {
+    border-color: #bdb7ac;
+  }
+}
+
+@media (max-width: 980px) {
+  .graph-learning-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .graph-learning-summary {
+    gap: 14px;
+    padding: 17px;
+  }
+
+  .graph-learning-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .graph-learning-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .graph-learning-filters > span,
+  .graph-learning-filters button {
+    flex: none;
+  }
+}

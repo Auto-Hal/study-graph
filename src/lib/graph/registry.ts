@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type { GraphAdapter, GraphData } from "@/src/lib/graph/types";
 import { defaultStudyProjectId, getStudyProject, studyProjects } from "@/src/lib/projects/registry";
 import { getKuzushijiGraph } from "@/src/lib/notion/kuzushiji-graph";
@@ -69,6 +70,17 @@ const graphAdapters: Record<string, GraphAdapter> = {
   philosophy: philosophyAdapter,
 };
 
+const cachedGraphLoaders = Object.fromEntries(
+  Object.entries(graphAdapters).map(([projectId, adapter]) => [
+    projectId,
+    unstable_cache(
+      () => adapter.load(),
+      [`study-graph:notion-graph:${projectId}:v1`],
+      { revalidate: 300 },
+    ),
+  ]),
+) as Record<string, () => Promise<GraphData>>;
+
 export function getGraphProject(projectId: string | undefined | null) {
   const requested = getStudyProject(projectId ?? defaultStudyProjectId);
   if (requested?.status === "active" && graphAdapters[requested.id]) return requested;
@@ -81,5 +93,5 @@ export function listGraphProjects() {
 
 export async function loadProjectGraph(projectId: string | undefined | null): Promise<GraphData> {
   const project = getGraphProject(projectId);
-  return graphAdapters[project.id].load();
+  return cachedGraphLoaders[project.id]();
 }

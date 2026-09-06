@@ -15,6 +15,8 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 5. Graph UIは共通化する。
 6. OpenAI APIなしでも成立させる。
 7. Mobile / iPadで閲覧できることを維持する。
+8. Supabaseの学習状態は表示時に重ね、Notion Relationへ書き戻さない。
+9. Notion取得はページネーションとキャッシュを前提にし、不要な全件再取得を避ける。
 
 ## 3. Phase 2 roadmap
 
@@ -90,9 +92,9 @@ Production validation:
 - error/fatal runtime log 0件
 - 空の初期placeholder pageはNotionを変更せず表示時のみ除外
 
-### Phase 2.4 — Philosophy pilot 🚧
+### Phase 2.4 — Philosophy pilot ✅
 
-既存Notionの「課題」を除く8 Data Sourceを変更せず専用Adapterで共通Graphへ変換する。
+既存Notionの「課題」を除く8 Data Sourceを変更せず専用Adapterで共通Graphへ変換。
 
 対象:
 
@@ -105,7 +107,7 @@ Production validation:
 - 時代
 - 思考ノート
 
-実装する主なRelation:
+主なRelation:
 
 - Lecture ↔ Philosopher / Term / Problem / Work / Culture / Period
 - Philosopher ↔ Term / Work / Problem / Culture / Period
@@ -116,27 +118,38 @@ Production validation:
 
 師弟・影響関係はcanonical sideのみを採用し、逆Relationを重複表示しない。
 
-**完了条件**
+Production validation:
 
-- [ ] 哲学史がProject selectorから選択可能
-- [ ] Vercel Previewでproduction build / TypeScript成功
-- [ ] ProductionでNotion実データを取得
-- [ ] 8 node typesを共通Graph UIで表示可能
-- [ ] Relation filter / focus URL / searchが哲学史でも利用可能
-- [ ] GitHub CI成功
-- [ ] Productionでnode / relation件数を確認
-- [ ] Production error/fatalログに新規問題なし
+- Notion Relations connected
+- 45 nodes / 187 Relations
+- 8/8 node types populated
+- Relation filter / focus URL / search 動作確認済み
+- ヘラクレイトス × 関連用語のfocus表示を実データで確認
+- error/fatal runtime log 0件
 
-### Phase 2.5 — Learning-aware Graph
+### Phase 2.5 — Learning-aware Graph ✅
 
 Notion知識GraphとSupabase復習履歴を表示上で統合する。
 
-- 復習期限到来ノードの表示
-- 苦手ノードの強調
-- 最近復習したノードの表示
-- Relation単位で弱点の集まりを把握
+- `review_state.item_id` とNotion node idを照合
+- 復習期限到来ノードの表示・フィルター
+- `again` / `hard` を苦手ノードとして強調
+- 7日以内に復習したノードの表示・フィルター
+- 選択ノード詳細に最終評価・最終復習・次回復習・反復回数を表示
+- 苦手ノードに接続するRelationを識別し、弱点近傍を確認可能にする
+- Supabase未接続・該当履歴0件でもGraph自体は利用可能
+- Notion Relationには学習状態を書き戻さない
 
-Notion Relationそのものへ復習状態を書き戻さない。
+現時点の復習対象はくずし字のCharacter / Mistake。美術史・哲学史にReview対象が追加された場合も、Notion node idとSupabase item idが一致すれば同じOverlayを利用できる。
+
+### Notion取得負荷対策
+
+- Graph AdapterはData Sourceを100件単位でページネーションする。
+- Project Registry層でGraph取得結果を5分キャッシュする。
+- 同じ画面を再表示するたびに複数Data Sourceへ全件問い合わせしない。
+- 選択中プロジェクトのAdapterだけを実行する。
+- 将来Relationが1プロパティ25件を超えるケースが出た場合はPage Property paginationを追加する。
+- 10,000件級のData Sourceへ成長した場合は`last_edited_time`による差分同期へ移行する。
 
 ## 4. Phase 2に含めないもの
 
@@ -153,11 +166,18 @@ Notion Relationそのものへ復習状態を書き戻さない。
 
 - 10 nodes
 - 10 Relations
+- Supabase review overlay対象あり
 
 ### Western Art History
 
 - 36 nodes
 - 90 Relations
 - 7/8 populated node types
+
+### Western Philosophy
+
+- 45 nodes
+- 187 Relations
+- 8/8 populated node types
 
 件数は検証用baselineであり、コードへ固定しない。Notionへ学習データを追加すればGraphにも増える。
