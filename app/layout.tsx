@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./review-persistence.css";
+import "./review-cross-project.css";
 import "./project-navigation.css";
 import "./progress.css";
 import "./polish.css";

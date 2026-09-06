@@ -1,10 +1,12 @@
 import "server-only";
 
+import type { ReviewItemKind } from "@/src/lib/review/types";
+
 export type ReviewGrade = "again" | "hard" | "good" | "easy";
 
 export type ReviewState = {
   item_id: string;
-  item_kind: "character" | "mistake";
+  item_kind: ReviewItemKind;
   last_grade: ReviewGrade;
   repetitions: number;
   interval_days: number;
@@ -15,7 +17,7 @@ export type ReviewState = {
 export type ReviewAttempt = {
   id: number;
   item_id: string;
-  item_kind: "character" | "mistake";
+  item_kind: ReviewItemKind;
   grade: ReviewGrade;
   previous_interval_days: number;
   interval_days: number;
@@ -103,7 +105,7 @@ export async function getDueReviewItems<T extends { id: string }>(items: T[]) {
 
 export async function recordReviewAttempt(input: {
   itemId: string;
-  itemKind: "character" | "mistake";
+  itemKind: ReviewItemKind;
   grade: ReviewGrade;
 }) {
   const rows = await callRpc<RecordReviewResult[]>("study_graph_record_review", {

@@ -4,11 +4,12 @@ import {
   recordReviewAttempt,
   type ReviewGrade,
 } from "@/src/lib/supabase/review";
+import type { ReviewItemKind } from "@/src/lib/review/types";
 
 export const runtime = "nodejs";
 
 const grades = new Set<ReviewGrade>(["again", "hard", "good", "easy"]);
-const kinds = new Set(["character", "mistake"] as const);
+const kinds = new Set<ReviewItemKind>(["character", "mistake", "knowledge"]);
 
 function isSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
   if (
     itemId.length === 0 ||
     itemId.length > 200 ||
-    (itemKind !== "character" && itemKind !== "mistake") ||
+    (itemKind !== "character" && itemKind !== "mistake" && itemKind !== "knowledge") ||
     (grade !== "again" && grade !== "hard" && grade !== "good" && grade !== "easy") ||
     !kinds.has(itemKind) ||
     !grades.has(grade)

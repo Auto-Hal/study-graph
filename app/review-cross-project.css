@@ -1,0 +1,128 @@
+.review-project-shell {
+  width: min(900px, calc(100% - 32px));
+}
+
+.review-project-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  margin: 12px 0 18px;
+  padding: 24px 26px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, .8);
+}
+
+.review-project-intro h1 {
+  max-width: 680px;
+  font-size: clamp(30px, 5vw, 48px);
+}
+
+.review-project-intro > div > p:not(.eyebrow) {
+  max-width: 650px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.review-session-badge {
+  display: grid;
+  min-width: 116px;
+  min-height: 96px;
+  place-content: center;
+  border-radius: 20px;
+  background: var(--accent);
+  color: #fff;
+  text-align: center;
+}
+
+.review-session-badge strong,
+.review-session-badge span {
+  display: block;
+}
+
+.review-session-badge strong {
+  font-family: Georgia, "Yu Mincho", serif;
+  font-size: 34px;
+}
+
+.review-session-badge span {
+  margin-top: 4px;
+  color: #c7d3c9;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.review-project-selector {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.review-project-selector a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .72);
+}
+
+.review-project-selector a:hover {
+  border-color: #c8cfc7;
+  background: #fff;
+}
+
+.review-project-selector a.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.review-project-selector span {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-project-selector small {
+  flex: none;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.review-project-selector a.active small {
+  color: #c7d3c9;
+}
+
+.review-project-shell .notice {
+  margin-bottom: 18px;
+}
+
+@media (max-width: 680px) {
+  .review-project-intro {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .review-session-badge {
+    min-height: 74px;
+  }
+
+  .review-project-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .review-project-selector a {
+    padding: 11px 13px;
+  }
+}

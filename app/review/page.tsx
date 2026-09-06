@@ -1,78 +1,83 @@
 import Link from "next/link";
-import ReviewSession, { type ReviewCard } from "@/src/components/ReviewSession";
-import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
-import { getDueReviewItems } from "@/src/lib/supabase/review";
+import ReviewSession from "@/src/components/ReviewSession";
+import { loadReviewProject } from "@/src/lib/review/registry";
 
 export const dynamic = "force-dynamic";
 
-function displayGlyph(value: string) {
-  return value.replace(/（.*?）/g, "").trim() || value || "?";
-}
-
-export default async function ReviewPage() {
-  const data = await getKuzushijiDashboard();
-  const scheduledReview = await getDueReviewItems(data.reviewQueue);
-  const cards: ReviewCard[] = [];
-
-  for (const item of scheduledReview.items) {
-    if (item.kind === "character") {
-      const character = data.characters.find((candidate) => candidate.id === item.id);
-      if (!character) continue;
-
-      cards.push({
-        id: character.id,
-        kind: "character",
-        label: character.glyph,
-        prompt: "この文字の読みと字母を思い出してください。",
-        front: displayGlyph(character.glyph),
-        reason: item.reason,
-        answerRows: [
-          { label: "登録名", value: character.glyph },
-          { label: "読み", value: character.reading },
-          { label: "字母", value: character.mother },
-          { label: "習得状態", value: character.mastery },
-        ],
-        sourceUrl: character.url,
-      });
-      continue;
-    }
-
-    const mistake = data.mistakes.find((candidate) => candidate.id === item.id);
-    if (!mistake) continue;
-
-    cards.push({
-      id: mistake.id,
-      kind: "mistake",
-      label: mistake.title,
-      prompt: "この誤読の問題点と、正しい判断を思い出してください。",
-      front: mistake.title || "誤読記録",
-      reason: item.reason,
-      answerRows: [
-        { label: "自分の回答", value: mistake.answer },
-        { label: "正解", value: mistake.correctAnswer },
-        { label: "原因", value: mistake.cause },
-      ],
-      sourceUrl: mistake.url,
-    });
-  }
+export default async function ReviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const query = await searchParams;
+  const data = await loadReviewProject(query.project);
+  const practice = data.session.mode === "practice";
 
   return (
-    <main className="review-page-shell">
+    <main className="review-page-shell review-project-shell">
       <header className="review-page-header">
         <Link className="brand-link" href="/">
           <span className="brand-mark">SG</span>
           <span>
             <strong>Study Graph</strong>
-            <small>くずし字・今日の復習</small>
+            <small>{data.project.shortLabel}・{practice ? "Practice" : "今日の復習"}</small>
           </span>
         </Link>
-        <div className={`sync-pill ${data.mode === "notion" ? "online" : "demo"}`}>
+        <div className={`sync-pill ${data.sourceMode === "notion" ? "online" : "demo"}`}>
           <span className="dot" />
-          {data.mode === "notion" ? "Notion 接続中" : "Demo data"}
+          {data.sourceMode === "notion" ? "Notion 接続中" : "Demo data"}
         </div>
       </header>
 
-      <ReviewSession cards={cards} persistence={scheduledReview.persistence} />
+      <section className="review-project-intro">
+        <div>
+          <p className="eyebrow">CROSS-PROJECT REVIEW · PHASE 3.0</p>
+          <h1>{practice ? "知識を思い出し、復習対象へ育てる。" : "今日の復習を、期限順に進める。"}</h1>
+          <p>
+            {practice
+              ? "Knowledge GraphのNotionノードから問題を作ります。初回Practiceで評価した知識だけがSupabaseの間隔反復へ参加します。"
+              : "Notionで管理している弱点候補とSupabaseの次回復習日を照合し、期限が来た項目だけを出題します。"}
+          </p>
+        </div>
+        <div className="review-session-badge">
+          <strong>{data.cards.length}</strong>
+          <span>{practice ? "今回のPractice" : "期限到来"}</span>
+        </div>
+      </section>
+
+      <nav className="review-project-selector" aria-label="Reviewプロジェクト選択">
+        {data.projects.map((project) => {
+          const active = project.id === data.project.id;
+          const strategyLabel = project.review.strategy === "graph-practice" ? "Practice" : "Scheduled";
+          return (
+            <Link
+              className={active ? "active" : undefined}
+              href={`/review?project=${encodeURIComponent(project.id)}`}
+              key={project.id}
+              aria-current={active ? "page" : undefined}
+            >
+              <span>{project.shortLabel}</span>
+              <small>{strategyLabel}</small>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {data.sourceMode === "demo" && (
+        <section className="notice" role="status">
+          <strong>Notionを取得できていません。</strong>
+          <span> 現在はDemo dataのため、評価は保存しません。</span>
+        </section>
+      )}
+
+      {data.sourceMode === "notion" && data.persistence === "fallback" && (
+        <section className="notice" role="status">
+          <strong>復習履歴を取得できていません。</strong>
+          <span> 問題には取り組めますが、このセッションの評価は保存しません。</span>
+        </section>
+      )}
+
+      <ReviewSession cards={data.cards} persistence={data.persistence} session={data.session} />
     </main>
   );
 }
