@@ -66,7 +66,7 @@ export default async function SettingsPage() {
               {data.mode === "notion" ? "接続中" : "Demo fallback"}
             </StatusBadge>
           </div>
-          <p>講義・文字・誤読記録の正本。Phase 1ではStudy Graphから書き込みません。</p>
+          <p>講義・文字・誤読・資料・表現の正本。Study GraphはRelationも含めてread-onlyで利用します。</p>
           <dl className="settings-facts">
             <div><dt>講義</dt><dd>{data.lectures.length}</dd></div>
             <div><dt>文字</dt><dd>{data.characters.length}</dd></div>
@@ -96,14 +96,14 @@ export default async function SettingsPage() {
           <div className="settings-card-heading">
             <div>
               <p className="eyebrow">APP POLICY</p>
-              <h2>MVP設定</h2>
+              <h2>現在の構成</h2>
             </div>
-            <StatusBadge state="online">Phase 1</StatusBadge>
+            <StatusBadge state="online">Phase 2</StatusBadge>
           </div>
           <ul className="settings-list">
             <li><span>表示タイムゾーン</span><strong>Asia/Tokyo</strong></li>
             <li><span>AI API</span><strong>未使用</strong></li>
-            <li><span>Knowledge Graph</span><strong>Phase 2</strong></li>
+            <li><span>Knowledge Graph</span><strong>有効・read-only</strong></li>
             <li><span>Notion書き戻し</span><strong>無効</strong></li>
           </ul>
         </article>
