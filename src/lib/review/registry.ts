@@ -10,6 +10,15 @@ import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import type { ReviewAsset, ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getDueReviewItems, getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
 
+export type ReviewProjectPayload = {
+  project: StudyProjectDefinition;
+  projects: StudyProjectDefinition[];
+  cards: ReviewCard[];
+  persistence: ReviewPersistenceMode;
+  sourceMode: "notion" | "demo";
+  session: ReviewSessionContext;
+};
+
 // Preview quality gate: use one glyph delivered as its own image from an Edo-period
 // source, rather than rendering a character by CSS-cropping the allographs sheet.
 const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
@@ -69,9 +78,6 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
 
 async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
   const data = await getKuzushijiDashboard();
-
-  // Quality gate: only self-contained visual reading exercises are allowed here.
-  // Mistake-note prose and modern-kana display cards remain source data, not questions.
   const visualCandidates = data.reviewQueue.filter((item) => {
     if (item.kind !== "character") return false;
     const character = data.characters.find((candidate) => candidate.id === item.id);
