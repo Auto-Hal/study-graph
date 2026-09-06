@@ -12,6 +12,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type KuzushijiReviewKind = "character" | "mistake";
+type KuzushijiReviewAttempt = ReviewAttempt & { item_kind: KuzushijiReviewKind };
+type KuzushijiReviewState = ReviewState & { item_kind: KuzushijiReviewKind };
+
 const gradeLabels: Record<ReviewGrade, string> = {
   again: "もう一度",
   hard: "難しい",
@@ -29,9 +33,17 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function isKuzushijiAttempt(attempt: ReviewAttempt): attempt is KuzushijiReviewAttempt {
+  return attempt.item_kind === "character" || attempt.item_kind === "mistake";
+}
+
+function isKuzushijiState(state: ReviewState): state is KuzushijiReviewState {
+  return state.item_kind === "character" || state.item_kind === "mistake";
+}
+
 function itemMeta(
   id: string,
-  kind: "character" | "mistake",
+  kind: KuzushijiReviewKind,
   data: Awaited<ReturnType<typeof getKuzushijiDashboard>>,
 ) {
   if (kind === "character") {
@@ -53,15 +65,27 @@ function itemMeta(
 
 async function reviewData() {
   if (!isReviewPersistenceConfigured()) {
-    return { history: [] as ReviewAttempt[], states: [] as ReviewState[], connected: false };
+    return {
+      history: [] as KuzushijiReviewAttempt[],
+      states: [] as KuzushijiReviewState[],
+      connected: false,
+    };
   }
 
   try {
     const [history, states] = await Promise.all([getReviewHistory(100), getReviewStates()]);
-    return { history, states, connected: true };
+    return {
+      history: history.filter(isKuzushijiAttempt),
+      states: states.filter(isKuzushijiState),
+      connected: true,
+    };
   } catch (error) {
     console.error("Study Graph: progress data fetch failed", error);
-    return { history: [] as ReviewAttempt[], states: [] as ReviewState[], connected: false };
+    return {
+      history: [] as KuzushijiReviewAttempt[],
+      states: [] as KuzushijiReviewState[],
+      connected: false,
+    };
   }
 }
 
