@@ -14,11 +14,25 @@ export type ChoiceAnswerSpec = {
 
 export type ReviewAnswerSpec = TextAnswerSpec | ChoiceAnswerSpec;
 
+export type ReviewAssetRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type ReviewAsset = {
   type: "image";
   src: string;
   alt: string;
-  region?: { x: number; y: number; width: number; height: number };
+  width?: number;
+  height?: number;
+  region?: ReviewAssetRegion;
+  presentation?: "full" | "crop";
+  caption?: string;
+  attribution?: string;
+  sourceUrl?: string;
+  license?: string;
 };
 
 export type ReviewCard = {
