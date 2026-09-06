@@ -1,0 +1,106 @@
+.graph-toolbar-depth {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(190px, .7fr) auto;
+  align-items: end;
+}
+
+.graph-relation-filter > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.graph-relation-filter select {
+  width: 100%;
+  padding: 10px 32px 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.graph-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.graph-view-actions button {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.graph-view-actions button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.graph-view-actions button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.graph-kind-filters-secondary {
+  margin-top: 8px;
+  justify-content: flex-start;
+  padding: 0 2px;
+}
+
+.graph-relation-labels button {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #f0eee8;
+  color: #64665f;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.density-1 .graph-node .node-label { font-size: 12px; }
+.density-1 .graph-node .node-meta { font-size: 8px; }
+.density-2 .graph-node .node-kind { font-size: 8px; }
+.density-2 .graph-node .node-label { font-size: 10px; }
+.density-2 .graph-node .node-meta { font-size: 7px; }
+
+.reference-link-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #faf9f6;
+}
+
+.reference-link-panel strong { font-size: 12px; }
+.reference-link-panel a { color: var(--accent); font-size: 12px; font-weight: 800; }
+
+.graph-entry-card {
+  background: linear-gradient(145deg, rgba(226, 234, 223, .78), rgba(255, 255, 255, .92));
+}
+
+@media (max-width: 900px) {
+  .graph-toolbar-depth { grid-template-columns: 1fr 1fr; }
+  .graph-view-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+@media (max-width: 620px) {
+  .graph-toolbar-depth { grid-template-columns: 1fr; }
+  .graph-view-actions { grid-column: auto; }
+  .graph-view-actions button { flex: 1 1 auto; }
+  .reference-link-panel { align-items: flex-start; flex-direction: column; }
+}
