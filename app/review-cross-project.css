@@ -40,8 +40,22 @@
 .answer-verdict.incorrect { color: #9b3d36; }
 .your-answer { margin: 0 0 14px; color: var(--muted); font-size: 12px; }
 .recommended-grade { outline: 2px solid var(--accent); outline-offset: 2px; }
-.exercise-asset { overflow: hidden; margin: 12px auto; max-width: 520px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
-.exercise-asset img { display: block; width: 100%; height: auto; }
+
+.exercise-asset {
+  overflow: hidden;
+  margin: 14px auto;
+  max-width: 520px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+.exercise-asset-viewport { position: relative; overflow: hidden; width: 100%; background: #f7f5ef; }
+.exercise-asset.is-full .exercise-asset-viewport { aspect-ratio: auto; }
+.exercise-asset-image { display: block; width: 100%; height: auto; }
+.exercise-asset .crop-image { position: absolute; max-width: none; }
+.exercise-asset figcaption { display: grid; gap: 3px; padding: 9px 11px 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.5; text-align: left; }
+.exercise-asset figcaption small { font-size: 9px; }
+.exercise-asset figcaption a { text-decoration: underline; text-underline-offset: 2px; }
 
 @media (max-width: 680px) {
   .review-project-intro { grid-template-columns: 1fr; padding: 20px; }
@@ -49,4 +63,5 @@
   .review-project-selector { grid-template-columns: 1fr; }
   .review-project-selector a { padding: 11px 13px; }
   .answer-entry { padding: 0 16px 16px; }
+  .exercise-asset { max-width: 100%; }
 }
