@@ -39,7 +39,7 @@ const kuzushijiVisualExercises: Record<string, KuzushijiVisualExercise> = {
     asset: {
       type: "image",
       src: "/assets/kuzushiji/a-eitaigura-hires.png",
-      alt: "『日本永代蔵』に現れる、字母「阿」由来の「あ」のくずし字字形",
+      alt: "『日本永代蔵』から切り出したくずし字1字",
       width: 222,
       height: 290,
       presentation: "full",
