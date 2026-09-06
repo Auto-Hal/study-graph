@@ -2,17 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import type {
+  ReviewCard,
+  ReviewPersistenceMode,
+  ReviewSessionContext,
+} from "@/src/lib/review/types";
 
-export type ReviewCard = {
-  id: string;
-  kind: "character" | "mistake";
-  label: string;
-  prompt: string;
-  front: string;
-  reason: string;
-  answerRows: Array<{ label: string; value: string }>;
-  sourceUrl: string;
-};
+export type { ReviewCard } from "@/src/lib/review/types";
 
 type Grade = "again" | "hard" | "good" | "easy";
 
@@ -59,9 +55,11 @@ function formatNextDue(value: string | null) {
 export default function ReviewSession({
   cards,
   persistence,
+  session,
 }: {
   cards: ReviewCard[];
-  persistence: "supabase" | "fallback";
+  persistence: ReviewPersistenceMode;
+  session: ReviewSessionContext;
 }) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -85,13 +83,22 @@ export default function ReviewSession({
   }, [results]);
 
   if (cards.length === 0) {
+    const practice = session.mode === "practice";
     return (
       <section className="review-stage empty-stage">
-        <p className="eyebrow">REVIEW</p>
-        <h1>今日は復習項目がありません。</h1>
-        <p>次回復習日になった項目や、新しくNotionに追加された弱点がここに自動で出てきます。</p>
+        <p className="eyebrow">{practice ? "PRACTICE" : "REVIEW"}</p>
+        <h1>{practice ? "今できるPracticeはありません。" : "今日は復習項目がありません。"}</h1>
+        <p>
+          {practice
+            ? "未追跡の候補を一巡済みか、追跡中の知識はまだ復習期限前です。Knowledge Graphで関係を見直してから、次の期限を待てます。"
+            : "次回復習日になった項目や、新しくNotionに追加された弱点がここに自動で出てきます。"}
+        </p>
         <div className="result-actions single-action-row">
-          <Link className="secondary-action" href="/projects/kuzushiji/progress">次回予定を見る</Link>
+          {session.historyHref ? (
+            <Link className="secondary-action" href={session.historyHref}>次回予定を見る</Link>
+          ) : (
+            <Link className="secondary-action" href={session.projectHref}>Knowledge Graphを見る</Link>
+          )}
           <Link className="secondary-action" href="/">ホームへ戻る</Link>
         </div>
       </section>
@@ -103,15 +110,18 @@ export default function ReviewSession({
     const needsWork = summary.again + summary.hard;
     const savedCount = results.filter((result) => result.saved).length;
     const fullySaved = savedCount === results.length && results.length > 0;
+    const savedLead = session.mode === "practice"
+      ? "今回評価した知識を復習スケジュールへ登録しました。次回は期限到来を優先しつつ、未追跡の知識を続けてPracticeできます。"
+      : "今回の評価を保存し、次回復習日を更新しました。";
 
     return (
       <section className="review-stage result-stage" aria-live="polite">
         <p className="eyebrow">SESSION COMPLETE</p>
-        <h1>今日の復習は完了です。</h1>
+        <h1>{session.projectTitle}の{session.mode === "practice" ? "Practice" : "復習"}は完了です。</h1>
         <p className="result-lead">
           {fullySaved
-            ? "今回の評価を保存し、次回復習日を更新しました。Homeには期限が来た項目だけが再表示されます。"
-            : "復習セッションは完了しました。Supabase接続前のため、この結果はまだ永続保存されていません。"}
+            ? savedLead
+            : "セッションは完了しました。現在は永続保存を使わないfallbackモードです。"}
         </p>
 
         <div className="result-grid">
@@ -141,9 +151,13 @@ export default function ReviewSession({
               setSaveError(null);
             }}
           >
-            もう一度復習する
+            もう一度取り組む
           </button>
-          <Link className="secondary-action" href="/projects/kuzushiji/progress">学習記録を見る</Link>
+          {session.historyHref ? (
+            <Link className="secondary-action" href={session.historyHref}>学習記録を見る</Link>
+          ) : (
+            <Link className="secondary-action" href={session.projectHref}>Knowledge Graphを見る</Link>
+          )}
         </div>
       </section>
     );
@@ -152,11 +166,30 @@ export default function ReviewSession({
   const card = cards[index];
   const progress = ((index + 1) / cards.length) * 100;
 
+  function advance(result: Result) {
+    const nextResults = [...results, result];
+    setResults(nextResults);
+
+    if (index >= cards.length - 1) {
+      setFinished(true);
+      return;
+    }
+
+    setIndex((current) => current + 1);
+    setRevealed(false);
+  }
+
   async function gradeCurrent(grade: Grade) {
     if (saving) return;
 
-    setSaving(true);
     setSaveError(null);
+
+    if (persistence === "fallback") {
+      advance({ id: card.id, grade, saved: false, dueAt: null });
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const response = await fetch("/api/review/attempt", {
@@ -170,24 +203,12 @@ export default function ReviewSession({
         throw new Error(payload.error || "save_failed");
       }
 
-      const nextResults = [
-        ...results,
-        {
-          id: card.id,
-          grade,
-          saved: payload.saved === true,
-          dueAt: typeof payload.dueAt === "string" ? payload.dueAt : null,
-        },
-      ];
-      setResults(nextResults);
-
-      if (index >= cards.length - 1) {
-        setFinished(true);
-        return;
-      }
-
-      setIndex((current) => current + 1);
-      setRevealed(false);
+      advance({
+        id: card.id,
+        grade,
+        saved: payload.saved === true,
+        dueAt: typeof payload.dueAt === "string" ? payload.dueAt : null,
+      });
     } catch (error) {
       console.error("Study Graph: review save failed", error);
       setSaveError("評価を保存できませんでした。通信状態を確認して、もう一度押してください。");
@@ -200,10 +221,10 @@ export default function ReviewSession({
     <section className="review-stage">
       <div className="review-progress-row">
         <div>
-          <p className="eyebrow">{card.kind === "character" ? "CHARACTER" : "MISTAKE"}</p>
+          <p className="eyebrow">{card.eyebrow}</p>
           <span>{index + 1} / {cards.length}</span>
         </div>
-        <Link href="/">終了</Link>
+        <Link href={session.projectHref}>終了</Link>
       </div>
 
       <div
@@ -220,9 +241,9 @@ export default function ReviewSession({
 
       <article className={`study-card ${revealed ? "is-revealed" : ""}`}>
         <div className="study-card-front">
-          <span className="review-kind">{card.kind === "character" ? "文字" : "誤読"}</span>
+          <span className="review-kind">{card.kindLabel}</span>
           <p className="study-prompt">{card.prompt}</p>
-          <div className={card.kind === "character" ? "study-glyph" : "study-mistake-title"}>{card.front}</div>
+          <div className={card.frontStyle === "glyph" ? "study-glyph" : "study-mistake-title"}>{card.front}</div>
           <p className="study-reason">{card.reason}</p>
         </div>
 
@@ -254,7 +275,7 @@ export default function ReviewSession({
         <div className="grade-area">
           <p>どのくらい思い出せましたか？</p>
           {persistence === "fallback" && (
-            <p className="persistence-note" role="status">Supabase接続前のため、現在は評価を保存せずに進みます。</p>
+            <p className="persistence-note" role="status">fallbackモードのため、この評価は保存せずに進みます。</p>
           )}
           {saveError && <p className="save-error" role="alert">{saveError}</p>}
           <div className="grade-buttons">
