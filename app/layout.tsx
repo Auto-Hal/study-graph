@@ -4,6 +4,7 @@ import "./review-persistence.css";
 import "./project-navigation.css";
 import "./progress.css";
 import "./polish.css";
+import "./graph.css";
 
 export const metadata: Metadata = {
   title: {
