@@ -3,6 +3,31 @@ import { defaultStudyProjectId, getStudyProject, studyProjects } from "@/src/lib
 import { getKuzushijiGraph } from "@/src/lib/notion/kuzushiji-graph";
 import { getWesternArtHistoryGraph } from "@/src/lib/notion/western-art-history-graph";
 
+const westernArtPlaceholderLabels = new Set([
+  "芸術家",
+  "作品",
+  "様式・運動",
+  "用語",
+  "時代",
+  "文化・歴史",
+  "美術館・建築",
+]);
+
+function removeWesternArtPlaceholderNodes(graph: GraphData): GraphData {
+  if (graph.mode !== "notion") return graph;
+
+  const nodes = graph.nodes.filter(
+    (node) => !(node.meta === "" && westernArtPlaceholderLabels.has(node.label)),
+  );
+  const nodeIds = new Set(nodes.map((node) => node.id));
+
+  return {
+    ...graph,
+    nodes,
+    edges: graph.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)),
+  };
+}
+
 const kuzushijiAdapter: GraphAdapter = {
   projectId: "kuzushiji",
   async load(): Promise<GraphData> {
@@ -27,7 +52,9 @@ const kuzushijiAdapter: GraphAdapter = {
 
 const westernArtHistoryAdapter: GraphAdapter = {
   projectId: "western-art-history",
-  load: getWesternArtHistoryGraph,
+  async load(): Promise<GraphData> {
+    return removeWesternArtPlaceholderNodes(await getWesternArtHistoryGraph());
+  },
 };
 
 const graphAdapters: Record<string, GraphAdapter> = {
