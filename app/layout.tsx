@@ -7,6 +7,7 @@ import "./polish.css";
 import "./graph.css";
 import "./graph-depth.css";
 import "./graph-western-art.css";
+import "./graph-philosophy.css";
 
 export const metadata: Metadata = {
   title: {

@@ -1,0 +1,35 @@
+.graph-node.kind-philosopher rect {
+  fill: #e7e2ef;
+  stroke: #b8abc9;
+}
+
+.graph-node.kind-work rect {
+  fill: #efe5da;
+  stroke: #ccb69f;
+}
+
+.graph-node.kind-problem rect {
+  fill: #eee1e1;
+  stroke: #c9aaaa;
+}
+
+.graph-node.kind-thought-note rect {
+  fill: #e2ece8;
+  stroke: #abc2b9;
+}
+
+.graph-legend .kind-philosopher i,
+.graph-detail-kind.kind-philosopher,
+.graph-connected-kind.kind-philosopher { background: #e7e2ef; }
+
+.graph-legend .kind-work i,
+.graph-detail-kind.kind-work,
+.graph-connected-kind.kind-work { background: #efe5da; }
+
+.graph-legend .kind-problem i,
+.graph-detail-kind.kind-problem,
+.graph-connected-kind.kind-problem { background: #eee1e1; }
+
+.graph-legend .kind-thought-note i,
+.graph-detail-kind.kind-thought-note,
+.graph-connected-kind.kind-thought-note { background: #e2ece8; }

@@ -69,10 +69,10 @@ export const studyProjects: StudyProjectDefinition[] = [
     eyebrow: "WESTERN PHILOSOPHY",
     description: "哲学者・著作・用語・問題をRelationでたどり、論争と思想の継承を見える形にする。",
     goal: "思想を自分の言葉で説明し、時代を越えた問題のつながりを理解する。",
-    href: "/projects",
+    href: "/graph?project=philosophy",
     icon: "哲",
-    status: "planned",
-    phase: "Phase 2.4",
+    status: "active",
+    phase: "Phase 2.4 Pilot",
     graphNodeKinds: [
       { id: "lecture", label: "講義", order: 10 },
       { id: "philosopher", label: "哲学者", order: 20 },

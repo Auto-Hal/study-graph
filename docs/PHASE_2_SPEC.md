@@ -31,42 +31,31 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 - 100件超のData Source向けページネーション
 - Demo fallback
 
-**Production確認済み**
-
-- [x] GitHub CI成功
-- [x] PreviewでNotion実Relationを可視化
-- [x] `/graph` がPrimary Navigationから利用可能
-- [x] Productionで10 nodes / 10 Relationsを確認
-- [x] Production error/fatalログに新規問題なし
+Production baseline: 10 nodes / 10 Relations。
 
 ### Phase 2.1 — Graph browsing depth ✅
 
-- [x] Sources / ExpressionsをStudy Graph内でも一覧・詳細表示
-- [x] Graphから全ノード種類へ内部遷移
-- [x] 選択ノード中心の表示モード
-- [x] Relation種類による絞り込み
-- [x] URL queryで選択ノード / Relation / focus modeを保持
-- [x] 大規模Graph向け表示密度調整
+- Sources / Expressionsの一覧・詳細
+- 全ノード種類への内部遷移
+- 選択ノード中心の表示モード
+- Relation種類による絞り込み
+- URL queryで選択ノード / Relation / focus modeを保持
+- 大規模Graph向け表示密度調整
 
 ### Phase 2.2 — Multi-project graph architecture ✅
 
-- [x] Project Registry
-- [x] 共通Graph adapter interface
-- [x] Project selector
-- [x] Graph Node kindをプロジェクト別に拡張可能にする
-- [x] 既存くずし字Adapterをregistry方式へ移行
-- [x] 西洋美術史・西洋哲学史をplanned projectとして事前登録
+- Project Registry
+- 共通Graph adapter interface
+- Project selector
+- プロジェクト別Node kind定義
+- くずし字Adapterをregistry方式へ移行
+- 西洋美術史・西洋哲学史を同じGraph UIへ追加可能な構造
 
-**設計上の境界**
+Graph UIはNotion schemaを知らず、`GraphData` と `GraphNodeKindDefinition[]` のみを受け取る。
 
-- Project Registryはプロジェクトの表示情報とNode kind定義を持つ。
-- Adapter Registryはactive projectとデータ取得関数を対応付ける。
-- Graph UIはNotion schemaを知らず、`GraphData` と `GraphNodeKindDefinition[]` のみを受け取る。
-- planned projectはAdapterが追加されるまでNotion APIを呼ばない。
+### Phase 2.3 — Western Art History pilot ✅
 
-### Phase 2.3 — Western Art History pilot
-
-既存Notion DBを変更せず、8 Data Sourceを専用Adapterで共通Graphへ変換する。
+既存Notionの8 Data Sourceを変更せず専用Adapterで共通Graphへ変換。
 
 対象:
 
@@ -79,7 +68,7 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 - Culture
 - Museums & Architecture
 
-実装する主なRelation:
+主なRelation:
 
 - Lecture ↔ Artist / Artwork / Movement / Term / Period / Culture / Museum
 - Artwork ↔ Artist / Movement / Period / Museum
@@ -92,19 +81,20 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 
 双方向Relationはcanonical sideのみをGraphEdgeへ変換し、逆Relationによる二重線を避ける。
 
-**完了条件**
+Production validation:
 
-- [ ] 西洋美術史がProject selectorから選択可能
-- [ ] Vercel PreviewでNotion実データを取得
-- [ ] 8 node typesが共通Graph UIで表示可能
-- [ ] Relation filter / focus URL / searchが美術史でも利用可能
-- [ ] GitHub CI成功
-- [ ] ProductionでNotion modeとnode / relation件数を確認
-- [ ] Production error/fatalログに新規問題なし
+- Notion Relations connected
+- 36 nodes / 90 Relations
+- 7/8 node types populated（現在の先史美術データには実名Artistがまだ0件）
+- Relation filter / focus URL 動作確認済み
+- error/fatal runtime log 0件
+- 空の初期placeholder pageはNotionを変更せず表示時のみ除外
 
-### Phase 2.4 — Philosophy pilot
+### Phase 2.4 — Philosophy pilot 🚧
 
-既存Notion DBを利用する。
+既存Notionの「課題」を除く8 Data Sourceを変更せず専用Adapterで共通Graphへ変換する。
+
+対象:
 
 - 講義
 - 哲学者
@@ -115,13 +105,27 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 - 時代
 - 思考ノート
 
-主な関係例:
+実装する主なRelation:
 
-- Philosopher ↔ Work
-- Philosopher ↔ Term
-- Philosopher ↔ Problem
-- Work ↔ Problem
-- Lecture ↔ Philosopher / Term / Work
+- Lecture ↔ Philosopher / Term / Problem / Work / Culture / Period
+- Philosopher ↔ Term / Work / Problem / Culture / Period
+- Philosopher ↔ Teacher / Influence
+- Term ↔ Problem / Culture
+- Problem ↔ Work
+- Thought Note ↔ Lecture / Problem
+
+師弟・影響関係はcanonical sideのみを採用し、逆Relationを重複表示しない。
+
+**完了条件**
+
+- [ ] 哲学史がProject selectorから選択可能
+- [ ] Vercel Previewでproduction build / TypeScript成功
+- [ ] ProductionでNotion実データを取得
+- [ ] 8 node typesを共通Graph UIで表示可能
+- [ ] Relation filter / focus URL / searchが哲学史でも利用可能
+- [ ] GitHub CI成功
+- [ ] Productionでnode / relation件数を確認
+- [ ] Production error/fatalログに新規問題なし
 
 ### Phase 2.5 — Learning-aware Graph
 
@@ -136,8 +140,6 @@ Notion Relationそのものへ復習状態を書き戻さない。
 
 ## 4. Phase 2に含めないもの
 
-現時点では以下を別フェーズ扱いとする。
-
 - AIによるGraph自動生成
 - OpenAI Embeddingsによる自動Relation追加
 - Notion Relationの自動書き換え
@@ -145,16 +147,17 @@ Notion Relationそのものへ復習状態を書き戻さない。
 - 博物館フィールドモード
 - 高度なFSRSへの全面移行
 
-## 5. Current Kuzushiji validation baseline
+## 5. Validation baselines
 
-現在のNotion実データ:
+### Kuzushiji
 
-- Lecture: 1
-- Character: 3
-- Mistake: 1
-- Source: 1
-- Expression: 4
-- Total nodes: 10
-- Relations: 10
+- 10 nodes
+- 10 Relations
 
-件数は検証用baselineであり、コードへ固定しない。
+### Western Art History
+
+- 36 nodes
+- 90 Relations
+- 7/8 populated node types
+
+件数は検証用baselineであり、コードへ固定しない。Notionへ学習データを追加すればGraphにも増える。
