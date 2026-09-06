@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import { getGraphLearningOverlay } from "@/src/lib/graph/learning";
 import { getGraphProject, listGraphProjects, loadProjectGraph } from "@/src/lib/graph/registry";
 import GraphExplorer from "./GraphExplorer";
 
@@ -16,6 +17,7 @@ export default async function KnowledgeGraphPage({
     loadProjectGraph(project.id),
     Promise.resolve(listGraphProjects()),
   ]);
+  const learning = await getGraphLearningOverlay(graph.nodes, graph.edges);
   const counts = Object.fromEntries(project.graphNodeKinds.map((kind) => [kind.id, graph.nodes.filter((node) => node.kind === kind.id).length]));
   const initialNodeId = query.node && graph.nodes.some((node) => node.id === query.node) ? query.node : undefined;
   const initialRelation = query.relation && graph.edges.some((edge) => edge.label === query.relation) ? query.relation : undefined;
@@ -52,7 +54,7 @@ export default async function KnowledgeGraphPage({
       <nav className="breadcrumbs" aria-label="パンくずリスト"><Link href="/">Home</Link><span>Graph</span><span>{project.shortLabel}</span></nav>
 
       <section className="learn-hero graph-hero">
-        <p className="eyebrow">KNOWLEDGE GRAPH · {project.phase.toUpperCase()}</p>
+        <p className="eyebrow">KNOWLEDGE GRAPH · PHASE 2.5</p>
         <h1>{heroTitle}</h1>
         <p className="learn-hero-copy">{heroCopy}</p>
       </section>
@@ -76,11 +78,25 @@ export default async function KnowledgeGraphPage({
         <article><span>NODE TYPES</span><strong>{populatedKinds}/{project.graphNodeKinds.length}</strong><small>現在データあり / 定義済み</small></article>
       </section>
 
-      <GraphExplorer projectId={project.id} kindDefinitions={project.graphNodeKinds} nodes={graph.nodes} edges={graph.edges} initialNodeId={initialNodeId} initialRelation={initialRelation} initialView={initialView} />
+      <section className={`graph-learning-summary ${learning.mode === "supabase" ? "online" : "offline"}`} aria-label="学習状態サマリー">
+        <div className="graph-learning-copy">
+          <p className="eyebrow">LEARNING OVERLAY</p>
+          <h2>知識の地図に、復習状態を重ねる。</h2>
+          <p>{learning.mode === "supabase" ? (learning.summary.tracked > 0 ? "Supabaseの復習履歴と同じNotionノードを照合しています。期限到来・苦手・最近復習した知識をRelationの中で確認できます。" : "Supabaseには接続できていますが、このプロジェクトにはまだ復習履歴と一致するノードがありません。Review対象が追加されると自動でここへ反映されます。") : "Supabaseの学習状態を取得できなかったため、Knowledge Graphのみを表示しています。"}</p>
+        </div>
+        <dl className="graph-learning-metrics">
+          <div><dt>TRACKED</dt><dd>{learning.summary.tracked}</dd><span>履歴あり</span></div>
+          <div><dt>DUE</dt><dd>{learning.summary.due}</dd><span>期限到来</span></div>
+          <div><dt>WEAK</dt><dd>{learning.summary.weak}</dd><span>苦手</span></div>
+          <div><dt>RECENT</dt><dd>{learning.summary.recent}</dd><span>7日以内</span></div>
+        </dl>
+      </section>
+
+      <GraphExplorer projectId={project.id} kindDefinitions={project.graphNodeKinds} nodes={graph.nodes} edges={graph.edges} learning={learning} initialNodeId={initialNodeId} initialRelation={initialRelation} initialView={initialView} />
 
       <section className="graph-policy-note">
         <div><p className="eyebrow">ADAPTER ARCHITECTURE</p><h2>DBを揃えず、Graph型だけを揃える。</h2></div>
-        <p>{policyCopy}</p>
+        <p>{policyCopy} Graph取得結果は5分間キャッシュし、同じプロジェクトを開くたびにNotionへ全Data Sourceを再問い合わせしない構成にしています。</p>
       </section>
 
       <PrimaryNav active="graph" />

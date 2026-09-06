@@ -30,6 +30,30 @@ export type GraphData = {
   edges: GraphEdge[];
 };
 
+export type GraphLearningSignal = {
+  lastGrade: "again" | "hard" | "good" | "easy";
+  repetitions: number;
+  intervalDays: number;
+  lastReviewedAt: string;
+  dueAt: string;
+  due: boolean;
+  weak: boolean;
+  recent: boolean;
+  weakNeighborCount: number;
+};
+
+export type GraphLearningOverlay = {
+  mode: "supabase" | "unavailable";
+  byNodeId: Record<string, GraphLearningSignal>;
+  summary: {
+    tracked: number;
+    due: number;
+    weak: number;
+    recent: number;
+    weakRelations: number;
+  };
+};
+
 export interface GraphAdapter {
   projectId: string;
   load(): Promise<GraphData>;

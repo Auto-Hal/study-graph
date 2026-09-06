@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { GraphEdge, GraphNode, GraphNodeKindDefinition } from "@/src/lib/graph/types";
+import type { GraphEdge, GraphLearningOverlay, GraphLearningSignal, GraphNode, GraphNodeKindDefinition } from "@/src/lib/graph/types";
 
 type ViewMode = "overview" | "focus";
+type LearningFilter = "all" | "tracked" | "due" | "weak" | "recent";
+
+const gradeLabels = {
+  again: "もう一度",
+  hard: "難しい",
+  good: "できた",
+  easy: "即答",
+} as const;
 
 function truncate(value: string, max: number) {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
@@ -18,11 +26,41 @@ function kindClass(kind: string) {
   return `kind-${kind.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function primaryLearningStatus(signal: GraphLearningSignal | undefined) {
+  if (!signal) return null;
+  if (signal.due) return "due" as const;
+  if (signal.weak) return "weak" as const;
+  if (signal.recent) return "recent" as const;
+  return "tracked" as const;
+}
+
+function learningStatusLabel(signal: GraphLearningSignal | undefined) {
+  const status = primaryLearningStatus(signal);
+  if (status === "due") return "期限到来";
+  if (status === "weak") return "苦手";
+  if (status === "recent") return "最近復習";
+  if (status === "tracked") return "履歴あり";
+  return "未追跡";
+}
+
 export default function GraphExplorer({
   projectId,
   kindDefinitions,
   nodes,
   edges,
+  learning,
   initialNodeId,
   initialRelation,
   initialView = "overview",
@@ -31,6 +69,7 @@ export default function GraphExplorer({
   kindDefinitions: GraphNodeKindDefinition[];
   nodes: GraphNode[];
   edges: GraphEdge[];
+  learning: GraphLearningOverlay;
   initialNodeId?: string;
   initialRelation?: string;
   initialView?: ViewMode;
@@ -42,6 +81,7 @@ export default function GraphExplorer({
   const [selectedId, setSelectedId] = useState(nodes.some((node) => node.id === initialNodeId) ? initialNodeId! : fallbackId);
   const [focusKind, setFocusKind] = useState<string | "all">("all");
   const [relationFilter, setRelationFilter] = useState(initialRelation && relationLabels.includes(initialRelation) ? initialRelation : "all");
+  const [learningFilter, setLearningFilter] = useState<LearningFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [query, setQuery] = useState("");
   const [copied, setCopied] = useState(false);
@@ -53,10 +93,12 @@ export default function GraphExplorer({
   }, [nodes, orderedKinds]);
 
   const selected = nodes.find((node) => node.id === selectedId) ?? null;
+  const selectedLearning = selected ? learning.byNodeId[selected.id] : undefined;
   const filteredEdges = useMemo(() => relationFilter === "all" ? edges : edges.filter((edge) => edge.label === relationFilter), [edges, relationFilter]);
   const selectedEdges = selected ? filteredEdges.filter((edge) => edge.source === selected.id || edge.target === selected.id) : [];
   const connectedIds = useMemo(() => new Set(selectedEdges.flatMap((edge) => edge.source === selectedId ? [edge.target] : [edge.source])), [selectedEdges, selectedId]);
   const connectedNodes = useMemo(() => nodes.filter((node) => connectedIds.has(node.id)), [connectedIds, nodes]);
+  const selectedWeakNeighborCount = connectedNodes.filter((node) => learning.byNodeId[node.id]?.weak).length;
 
   const denseLevel = nodes.length > 100 ? 2 : nodes.length > 40 ? 1 : 0;
   const overviewHeight = useMemo(() => {
@@ -96,10 +138,17 @@ export default function GraphExplorer({
   const displayNodes = viewMode === "focus" && selected ? nodes.filter((node) => node.id === selected.id || connectedIds.has(node.id)) : nodes;
   const displayEdges = viewMode === "focus" && selected ? selectedEdges : filteredEdges;
   const normalizedQuery = query.trim().toLocaleLowerCase("ja-JP");
+  const learningMatches = (node: GraphNode) => {
+    const signal = learning.byNodeId[node.id];
+    if (learningFilter === "all") return true;
+    if (learningFilter === "tracked") return Boolean(signal);
+    if (!signal) return false;
+    return signal[learningFilter];
+  };
   const nodeMatches = (node: GraphNode) => {
     const typeMatch = focusKind === "all" || node.kind === focusKind;
     const queryMatch = normalizedQuery.length === 0 || `${node.label} ${node.meta}`.toLocaleLowerCase("ja-JP").includes(normalizedQuery);
-    return typeMatch && queryMatch;
+    return typeMatch && queryMatch && learningMatches(node);
   };
 
   useEffect(() => {
@@ -139,6 +188,15 @@ export default function GraphExplorer({
         {orderedKinds.map((kind) => <button className={focusKind === kind.id ? `active ${kindClass(kind.id)}` : kindClass(kind.id)} key={kind.id} onClick={() => setFocusKind(kind.id)} type="button">{kind.label} <span>{counts[kind.id] ?? 0}</span></button>)}
       </div>
 
+      <div className="graph-learning-filters" aria-label="学習状態フィルター">
+        <span>学習状態</span>
+        <button className={learningFilter === "all" ? "active" : undefined} onClick={() => setLearningFilter("all")} type="button">すべて</button>
+        <button className={learningFilter === "tracked" ? "active" : undefined} onClick={() => setLearningFilter("tracked")} type="button">履歴あり <b>{learning.summary.tracked}</b></button>
+        <button className={learningFilter === "due" ? "active due" : "due"} onClick={() => setLearningFilter("due")} type="button">期限到来 <b>{learning.summary.due}</b></button>
+        <button className={learningFilter === "weak" ? "active weak" : "weak"} onClick={() => setLearningFilter("weak")} type="button">苦手 <b>{learning.summary.weak}</b></button>
+        <button className={learningFilter === "recent" ? "active recent" : "recent"} onClick={() => setLearningFilter("recent")} type="button">最近復習 <b>{learning.summary.recent}</b></button>
+      </div>
+
       <div className="graph-main-grid">
         <div className="graph-canvas-card">
           <div className="graph-canvas-heading"><div><p className="eyebrow">{viewMode === "focus" ? "FOCUSED RELATIONS" : "RELATION MAP"}</p><h2>{viewMode === "focus" && selected ? `${selected.label} を中心に表示` : "Knowledge Graph"}</h2></div><span>{displayEdges.length} relations</span></div>
@@ -149,27 +207,30 @@ export default function GraphExplorer({
                   const source = positions.get(edge.source); const target = positions.get(edge.target); if (!source || !target) return null;
                   const isConnected = Boolean(selected && (edge.source === selected.id || edge.target === selected.id));
                   const sourceNode = nodes.find((node) => node.id === edge.source); const targetNode = nodes.find((node) => node.id === edge.target);
+                  const isWeakRelation = Boolean(learning.byNodeId[edge.source]?.weak || learning.byNodeId[edge.target]?.weak);
                   const isDimmed = Boolean(sourceNode && targetNode && (!nodeMatches(sourceNode) || !nodeMatches(targetNode)) && !isConnected);
-                  return <line className={`${isConnected ? "selected" : ""} ${isDimmed ? "dimmed" : ""}`} key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} />;
+                  return <line className={`${isConnected ? "selected" : ""} ${isWeakRelation ? "learning-weak-edge" : ""} ${isDimmed ? "dimmed" : ""}`} key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} />;
                 })}
               </g>
               <g className="graph-nodes">
                 {displayNodes.map((node) => {
                   const position = positions.get(node.id); if (!position) return null;
-                  const isSelected = node.id === selectedId; const isConnected = connectedIds.has(node.id); const isDimmed = !nodeMatches(node) && !isSelected && !isConnected;
+                  const isSelected = node.id === selectedId; const isConnected = connectedIds.has(node.id); const isDimmed = !nodeMatches(node) && !isSelected && !(isConnected && learningFilter === "all");
                   const label = kindLabels.get(node.kind) ?? node.kind;
-                  return <g className={`graph-node ${kindClass(node.kind)} ${isSelected ? "selected" : ""} ${isConnected ? "connected" : ""} ${isDimmed ? "dimmed" : ""}`} key={node.id} onClick={() => setSelectedId(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(node.id); } }} role="button" tabIndex={0} transform={`translate(${position.x} ${position.y})`} aria-label={`${label} ${node.label}`}>
-                    <title>{`${label}: ${node.label}${node.meta ? ` / ${node.meta}` : ""}`}</title><rect x={-nodeWidth / 2} y={-nodeHeight / 2} width={nodeWidth} height={nodeHeight} rx={denseLevel === 2 ? 14 : 18} /><text className="node-kind" x="0" y={denseLevel === 2 ? -9 : -13} textAnchor="middle">{label}</text><text className="node-label" x="0" y="8" textAnchor="middle">{truncate(node.label, denseLevel === 2 ? 11 : denseLevel === 1 ? 13 : 15)}</text><text className="node-meta" x="0" y={denseLevel === 2 ? 22 : 27} textAnchor="middle">{truncate(node.meta, denseLevel === 2 ? 14 : 20)}</text>
+                  const signal = learning.byNodeId[node.id];
+                  const learningStatus = primaryLearningStatus(signal);
+                  return <g className={`graph-node ${kindClass(node.kind)} ${isSelected ? "selected" : ""} ${isConnected ? "connected" : ""} ${signal?.due ? "learning-due" : ""} ${signal?.weak ? "learning-weak" : ""} ${signal?.recent ? "learning-recent" : ""} ${isDimmed ? "dimmed" : ""}`} key={node.id} onClick={() => setSelectedId(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(node.id); } }} role="button" tabIndex={0} transform={`translate(${position.x} ${position.y})`} aria-label={`${label} ${node.label}${signal ? `、学習状態 ${learningStatusLabel(signal)}` : ""}`}>
+                    <title>{`${label}: ${node.label}${node.meta ? ` / ${node.meta}` : ""}${signal ? ` / ${learningStatusLabel(signal)}` : ""}`}</title><rect x={-nodeWidth / 2} y={-nodeHeight / 2} width={nodeWidth} height={nodeHeight} rx={denseLevel === 2 ? 14 : 18} /><text className="node-kind" x="0" y={denseLevel === 2 ? -9 : -13} textAnchor="middle">{label}</text><text className="node-label" x="0" y="8" textAnchor="middle">{truncate(node.label, denseLevel === 2 ? 11 : denseLevel === 1 ? 13 : 15)}</text><text className="node-meta" x="0" y={denseLevel === 2 ? 22 : 27} textAnchor="middle">{truncate(node.meta, denseLevel === 2 ? 14 : 20)}</text>{learningStatus && <circle className={`graph-learning-dot ${learningStatus}`} cx={nodeWidth / 2 - 9} cy={-nodeHeight / 2 + 9} r="5"><title>{learningStatusLabel(signal)}</title></circle>}
                   </g>;
                 })}
               </g>
             </svg>
           </div>
-          <div className="graph-legend" aria-label="凡例">{orderedKinds.map((kind) => <span className={kindClass(kind.id)} key={kind.id}><i />{kind.label}</span>)}</div>
+          <div className="graph-legend" aria-label="凡例">{orderedKinds.map((kind) => <span className={kindClass(kind.id)} key={kind.id}><i />{kind.label}</span>)}<span className="learning-legend due"><i />期限到来</span><span className="learning-legend weak"><i />苦手</span><span className="learning-legend recent"><i />最近復習</span></div>
         </div>
 
         <aside className="graph-detail-card" aria-live="polite">
-          {selected ? <><p className="eyebrow">SELECTED NODE</p><span className={`graph-detail-kind ${kindClass(selected.kind)}`}>{kindLabels.get(selected.kind) ?? selected.kind}</span><h2>{selected.label}</h2><p className="graph-detail-meta">{selected.meta || "補足情報は未登録です。"}</p><dl className="graph-detail-stats"><div><dt>接続ノード</dt><dd>{connectedNodes.length}</dd></div><div><dt>表示Relation</dt><dd>{selectedEdges.length}</dd></div></dl>{selectedEdges.length > 0 && <div className="graph-relation-labels">{unique(selectedEdges.map((edge) => edge.label)).map((label) => <button key={label} onClick={() => setRelationFilter(label)} type="button">{label}</button>)}</div>}<div className="graph-connected-list"><h3>つながっている知識</h3>{connectedNodes.length > 0 ? connectedNodes.map((node) => <button key={node.id} onClick={() => setSelectedId(node.id)} type="button"><span className={`graph-connected-kind ${kindClass(node.kind)}`}>{kindLabels.get(node.kind) ?? node.kind}</span><strong>{node.label}</strong></button>) : <p>{relationFilter === "all" ? "Relationはまだありません。" : "このRelationでは接続がありません。"}</p>}</div><div className="graph-detail-actions">{selected.href && <Link className="graph-primary-action" href={selected.href}>Study Graphで詳細を見る</Link>}{selected.notionUrl !== "#" && <a href={selected.notionUrl} target="_blank" rel="noreferrer">Notionで開く</a>}</div></> : <p className="graph-detail-empty">ノードを選択すると、Relationと詳細がここに表示されます。</p>}
+          {selected ? <><p className="eyebrow">SELECTED NODE</p><span className={`graph-detail-kind ${kindClass(selected.kind)}`}>{kindLabels.get(selected.kind) ?? selected.kind}</span><h2>{selected.label}</h2><p className="graph-detail-meta">{selected.meta || "補足情報は未登録です。"}</p>{selectedLearning ? <div className="graph-learning-detail"><div className="graph-learning-detail-heading"><span className={`learning-badge ${primaryLearningStatus(selectedLearning)}`}>{learningStatusLabel(selectedLearning)}</span><strong>{gradeLabels[selectedLearning.lastGrade]}</strong></div><dl><div><dt>最終復習</dt><dd>{formatDateTime(selectedLearning.lastReviewedAt)}</dd></div><div><dt>次回復習</dt><dd>{formatDateTime(selectedLearning.dueAt)}</dd></div><div><dt>反復</dt><dd>{selectedLearning.repetitions}回</dd></div><div><dt>弱点近傍</dt><dd>{selectedWeakNeighborCount}件</dd></div></dl></div> : <div className="graph-learning-detail empty"><span className="learning-badge untracked">未追跡</span><p>このノードにはまだSupabaseの復習履歴がありません。</p>{selectedWeakNeighborCount > 0 && <strong>ただし、直接つながる苦手ノードが {selectedWeakNeighborCount} 件あります。</strong>}</div>}<dl className="graph-detail-stats"><div><dt>接続ノード</dt><dd>{connectedNodes.length}</dd></div><div><dt>表示Relation</dt><dd>{selectedEdges.length}</dd></div></dl>{selectedEdges.length > 0 && <div className="graph-relation-labels">{unique(selectedEdges.map((edge) => edge.label)).map((label) => <button key={label} onClick={() => setRelationFilter(label)} type="button">{label}</button>)}</div>}<div className="graph-connected-list"><h3>つながっている知識</h3>{connectedNodes.length > 0 ? connectedNodes.map((node) => { const signal = learning.byNodeId[node.id]; return <button key={node.id} onClick={() => setSelectedId(node.id)} type="button"><span className={`graph-connected-kind ${kindClass(node.kind)}`}>{kindLabels.get(node.kind) ?? node.kind}</span><strong>{node.label}</strong>{signal && <em className={`graph-connected-learning ${primaryLearningStatus(signal)}`}>{learningStatusLabel(signal)}</em>}</button>; }) : <p>{relationFilter === "all" ? "Relationはまだありません。" : "このRelationでは接続がありません。"}</p>}</div><div className="graph-detail-actions">{selected.href && <Link className="graph-primary-action" href={selected.href}>Study Graphで詳細を見る</Link>}{selected.notionUrl !== "#" && <a href={selected.notionUrl} target="_blank" rel="noreferrer">Notionで開く</a>}</div></> : <p className="graph-detail-empty">ノードを選択すると、Relationと詳細がここに表示されます。</p>}
         </aside>
       </div>
     </section>
