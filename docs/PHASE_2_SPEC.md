@@ -48,7 +48,7 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 - [x] URL queryで選択ノード / Relation / focus modeを保持
 - [x] 大規模Graph向け表示密度調整
 
-### Phase 2.2 — Multi-project graph architecture
+### Phase 2.2 — Multi-project graph architecture ✅
 
 - [x] Project Registry
 - [x] 共通Graph adapter interface
@@ -66,7 +66,9 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 
 ### Phase 2.3 — Western Art History pilot
 
-既存Notion DBを変更せず、以下を中心にAdapterを作成する。
+既存Notion DBを変更せず、8 Data Sourceを専用Adapterで共通Graphへ変換する。
+
+対象:
 
 - Lectures
 - Artists
@@ -77,13 +79,28 @@ Phase 2の中心テーマは Knowledge Graph と複数学習プロジェクト�
 - Culture
 - Museums & Architecture
 
-主な関係例:
+実装する主なRelation:
 
-- Artist ↔ Artwork
-- Artwork ↔ Movement
-- Movement ↔ Period
-- Artwork ↔ Museum
-- Lecture ↔ Artist / Artwork / Term
+- Lecture ↔ Artist / Artwork / Movement / Term / Period / Culture / Museum
+- Artwork ↔ Artist / Movement / Period / Museum
+- Artist ↔ Movement / Period / Influence
+- Movement ↔ Period / next Movement
+- Term ↔ Artwork / Artist / Movement / Period
+- Period ↔ next Period / Culture
+- Culture ↔ Artwork / Movement
+- Museum ↔ architectural Movement
+
+双方向Relationはcanonical sideのみをGraphEdgeへ変換し、逆Relationによる二重線を避ける。
+
+**完了条件**
+
+- [ ] 西洋美術史がProject selectorから選択可能
+- [ ] Vercel PreviewでNotion実データを取得
+- [ ] 8 node typesが共通Graph UIで表示可能
+- [ ] Relation filter / focus URL / searchが美術史でも利用可能
+- [ ] GitHub CI成功
+- [ ] ProductionでNotion modeとnode / relation件数を確認
+- [ ] Production error/fatalログに新規問題なし
 
 ### Phase 2.4 — Philosophy pilot
 

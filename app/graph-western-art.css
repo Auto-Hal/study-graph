@@ -1,0 +1,62 @@
+.graph-node.kind-artist rect {
+  fill: #efe7f0;
+  stroke: #cdb9d0;
+}
+
+.graph-node.kind-artwork rect {
+  fill: #f2e7e1;
+  stroke: #d4b9ad;
+}
+
+.graph-node.kind-movement rect {
+  fill: #e5ebf1;
+  stroke: #afbecd;
+}
+
+.graph-node.kind-term rect {
+  fill: #f3efd9;
+  stroke: #d4c99a;
+}
+
+.graph-node.kind-period rect {
+  fill: #e2eeea;
+  stroke: #a8c6bb;
+}
+
+.graph-node.kind-culture rect {
+  fill: #eee7d9;
+  stroke: #ccbda0;
+}
+
+.graph-node.kind-museum rect {
+  fill: #e8ecee;
+  stroke: #b5c1c6;
+}
+
+.graph-legend .kind-artist i,
+.graph-detail-kind.kind-artist,
+.graph-connected-kind.kind-artist { background: #efe7f0; }
+
+.graph-legend .kind-artwork i,
+.graph-detail-kind.kind-artwork,
+.graph-connected-kind.kind-artwork { background: #f2e7e1; }
+
+.graph-legend .kind-movement i,
+.graph-detail-kind.kind-movement,
+.graph-connected-kind.kind-movement { background: #e5ebf1; }
+
+.graph-legend .kind-term i,
+.graph-detail-kind.kind-term,
+.graph-connected-kind.kind-term { background: #f3efd9; }
+
+.graph-legend .kind-period i,
+.graph-detail-kind.kind-period,
+.graph-connected-kind.kind-period { background: #e2eeea; }
+
+.graph-legend .kind-culture i,
+.graph-detail-kind.kind-culture,
+.graph-connected-kind.kind-culture { background: #eee7d9; }
+
+.graph-legend .kind-museum i,
+.graph-detail-kind.kind-museum,
+.graph-connected-kind.kind-museum { background: #e8ecee; }

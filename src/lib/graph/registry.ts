@@ -1,6 +1,7 @@
 import type { GraphAdapter, GraphData } from "@/src/lib/graph/types";
 import { defaultStudyProjectId, getStudyProject, studyProjects } from "@/src/lib/projects/registry";
 import { getKuzushijiGraph } from "@/src/lib/notion/kuzushiji-graph";
+import { getWesternArtHistoryGraph } from "@/src/lib/notion/western-art-history-graph";
 
 const kuzushijiAdapter: GraphAdapter = {
   projectId: "kuzushiji",
@@ -24,8 +25,14 @@ const kuzushijiAdapter: GraphAdapter = {
   },
 };
 
+const westernArtHistoryAdapter: GraphAdapter = {
+  projectId: "western-art-history",
+  load: getWesternArtHistoryGraph,
+};
+
 const graphAdapters: Record<string, GraphAdapter> = {
   kuzushiji: kuzushijiAdapter,
+  "western-art-history": westernArtHistoryAdapter,
 };
 
 export function getGraphProject(projectId: string | undefined | null) {
