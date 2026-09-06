@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type ActiveItem = "home" | "learn" | "review" | "settings";
+type ActiveItem = "home" | "learn" | "review" | "graph" | "settings";
 
 export default function PrimaryNav({
   active,
@@ -22,9 +22,9 @@ export default function PrimaryNav({
       <Link className={active === "review" ? "active" : undefined} href="/review" aria-current={active === "review" ? "page" : undefined}>
         Review
       </Link>
-      <span className="nav-disabled" aria-disabled="true" title="Knowledge GraphはPhase 2で実装予定です">
-        Graph<small>Phase 2</small>
-      </span>
+      <Link className={active === "graph" ? "active" : undefined} href="/graph" aria-current={active === "graph" ? "page" : undefined}>
+        Graph
+      </Link>
       <Link className={active === "settings" ? "active" : undefined} href="/settings" aria-current={active === "settings" ? "page" : undefined}>
         Settings
       </Link>
