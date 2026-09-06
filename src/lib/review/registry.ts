@@ -22,16 +22,16 @@ export type ReviewProjectPayload = {
 const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
   "あ": {
     type: "image",
-    src: "/assets/kuzushiji/a-k49.png",
-    alt: "Kuzushiji-49に収録された「あ」のくずし字字形",
-    width: 224,
-    height: 224,
+    src: "/assets/kuzushiji/a-eitaigura-hires.png",
+    alt: "『日本永代蔵』に現れる「あ」のくずし字字形",
+    width: 222,
+    height: 290,
     presentation: "full",
   },
 };
 
-const KUZUSHIJI_SOURCE = "KMNIST Dataset (CODH), adapted from Kuzushiji Dataset (NIJL and others), doi:10.20676/00000341";
-const KUZUSHIJI_SOURCE_URL = "https://github.com/rois-codh/kmnist";
+const KUZUSHIJI_SOURCE = "『日本古典籍くずし字データセット』（国文研所蔵／CODH加工） doi:10.20676/00000340";
+const KUZUSHIJI_SOURCE_URL = "https://codh.rois.ac.jp/char-shape/book/200015843/";
 
 function acceptedValues(value: string) {
   const candidates = value.split(/[、,，/／・\n]/g).map((entry) => entry.trim()).filter(Boolean);
@@ -49,13 +49,13 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
 
   return {
     id: character.id,
-    exerciseId: `${character.id}:visual-reading-v5`,
+    exerciseId: `${character.id}:visual-reading-v6`,
     projectId: project.id,
     kind: "character",
     kindLabel: "実字形",
     eyebrow: "VISUAL",
     label: character.glyph,
-    prompt: "江戸期古典籍由来のくずし字1字を、ひらがなで読んでください。",
+    prompt: "江戸期『日本永代蔵』の実資料から切り出したくずし字1字を、ひらがなで読んでください。",
     front: "1字形から読む",
     frontStyle: "title",
     reason: item.reason,
@@ -65,10 +65,11 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
       { label: "正解", value: character.reading },
       { label: "字母", value: character.mother },
       { label: "登録名", value: character.glyph },
-      { label: "データ", value: "Kuzushiji-49" },
+      { label: "資料", value: "日本永代蔵" },
+      { label: "原字形", value: "U+3042_200015843_00032_1_X1086_Y1894.jpg（93×127px）" },
       { label: "出典", value: KUZUSHIJI_SOURCE },
       { label: "ライセンス", value: "CC BY-SA 4.0" },
-      { label: "学習ポイント", value: "現代仮名ではなく、実際のくずし字字形から読みを判断する" },
+      { label: "学習ポイント", value: "機械学習用28×28画像ではなく、原資料対応の字形画像から筆線と崩し方を読む" },
     ],
     sourceUrl: KUZUSHIJI_SOURCE_URL,
   };
