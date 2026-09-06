@@ -2,6 +2,12 @@ import type { GraphNodeKindDefinition } from "@/src/lib/graph/types";
 
 export type StudyProjectStatus = "active" | "planned";
 
+export type StudyProjectReviewDefinition = {
+  strategy: "notion-queue" | "graph-practice";
+  eligibleKinds: string[];
+  sessionSize: number;
+};
+
 export type StudyProjectDefinition = {
   id: string;
   slug: string;
@@ -15,6 +21,7 @@ export type StudyProjectDefinition = {
   status: StudyProjectStatus;
   phase: string;
   graphNodeKinds: GraphNodeKindDefinition[];
+  review: StudyProjectReviewDefinition;
 };
 
 export const studyProjects: StudyProjectDefinition[] = [
@@ -37,6 +44,11 @@ export const studyProjects: StudyProjectDefinition[] = [
       { id: "source", label: "資料", order: 40 },
       { id: "expression", label: "表現", order: 50 },
     ],
+    review: {
+      strategy: "notion-queue",
+      eligibleKinds: ["character", "mistake"],
+      sessionSize: 12,
+    },
   },
   {
     id: "western-art-history",
@@ -49,7 +61,7 @@ export const studyProjects: StudyProjectDefinition[] = [
     href: "/graph?project=western-art-history",
     icon: "美",
     status: "active",
-    phase: "Phase 2.3 Pilot",
+    phase: "Phase 3.0 Review",
     graphNodeKinds: [
       { id: "lecture", label: "講義", order: 10 },
       { id: "artist", label: "作家", order: 20 },
@@ -60,6 +72,11 @@ export const studyProjects: StudyProjectDefinition[] = [
       { id: "culture", label: "文化・歴史", order: 70 },
       { id: "museum", label: "美術館・建築", order: 80 },
     ],
+    review: {
+      strategy: "graph-practice",
+      eligibleKinds: ["artwork", "movement", "term", "period"],
+      sessionSize: 12,
+    },
   },
   {
     id: "philosophy",
@@ -72,7 +89,7 @@ export const studyProjects: StudyProjectDefinition[] = [
     href: "/graph?project=philosophy",
     icon: "哲",
     status: "active",
-    phase: "Phase 2.4 Pilot",
+    phase: "Phase 3.0 Review",
     graphNodeKinds: [
       { id: "lecture", label: "講義", order: 10 },
       { id: "philosopher", label: "哲学者", order: 20 },
@@ -83,6 +100,11 @@ export const studyProjects: StudyProjectDefinition[] = [
       { id: "culture", label: "文化", order: 70 },
       { id: "thought-note", label: "思考ノート", order: 80 },
     ],
+    review: {
+      strategy: "graph-practice",
+      eligibleKinds: ["philosopher", "work", "term", "problem"],
+      sessionSize: 12,
+    },
   },
 ];
 
