@@ -19,12 +19,12 @@ export type ReviewProjectPayload = {
   session: ReviewSessionContext;
 };
 
-// Preview quality gate: use one glyph delivered as its own image from an Edo-period
-// source, rather than rendering a character by CSS-cropping the allographs sheet.
+// Preview quality gate: render one glyph as its own image and serve it through
+// Study Graph, so mobile Safari never has to request the CODH image directly.
 const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
   "あ": {
     type: "image",
-    src: "https://codh.rois.ac.jp/iiif/iiif-curation-viewer/image/200015843_00012_2/601,849,77,97/full/0/default.jpg",
+    src: "/api/kuzushiji-glyph",
     alt: "『日本永代蔵』に現れる「あ」のくずし字1字形",
     width: 77,
     height: 97,
@@ -51,7 +51,7 @@ function visualCharacterCard(project: StudyProjectDefinition, character: Charact
 
   return {
     id: character.id,
-    exerciseId: `${character.id}:visual-reading-v3`,
+    exerciseId: `${character.id}:visual-reading-v4`,
     projectId: project.id,
     kind: "character",
     kindLabel: "実字形",
