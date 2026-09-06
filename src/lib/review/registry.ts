@@ -23,20 +23,16 @@ const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
   "あ": {
     type: "image",
     src: "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/100241706.jpg",
-    alt: "日本古典籍くずし字データセットに収録された「あ」の複数字形",
+    alt: "江戸期資料に収録された「あ」のくずし字字形",
     width: 968,
     height: 506,
-    presentation: "full",
-    caption: "同じ「あ」でも資料・筆跡によって形が大きく変わります。",
-    attribution: "『日本古典籍くずし字データセット』（国文研ほか所蔵／CODH加工） doi:10.20676/00000340",
-    sourceUrl: "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/",
-    license: "CC BY-SA 4.0",
+    presentation: "crop",
+    region: { x: 0.018, y: 0.018, width: 0.055, height: 0.15 },
   },
 };
 
-function displayGlyph(value: string) {
-  return value.replace(/（.*?）/g, "").trim() || value || "?";
-}
+const KUZUSHIJI_SOURCE = "『日本古典籍くずし字データセット』（国文研ほか所蔵／CODH加工）";
+const KUZUSHIJI_SOURCE_URL = "https://codh.rois.ac.jp/char-shape/unicode/U%2B3042/";
 
 function acceptedValues(value: string) {
   const candidates = value.split(/[、,，/／・\n]/g).map((entry) => entry.trim()).filter(Boolean);
@@ -48,89 +44,72 @@ function visualAssetForCharacter(character: Character) {
   return readings.map((reading) => kuzushijiVisualAssets[reading]).find(Boolean);
 }
 
-function characterCard(project: StudyProjectDefinition, character: Character, item: ReviewItem): ReviewCard {
+function visualCharacterCard(project: StudyProjectDefinition, character: Character, item: ReviewItem): ReviewCard | null {
   const asset = visualAssetForCharacter(character);
+  if (!asset) return null;
+
   return {
     id: character.id,
-    exerciseId: asset ? `${character.id}:visual-reading` : `${character.id}:reading`,
+    exerciseId: `${character.id}:visual-reading-v2`,
     projectId: project.id,
     kind: "character",
-    kindLabel: asset ? "実字形" : "文字",
-    eyebrow: asset ? "VISUAL" : "CHARACTER",
+    kindLabel: "実字形",
+    eyebrow: "VISUAL",
     label: character.glyph,
-    prompt: asset
-      ? "実資料由来のくずし字画像を見て、読みを入力してください。字形差があっても同じ文字です。"
-      : "この文字の読みを入力してください。",
-    front: asset ? "実資料由来の字形から読む" : displayGlyph(character.glyph),
-    frontStyle: asset ? "title" : "glyph",
+    prompt: "この江戸期資料のくずし字1字を、ひらがなで読んでください。",
+    front: "字形だけを見て読む",
+    frontStyle: "title",
     reason: item.reason,
     asset,
     answer: { type: "text", acceptedAnswers: acceptedValues(character.reading), placeholder: "読みを入力" },
     answerRows: [
-      { label: "登録名", value: character.glyph },
-      { label: "読み", value: character.reading },
+      { label: "正解", value: character.reading },
       { label: "字母", value: character.mother },
-      { label: "習得状態", value: character.mastery },
-      ...(asset
-        ? [{ label: "学習ポイント", value: "一つの固定字形ではなく、実資料に現れる複数の崩れ方を同一文字として認識する" }]
-        : []),
+      { label: "登録名", value: character.glyph },
+      { label: "出典", value: KUZUSHIJI_SOURCE },
+      { label: "ライセンス", value: "CC BY-SA 4.0" },
+      { label: "学習ポイント", value: "現代仮名の形ではなく、実資料の一字形から読みを判断する" },
     ],
-    sourceUrl: character.url,
+    sourceUrl: KUZUSHIJI_SOURCE_URL,
   };
 }
 
 async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
   const data = await getKuzushijiDashboard();
+
+  // Quality gate: only self-contained visual reading exercises are allowed here.
+  // Mistake-note prose and modern-kana display cards remain source data, not questions.
+  const visualCandidates = data.reviewQueue.filter((item) => {
+    if (item.kind !== "character") return false;
+    const character = data.characters.find((candidate) => candidate.id === item.id);
+    return Boolean(character && visualAssetForCharacter(character));
+  });
+
   const scheduled = data.mode === "notion"
-    ? await getDueReviewItems(data.reviewQueue)
-    : { items: data.reviewQueue, persistence: "fallback" as const };
+    ? await getDueReviewItems(visualCandidates)
+    : { items: visualCandidates, persistence: "fallback" as const };
 
   const selected: ReviewItem[] = [...scheduled.items];
   const selectedIds = new Set(selected.map((item) => item.id));
-  for (const item of data.reviewQueue) {
+  for (const item of visualCandidates) {
     if (selected.length >= project.review.sessionSize) break;
     if (selectedIds.has(item.id)) continue;
     selected.push(item);
     selectedIds.add(item.id);
   }
 
-  const cards: ReviewCard[] = [];
-  for (const item of selected.slice(0, project.review.sessionSize)) {
-    if (item.kind === "character") {
+  const cards: ReviewCard[] = selected
+    .slice(0, project.review.sessionSize)
+    .map((item) => {
       const character = data.characters.find((candidate) => candidate.id === item.id);
-      if (!character) continue;
-      cards.push(characterCard(project, character, item));
-      continue;
-    }
-
-    const mistake = data.mistakes.find((candidate) => candidate.id === item.id);
-    if (!mistake) continue;
-    cards.push({
-      id: mistake.id,
-      exerciseId: `${mistake.id}:correct-answer`,
-      projectId: project.id,
-      kind: "mistake",
-      kindLabel: "誤読",
-      eyebrow: "MISTAKE",
-      label: mistake.title,
-      prompt: "この誤読に対する正しい読み・判断を入力してください。",
-      front: mistake.title || "誤読記録",
-      frontStyle: "title",
-      reason: item.reason,
-      answer: { type: "text", acceptedAnswers: acceptedValues(mistake.correctAnswer), placeholder: "正しい読み・判断を入力" },
-      answerRows: [
-        { label: "自分の回答", value: mistake.answer },
-        { label: "正解", value: mistake.correctAnswer },
-        { label: "原因", value: mistake.cause },
-      ],
-      sourceUrl: mistake.url,
-    });
-  }
+      return character ? visualCharacterCard(project, character, item) : null;
+    })
+    .filter((card): card is ReviewCard => Boolean(card));
 
   return {
     project,
     projects: getActiveStudyProjects(),
-    cards: attachReviewAssets(cards, reviewAssetProvider),
+    cards,
     persistence: scheduled.persistence,
     sourceMode: data.mode,
     session: {
