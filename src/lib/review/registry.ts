@@ -19,59 +19,81 @@ export type ReviewProjectPayload = {
   session: ReviewSessionContext;
 };
 
-const kuzushijiVisualAssets: Record<string, ReviewAsset> = {
-  "あ": {
-    type: "image",
-    src: "/assets/kuzushiji/a-eitaigura-hires.png",
-    alt: "『日本永代蔵』に現れる「あ」のくずし字字形",
-    width: 222,
-    height: 290,
-    presentation: "full",
-  },
+type KuzushijiVisualExercise = {
+  asset: ReviewAsset;
+  reading: string;
+  mother: string;
+  sourceTitle: string;
+  sourceImage: string;
+  sourceUrl: string;
+  attribution: string;
+  license: string;
+  learningPoint: string;
 };
 
-const KUZUSHIJI_SOURCE = "『日本古典籍くずし字データセット』（国文研所蔵／CODH加工） doi:10.20676/00000340";
-const KUZUSHIJI_SOURCE_URL = "https://codh.rois.ac.jp/char-shape/book/200015843/";
+// A visual exercise owns its image-specific reading, mother character and provenance.
+// Notion remains the learned-scope authority, but generic Notion character metadata is
+// not reused as if it described a particular historical glyph image.
+const kuzushijiVisualExercises: Record<string, KuzushijiVisualExercise> = {
+  "あ": {
+    asset: {
+      type: "image",
+      src: "/assets/kuzushiji/a-eitaigura-hires.png",
+      alt: "『日本永代蔵』に現れる、字母「阿」由来の「あ」のくずし字字形",
+      width: 222,
+      height: 290,
+      presentation: "full",
+    },
+    reading: "あ",
+    mother: "阿",
+    sourceTitle: "日本永代蔵",
+    sourceImage: "U+3042_200015843_00032_1_X1086_Y1894.jpg（原字形 93×127px）",
+    sourceUrl: "https://codh.rois.ac.jp/char-shape/book/200015843/",
+    attribution: "『日本古典籍くずし字データセット』（国文研所蔵／CODH加工） doi:10.20676/00000340",
+    license: "CC BY-SA 4.0",
+    learningPoint: "字母「阿」由来の「あ」。実資料の筆線・連綿・崩し方を一字形として認識する",
+  },
+};
 
 function acceptedValues(value: string) {
   const candidates = value.split(/[、,，/／・\n]/g).map((entry) => entry.trim()).filter(Boolean);
   return Array.from(new Set([value.trim(), ...candidates].filter(Boolean)));
 }
 
-function visualAssetForCharacter(character: Character) {
+function visualExerciseForCharacter(character: Character) {
   const readings = acceptedValues(character.reading);
-  return readings.map((reading) => kuzushijiVisualAssets[reading]).find(Boolean);
+  return readings.map((reading) => kuzushijiVisualExercises[reading]).find(Boolean);
 }
 
 function visualCharacterCard(project: StudyProjectDefinition, character: Character, item: ReviewItem): ReviewCard | null {
-  const asset = visualAssetForCharacter(character);
-  if (!asset) return null;
+  const exercise = visualExerciseForCharacter(character);
+  if (!exercise) return null;
 
   return {
     id: character.id,
-    exerciseId: `${character.id}:visual-reading-v6`,
+    exerciseId: `${character.id}:visual-reading:eitaigura-u3042-00032-1:v1`,
     projectId: project.id,
     kind: "character",
     kindLabel: "実字形",
     eyebrow: "VISUAL",
-    label: character.glyph,
-    prompt: "江戸期『日本永代蔵』の実資料から切り出したくずし字1字を、ひらがなで読んでください。",
+    label: "くずし字1字",
+    prompt: `江戸期『${exercise.sourceTitle}』の実資料から切り出したくずし字1字を、ひらがなで読んでください。`,
     front: "1字形から読む",
     frontStyle: "title",
     reason: item.reason,
-    asset,
-    answer: { type: "text", acceptedAnswers: acceptedValues(character.reading), placeholder: "読みを入力" },
+    asset: exercise.asset,
+    answer: { type: "text", acceptedAnswers: acceptedValues(exercise.reading), placeholder: "読みを入力" },
     answerRows: [
-      { label: "正解", value: character.reading },
-      { label: "字母", value: character.mother },
-      { label: "登録名", value: character.glyph },
-      { label: "資料", value: "日本永代蔵" },
-      { label: "原字形", value: "U+3042_200015843_00032_1_X1086_Y1894.jpg（93×127px）" },
-      { label: "出典", value: KUZUSHIJI_SOURCE },
-      { label: "ライセンス", value: "CC BY-SA 4.0" },
-      { label: "学習ポイント", value: "機械学習用28×28画像ではなく、原資料対応の字形画像から筆線と崩し方を読む" },
+      { label: "正解", value: exercise.reading },
+      { label: "字母", value: exercise.mother },
+      { label: "学習項目", value: character.glyph },
+      { label: "資料", value: exercise.sourceTitle },
+      { label: "原字形", value: exercise.sourceImage },
+      { label: "出典", value: exercise.attribution },
+      { label: "ライセンス", value: exercise.license },
+      { label: "学習ポイント", value: exercise.learningPoint },
     ],
-    sourceUrl: KUZUSHIJI_SOURCE_URL,
+    sourceUrl: exercise.sourceUrl,
   };
 }
 
@@ -80,7 +102,7 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
   const visualCandidates = data.reviewQueue.filter((item) => {
     if (item.kind !== "character") return false;
     const character = data.characters.find((candidate) => candidate.id === item.id);
-    return Boolean(character && visualAssetForCharacter(character));
+    return Boolean(character && visualExerciseForCharacter(character));
   });
 
   const scheduled = data.mode === "notion"
