@@ -41,38 +41,27 @@ function displayGlyph(value: string) {
   return value.replace(/（.*?）/g, "").trim() || value || "?";
 }
 
+function acceptedValues(value: string) {
+  const candidates = value
+    .split(/[、,，/／・\n]/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return Array.from(new Set([value.trim(), ...candidates].filter(Boolean)));
+}
+
 function graphKindLabel(project: StudyProjectDefinition, kind: string) {
   return project.graphNodeKinds.find((entry) => entry.id === kind)?.label ?? kind;
 }
 
-function graphPrompt(projectId: string, kind: string) {
-  if (projectId === "western-art-history") {
-    switch (kind) {
-      case "artwork":
-        return "この作品の時代・様式・関連事項を思い出してください。";
-      case "movement":
-        return "この様式・運動の特徴と、時代・作品との関係を思い出してください。";
-      case "period":
-        return "この時代の特徴と、関連する作品・様式を思い出してください。";
-      default:
-        return "この用語の意味と、作品・様式・時代との関係を思い出してください。";
-    }
-  }
-
-  switch (kind) {
-    case "philosopher":
-      return "この哲学者の主要概念・著作・哲学的問題との関係を思い出してください。";
-    case "work":
-      return "この著作と、哲学者・概念・問題との関係を思い出してください。";
-    case "problem":
-      return "この哲学的問題に関わる哲学者・用語・著作を思い出してください。";
-    default:
-      return "この用語の意味と、哲学者・問題・著作との関係を思い出してください。";
-  }
+function hashValue(value: string) {
+  let hash = 0;
+  for (const char of value) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash;
 }
 
 function connectedKnowledge(graph: GraphData, node: GraphNode) {
   const nodesById = new Map(graph.nodes.map((candidate) => [candidate.id, candidate]));
+  const neighbors: Array<{ node: GraphNode; relation: string }> = [];
   const relations: string[] = [];
   const labels: string[] = [];
 
@@ -81,13 +70,36 @@ function connectedKnowledge(graph: GraphData, node: GraphNode) {
     const otherId = edge.source === node.id ? edge.target : edge.source;
     const other = nodesById.get(otherId);
     if (other && !labels.includes(other.label)) labels.push(other.label);
+    if (other && !neighbors.some((entry) => entry.node.id === other.id)) {
+      neighbors.push({ node: other, relation: edge.label });
+    }
     if (!relations.includes(edge.label)) relations.push(edge.label);
   }
 
   return {
     labels: labels.slice(0, 6),
     relations: relations.slice(0, 5),
+    neighbors,
   };
+}
+
+function choiceOptions(graph: GraphData, node: GraphNode, correct: GraphNode) {
+  const connectedIds = new Set([node.id, correct.id]);
+  for (const edge of graph.edges) {
+    if (edge.source === node.id) connectedIds.add(edge.target);
+    if (edge.target === node.id) connectedIds.add(edge.source);
+  }
+
+  const distractors = graph.nodes
+    .filter((candidate) => candidate.id !== correct.id && !connectedIds.has(candidate.id))
+    .sort((a, b) => hashValue(`${node.id}:${a.id}`) - hashValue(`${node.id}:${b.id}`))
+    .slice(0, 3);
+
+  const options = [correct, ...distractors]
+    .map((candidate) => ({ id: candidate.id, label: candidate.label }))
+    .sort((a, b) => hashValue(`${node.id}:${a.id}:option`) - hashValue(`${node.id}:${b.id}:option`));
+
+  return options;
 }
 
 function graphCard(
@@ -100,27 +112,85 @@ function graphCard(
   const reason = state
     ? `復習期限到来 · 前回「${gradeLabels[state.last_grade]}」`
     : "初回Practice · まだ復習履歴なし";
+  const cycle = state?.repetitions ?? 0;
+  const neighbor = connected.neighbors.length > 0
+    ? connected.neighbors[cycle % connected.neighbors.length]
+    : undefined;
+
+  if (neighbor && graph.nodes.length >= 4) {
+    return {
+      id: node.id,
+      exerciseId: `${node.id}:relation:${neighbor.node.id}`,
+      projectId: project.id,
+      kind: "knowledge",
+      kindLabel: graphKindLabel(project, node.kind),
+      eyebrow: "RELATION",
+      label: node.label,
+      prompt: `「${node.label}」とNotion上で直接Relationがある知識を選んでください。`,
+      front: node.label,
+      frontStyle: "title",
+      reason,
+      answer: {
+        type: "single-choice",
+        options: choiceOptions(graph, node, neighbor.node),
+        correctOptionId: neighbor.node.id,
+      },
+      answerRows: [
+        { label: "正解", value: neighbor.node.label },
+        { label: "Relation", value: neighbor.relation || "関連" },
+        { label: "概要", value: node.meta || "Notionに概要未登録" },
+      ],
+      sourceUrl: node.notionUrl,
+    };
+  }
+
+  if (node.meta.trim()) {
+    return {
+      id: node.id,
+      exerciseId: `${node.id}:summary-to-label`,
+      projectId: project.id,
+      kind: "knowledge",
+      kindLabel: graphKindLabel(project, node.kind),
+      eyebrow: "IDENTIFY",
+      label: node.label,
+      prompt: "この概要に対応する知識名を入力してください。",
+      front: node.meta,
+      frontStyle: "title",
+      reason,
+      answer: {
+        type: "text",
+        acceptedAnswers: [node.label],
+        placeholder: "知識名を入力",
+      },
+      answerRows: [
+        { label: "正解", value: node.label },
+        {
+          label: "関連知識",
+          value: connected.labels.length > 0 ? connected.labels.join(" / ") : "Relation未登録",
+        },
+      ],
+      sourceUrl: node.notionUrl,
+    };
+  }
 
   return {
     id: node.id,
+    exerciseId: `${node.id}:label-confirmation`,
     projectId: project.id,
     kind: "knowledge",
     kindLabel: graphKindLabel(project, node.kind),
     eyebrow: node.kind.replace(/-/g, " ").toUpperCase(),
     label: node.label,
-    prompt: graphPrompt(project.id, node.kind),
+    prompt: "表示された知識名を入力して確認してください。",
     front: node.label,
     frontStyle: "title",
     reason,
+    answer: { type: "text", acceptedAnswers: [node.label], placeholder: "知識名を入力" },
     answerRows: [
       { label: "概要", value: node.meta || "Notionに概要未登録" },
       {
         label: "関連知識",
         value: connected.labels.length > 0 ? connected.labels.join(" / ") : "Relation未登録",
-      },
-      {
-        label: "Relation",
-        value: connected.relations.length > 0 ? connected.relations.join(" / ") : "Relation未登録",
       },
     ],
     sourceUrl: node.notionUrl,
@@ -141,15 +211,21 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
 
       cards.push({
         id: character.id,
+        exerciseId: `${character.id}:reading`,
         projectId: project.id,
         kind: "character",
         kindLabel: "文字",
         eyebrow: "CHARACTER",
         label: character.glyph,
-        prompt: "この文字の読みと字母を思い出してください。",
+        prompt: "この文字の読みを入力してください。",
         front: displayGlyph(character.glyph),
         frontStyle: "glyph",
         reason: item.reason,
+        answer: {
+          type: "text",
+          acceptedAnswers: acceptedValues(character.reading),
+          placeholder: "読みを入力",
+        },
         answerRows: [
           { label: "登録名", value: character.glyph },
           { label: "読み", value: character.reading },
@@ -166,15 +242,21 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
 
     cards.push({
       id: mistake.id,
+      exerciseId: `${mistake.id}:correct-answer`,
       projectId: project.id,
       kind: "mistake",
       kindLabel: "誤読",
       eyebrow: "MISTAKE",
       label: mistake.title,
-      prompt: "この誤読の問題点と、正しい判断を思い出してください。",
+      prompt: "この誤読に対する正しい読み・判断を入力してください。",
       front: mistake.title || "誤読記録",
       frontStyle: "title",
       reason: item.reason,
+      answer: {
+        type: "text",
+        acceptedAnswers: acceptedValues(mistake.correctAnswer),
+        placeholder: "正しい読み・判断を入力",
+      },
       answerRows: [
         { label: "自分の回答", value: mistake.answer },
         { label: "正解", value: mistake.correctAnswer },
