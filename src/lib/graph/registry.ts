@@ -2,6 +2,7 @@ import type { GraphAdapter, GraphData } from "@/src/lib/graph/types";
 import { defaultStudyProjectId, getStudyProject, studyProjects } from "@/src/lib/projects/registry";
 import { getKuzushijiGraph } from "@/src/lib/notion/kuzushiji-graph";
 import { getWesternArtHistoryGraph } from "@/src/lib/notion/western-art-history-graph";
+import { getPhilosophyGraph } from "@/src/lib/notion/philosophy-graph";
 
 const westernArtPlaceholderLabels = new Set([
   "芸術家",
@@ -57,9 +58,15 @@ const westernArtHistoryAdapter: GraphAdapter = {
   },
 };
 
+const philosophyAdapter: GraphAdapter = {
+  projectId: "philosophy",
+  load: getPhilosophyGraph,
+};
+
 const graphAdapters: Record<string, GraphAdapter> = {
   kuzushiji: kuzushijiAdapter,
   "western-art-history": westernArtHistoryAdapter,
+  philosophy: philosophyAdapter,
 };
 
 export function getGraphProject(projectId: string | undefined | null) {

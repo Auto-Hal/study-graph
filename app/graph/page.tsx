@@ -22,6 +22,25 @@ export default async function KnowledgeGraphPage({
   const initialView = query.view === "focus" ? "focus" as const : "overview" as const;
   const populatedKinds = project.graphNodeKinds.filter((kind) => (counts[kind.id] ?? 0) > 0).length;
   const isWesternArt = project.id === "western-art-history";
+  const isPhilosophy = project.id === "philosophy";
+
+  const heroTitle = isWesternArt
+    ? "作品・作家・時代を、関係の地図で読む。"
+    : isPhilosophy
+      ? "思想・問い・原典を、論争の地図として辿る。"
+      : "プロジェクトごとの知識を、同じ地図で辿る。";
+
+  const heroCopy = isWesternArt
+    ? "講義・作家・作品・様式・用語・時代・文化・美術館／建築を、既存Notion Relationからread-onlyで可視化します。作品単体では見えにくい歴史的な位置づけを横断して確認できます。"
+    : isPhilosophy
+      ? "講義・哲学者・用語・哲学的問題・原典／著作・文化・時代・思考ノートを、既存Notion Relationからread-onlyで可視化します。思想を人物名の暗記ではなく、問い・著作・影響関係の中で確認できます。"
+      : "Notion schemaはプロジェクトごとに保ったまま、Adapterが共通Node / Edgeへ変換します。Graph UIは同じまま、学習分野ごとにノード種類だけを差し替えられます。";
+
+  const policyCopy = isWesternArt
+    ? "美術史Notionの8つの既存DBを変更せず、それぞれのRelationをcanonical edgeへ変換しています。双方向Relationの逆側を再読込しないことで、同じ関係を二重線として表示しません。"
+    : isPhilosophy
+      ? "哲学史Notionの8つの既存DBを変更せず、講義を入口に、哲学者・用語・問題・原典・文化・時代・思考ノートのRelationをcanonical edgeへ変換します。師弟関係と影響関係も、逆Relationを重複表示しない向きだけを採用します。"
+      : "くずし字・西洋美術史・哲学史でNotionのDB構造が異なっていても問題ありません。各AdapterがNode / Edgeへ変換し、Project Registryがノード種類と表示名をGraph UIへ渡します。";
 
   return (
     <main className="learn-shell graph-page-shell">
@@ -34,8 +53,8 @@ export default async function KnowledgeGraphPage({
 
       <section className="learn-hero graph-hero">
         <p className="eyebrow">KNOWLEDGE GRAPH · {project.phase.toUpperCase()}</p>
-        <h1>{isWesternArt ? "作品・作家・時代を、関係の地図で読む。" : "プロジェクトごとの知識を、同じ地図で辿る。"}</h1>
-        <p className="learn-hero-copy">{isWesternArt ? "講義・作家・作品・様式・用語・時代・文化・美術館／建築を、既存Notion Relationからread-onlyで可視化します。作品単体では見えにくい歴史的な位置づけを横断して確認できます。" : "Notion schemaはプロジェクトごとに保ったまま、Adapterが共通Node / Edgeへ変換します。Graph UIは同じまま、学習分野ごとにノード種類だけを差し替えられます。"}</p>
+        <h1>{heroTitle}</h1>
+        <p className="learn-hero-copy">{heroCopy}</p>
       </section>
 
       <nav className="graph-project-selector" aria-label="Graphプロジェクト選択">
@@ -61,7 +80,7 @@ export default async function KnowledgeGraphPage({
 
       <section className="graph-policy-note">
         <div><p className="eyebrow">ADAPTER ARCHITECTURE</p><h2>DBを揃えず、Graph型だけを揃える。</h2></div>
-        <p>{isWesternArt ? "美術史Notionの8つの既存DBを変更せず、それぞれのRelationをcanonical edgeへ変換しています。双方向Relationの逆側を再読込しないことで、同じ関係を二重線として表示しません。" : "くずし字・西洋美術史・哲学史でNotionのDB構造が異なっていても問題ありません。各AdapterがNode / Edgeへ変換し、Project Registryがノード種類と表示名をGraph UIへ渡します。"}</p>
+        <p>{policyCopy}</p>
       </section>
 
       <PrimaryNav active="graph" />
