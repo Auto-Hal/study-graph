@@ -2,6 +2,7 @@ import "server-only";
 
 import type { GraphData, GraphNode } from "@/src/lib/graph/types";
 import type { StudyProjectDefinition } from "@/src/lib/projects/registry";
+import { reviewAssetProvider } from "@/src/lib/review/assets/manifest";
 import type { ReviewCard } from "@/src/lib/review/types";
 import type { ReviewState } from "@/src/lib/supabase/review";
 
@@ -25,6 +26,40 @@ function optionNodes(node: GraphNode, candidates: GraphNode[], correct: GraphNod
     .sort((a, b) => hashValue(`${node.id}:${a.id}`) - hashValue(`${node.id}:${b.id}`))
     .slice(0, 3);
   return [correct, ...distractors].sort((a, b) => hashValue(`${node.id}:${a.id}:option`) - hashValue(`${node.id}:${b.id}:option`));
+}
+
+function visualArtworkCard(project: StudyProjectDefinition, graph: GraphData, node: GraphNode, state?: ReviewState): ReviewCard | null {
+  if (project.id !== "western-art-history" || node.kind !== "artwork") return null;
+  const exerciseId = `${node.id}:visual-identify`;
+  const asset = reviewAssetProvider.resolve({ projectId: project.id, itemId: node.id, exerciseId });
+  if (!asset) return null;
+  const peers = graph.nodes.filter((candidate) => candidate.kind === "artwork" && candidate.id !== node.id);
+  if (peers.length < 3) return null;
+  const selected = optionNodes(node, peers, node);
+  return {
+    id: node.id,
+    exerciseId,
+    projectId: project.id,
+    kind: "knowledge",
+    kindLabel: kindLabel(project, node.kind),
+    eyebrow: "VISUAL",
+    label: node.label,
+    prompt: "画像を見て、作品・遺構名を選んでください。",
+    front: "画像から識別",
+    frontStyle: "title",
+    reason: reasonFor(state),
+    asset,
+    answer: {
+      type: "single-choice",
+      options: selected.map((candidate) => ({ id: candidate.id, label: candidate.label })),
+      correctOptionId: node.id,
+    },
+    answerRows: [
+      { label: "正解", value: node.label },
+      { label: "要点", value: node.meta || "概要未登録" },
+    ],
+    sourceUrl: node.notionUrl,
+  };
 }
 
 function descriptionCard(project: StudyProjectDefinition, graph: GraphData, node: GraphNode, state?: ReviewState): ReviewCard | null {
@@ -57,6 +92,9 @@ function relationCard(project: StudyProjectDefinition, graph: GraphData, node: G
 }
 
 export function createDomainExercise(project: StudyProjectDefinition, graph: GraphData, node: GraphNode, state?: ReviewState): ReviewCard {
+  const visual = visualArtworkCard(project, graph, node, state);
+  if (visual) return visual;
+
   const cycle = state?.repetitions ?? 0;
   const builders = cycle % 3 === 0 ? [identifyCard, descriptionCard, relationCard] : cycle % 3 === 1 ? [descriptionCard, relationCard, identifyCard] : [relationCard, identifyCard, descriptionCard];
   for (const build of builders) { const card = build(project, graph, node, state); if (card) return card; }
