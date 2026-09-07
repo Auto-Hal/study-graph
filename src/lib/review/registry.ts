@@ -2,12 +2,13 @@ import "server-only";
 
 import { loadProjectGraph } from "@/src/lib/graph/registry";
 import type { GraphNode } from "@/src/lib/graph/types";
-import { getKuzushijiDashboard, type Character, type ReviewItem } from "@/src/lib/notion/kuzushiji";
+import { getKuzushijiDashboard, type ReviewItem } from "@/src/lib/notion/kuzushiji";
 import { defaultStudyProjectId, getActiveStudyProjects, getStudyProject, type StudyProjectDefinition } from "@/src/lib/projects/registry";
 import { reviewAssetProvider } from "@/src/lib/review/assets/manifest";
 import { attachReviewAssets } from "@/src/lib/review/assets/provider";
 import { createDomainExercise } from "@/src/lib/review/domain-exercises";
-import type { ReviewAsset, ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
+import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
+import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getDueReviewItems, getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
 
 export type ReviewProjectPayload = {
@@ -19,90 +20,12 @@ export type ReviewProjectPayload = {
   session: ReviewSessionContext;
 };
 
-type KuzushijiVisualExercise = {
-  asset: ReviewAsset;
-  reading: string;
-  mother: string;
-  sourceTitle: string;
-  sourceImage: string;
-  sourceUrl: string;
-  attribution: string;
-  license: string;
-  learningPoint: string;
-};
-
-// A visual exercise owns its image-specific reading, mother character and provenance.
-// Notion remains the learned-scope authority, but generic Notion character metadata is
-// not reused as if it described a particular historical glyph image.
-const kuzushijiVisualExercises: Record<string, KuzushijiVisualExercise> = {
-  "あ": {
-    asset: {
-      type: "image",
-      src: "/assets/kuzushiji/a-eitaigura-hires.png",
-      alt: "『日本永代蔵』から切り出したくずし字1字",
-      width: 222,
-      height: 290,
-      presentation: "full",
-    },
-    reading: "あ",
-    mother: "阿",
-    sourceTitle: "日本永代蔵",
-    sourceImage: "U+3042_200015843_00032_1_X1086_Y1894.jpg（原字形 93×127px）",
-    sourceUrl: "https://codh.rois.ac.jp/char-shape/book/200015843/",
-    attribution: "『日本古典籍くずし字データセット』（国文研所蔵／CODH加工） doi:10.20676/00000340",
-    license: "CC BY-SA 4.0",
-    learningPoint: "字母「阿」由来の「あ」。実資料の筆線・連綿・崩し方を一字形として認識する",
-  },
-};
-
-function acceptedValues(value: string) {
-  const candidates = value.split(/[、,，/／・\n]/g).map((entry) => entry.trim()).filter(Boolean);
-  return Array.from(new Set([value.trim(), ...candidates].filter(Boolean)));
-}
-
-function visualExerciseForCharacter(character: Character) {
-  const readings = acceptedValues(character.reading);
-  return readings.map((reading) => kuzushijiVisualExercises[reading]).find(Boolean);
-}
-
-function visualCharacterCard(project: StudyProjectDefinition, character: Character, item: ReviewItem): ReviewCard | null {
-  const exercise = visualExerciseForCharacter(character);
-  if (!exercise) return null;
-
-  return {
-    id: character.id,
-    exerciseId: `${character.id}:visual-reading:eitaigura-u3042-00032-1:v1`,
-    projectId: project.id,
-    kind: "character",
-    kindLabel: "実字形",
-    eyebrow: "VISUAL",
-    label: "くずし字1字",
-    prompt: `江戸期『${exercise.sourceTitle}』の実資料から切り出したくずし字1字を、ひらがなで読んでください。`,
-    front: "1字形から読む",
-    frontStyle: "title",
-    reason: item.reason,
-    asset: exercise.asset,
-    answer: { type: "text", acceptedAnswers: acceptedValues(exercise.reading), placeholder: "読みを入力" },
-    answerRows: [
-      { label: "正解", value: exercise.reading },
-      { label: "字母", value: exercise.mother },
-      { label: "学習項目", value: character.glyph },
-      { label: "資料", value: exercise.sourceTitle },
-      { label: "原字形", value: exercise.sourceImage },
-      { label: "出典", value: exercise.attribution },
-      { label: "ライセンス", value: exercise.license },
-      { label: "学習ポイント", value: exercise.learningPoint },
-    ],
-    sourceUrl: exercise.sourceUrl,
-  };
-}
-
 async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
   const data = await getKuzushijiDashboard();
   const visualCandidates = data.reviewQueue.filter((item) => {
     if (item.kind !== "character") return false;
     const character = data.characters.find((candidate) => candidate.id === item.id);
-    return Boolean(character && visualExerciseForCharacter(character));
+    return Boolean(character && createKuzushijiPilotReviewCard(project, character, item));
   });
 
   const scheduled = data.mode === "notion"
@@ -122,7 +45,7 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
     .slice(0, project.review.sessionSize)
     .map((item) => {
       const character = data.characters.find((candidate) => candidate.id === item.id);
-      return character ? visualCharacterCard(project, character, item) : null;
+      return character ? createKuzushijiPilotReviewCard(project, character, item) : null;
     })
     .filter((card): card is ReviewCard => Boolean(card));
 
