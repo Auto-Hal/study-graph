@@ -2,7 +2,7 @@ import type { Character, ReviewItem } from "../../notion/kuzushiji";
 import type { StudyProjectDefinition } from "../../projects/registry";
 import type { ReviewAsset, ReviewCard } from "../types";
 import { assertValidExerciseDefinition } from "./validation.ts";
-import { kuzushijiPilotAsset, kuzushijiPilotAssets, kuzushijiPilotExercise } from "./kuzushiji-pilot.ts";
+import { kuzushijiPilotAssets, kuzushijiPilotRecord } from "./kuzushiji-pilot.ts";
 
 export const KUZUSHIJI_PILOT_LEGACY_EXERCISE_ID_SUFFIX =
   "visual-reading:eitaigura-u3042-00032-1:v1";
@@ -19,10 +19,10 @@ export function acceptedKuzushijiValues(value: string) {
 function toReviewAsset(): ReviewAsset {
   return {
     type: "image",
-    src: kuzushijiPilotAsset.src,
-    alt: kuzushijiPilotAsset.alt,
-    width: kuzushijiPilotAsset.width,
-    height: kuzushijiPilotAsset.height,
+    src: kuzushijiPilotRecord.asset.src,
+    alt: kuzushijiPilotRecord.asset.alt,
+    width: kuzushijiPilotRecord.asset.width,
+    height: kuzushijiPilotRecord.asset.height,
     presentation: "full",
   };
 }
@@ -33,40 +33,40 @@ export function createKuzushijiPilotReviewCard(
   item: ReviewItem,
 ): ReviewCard | null {
   const readings = acceptedKuzushijiValues(character.reading);
-  if (!readings.includes(kuzushijiPilotExercise.answerSpec.acceptedAnswers[0])) return null;
+  if (!readings.includes(kuzushijiPilotRecord.exercise.answerSpec.acceptedAnswers[0])) return null;
 
-  assertValidExerciseDefinition(kuzushijiPilotExercise, kuzushijiPilotAssets);
+  assertValidExerciseDefinition(kuzushijiPilotRecord.exercise, kuzushijiPilotAssets);
 
   return {
     id: character.id,
-    // This is the legacy ReviewCard/Supabase identifier. The stable definition
-    // identity is kuzushijiPilotExercise.exerciseId and is intentionally separate.
+    // This is the legacy ReviewCard/Supabase identifier; it is separate from
+    // the stable definition identity.
     exerciseId: legacyKuzushijiExerciseId(character.id),
     projectId: project.id,
     kind: "character",
     kindLabel: "実字形",
     eyebrow: "VISUAL",
     label: "くずし字1字",
-    prompt: kuzushijiPilotExercise.prompt,
-    front: kuzushijiPilotExercise.front,
+    prompt: kuzushijiPilotRecord.exercise.prompt,
+    front: kuzushijiPilotRecord.exercise.front,
     frontStyle: "title",
     reason: item.reason,
     asset: toReviewAsset(),
     answer: {
       type: "text",
-      acceptedAnswers: [...kuzushijiPilotExercise.answerSpec.acceptedAnswers],
-      placeholder: kuzushijiPilotExercise.answerSpec.placeholder,
+      acceptedAnswers: [...kuzushijiPilotRecord.exercise.answerSpec.acceptedAnswers],
+      placeholder: kuzushijiPilotRecord.exercise.answerSpec.placeholder,
     },
     answerRows: [
-      { label: "正解", value: kuzushijiPilotExercise.answerSpec.acceptedAnswers[0] },
-      { label: "字母", value: "阿" },
+      { label: "正解", value: kuzushijiPilotRecord.exercise.answerSpec.acceptedAnswers[0] },
+      { label: "字母", value: kuzushijiPilotRecord.metadata.motherCharacter.value },
       { label: "学習項目", value: character.glyph },
-      { label: "資料", value: kuzushijiPilotAsset.source.title },
-      { label: "原字形", value: kuzushijiPilotAsset.source.image ?? "" },
-      { label: "出典", value: kuzushijiPilotAsset.source.attribution },
-      { label: "ライセンス", value: kuzushijiPilotAsset.source.license },
-      { label: "学習ポイント", value: kuzushijiPilotExercise.explanation.summary },
+      { label: "資料", value: kuzushijiPilotRecord.asset.source.title },
+      { label: "原字形", value: kuzushijiPilotRecord.asset.source.image ?? "" },
+      { label: "出典", value: kuzushijiPilotRecord.asset.source.attribution },
+      { label: "ライセンス", value: kuzushijiPilotRecord.asset.source.license },
+      { label: "学習ポイント", value: kuzushijiPilotRecord.exercise.explanation.summary },
     ],
-    sourceUrl: kuzushijiPilotAsset.source.url,
+    sourceUrl: kuzushijiPilotRecord.asset.source.url,
   };
 }

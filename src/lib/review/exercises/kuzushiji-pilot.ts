@@ -3,6 +3,14 @@ import type { ExerciseDefinition, VisualAsset } from "./types";
 export const KUZUSHIJI_PILOT_EXERCISE_ID = "kuzushiji.visual-reading.eitaigura-u3042-00032-1";
 export const KUZUSHIJI_PILOT_ASSET_ID = "kuzushiji.glyph.eitaigura-u3042-00032-1";
 
+export type KuzushijiPilotMetadata = {
+  motherCharacter: {
+    value: string;
+    status: "legacy-approved";
+    approvedFrom: "PR #27";
+  };
+};
+
 export const kuzushijiPilotAsset: VisualAsset = {
   assetId: KUZUSHIJI_PILOT_ASSET_ID,
   assetVersion: 1,
@@ -29,7 +37,7 @@ export const kuzushijiPilotExercise: ExerciseDefinition = {
   exerciseVersion: 1,
   projectId: "kuzushiji",
   domain: "kuzushiji",
-  objectiveId: "kuzushiji.read.single-glyph.eitaigura",
+  objectiveId: "kuzushiji.a.eitaigura-u3042-00032-1.read",
   skill: "reading",
   category: "visual-reading",
   prompt: "江戸期『日本永代蔵』の実資料から切り出したくずし字1字を、ひらがなで読んでください。",
@@ -57,6 +65,20 @@ export const kuzushijiPilotExercise: ExerciseDefinition = {
   origin: "curated",
   status: "approved",
   relatedKnowledgeBindings: [],
+};
+
+export const kuzushijiPilotMetadata: KuzushijiPilotMetadata = {
+  motherCharacter: {
+    value: "阿",
+    status: "legacy-approved",
+    approvedFrom: "PR #27",
+  },
+};
+
+export const kuzushijiPilotRecord = {
+  exercise: kuzushijiPilotExercise,
+  asset: kuzushijiPilotAsset,
+  metadata: kuzushijiPilotMetadata,
 };
 
 export const kuzushijiPilotAssets = new Map<string, VisualAsset>([

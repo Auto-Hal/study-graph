@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createKuzushijiPilotReviewCard, legacyKuzushijiExerciseId } from "./kuzushiji-adapter.ts";
-import { kuzushijiPilotAsset, kuzushijiPilotAssets, kuzushijiPilotExercise } from "./kuzushiji-pilot.ts";
+import { kuzushijiPilotAsset, kuzushijiPilotAssets, kuzushijiPilotExercise, kuzushijiPilotRecord } from "./kuzushiji-pilot.ts";
 import { validateExerciseDefinition } from "./validation.ts";
 
 const project = { id: "kuzushiji" as const };
@@ -48,15 +48,23 @@ test("character identity changes only the legacy ReviewCard id", () => {
   assert.equal(first.exerciseId, "one:visual-reading:eitaigura-u3042-00032-1:v1");
   assert.equal(second.exerciseId, "two:visual-reading:eitaigura-u3042-00032-1:v1");
   assert.equal(kuzushijiPilotExercise.exerciseId, "kuzushiji.visual-reading.eitaigura-u3042-00032-1");
+  assert.equal(kuzushijiPilotExercise.objectiveId, "kuzushiji.a.eitaigura-u3042-00032-1.read");
   assert.equal(kuzushijiPilotExercise.exerciseVersion, 1);
 });
 
 test("curated mother character is independent from Notion Character metadata", () => {
-  const card = createKuzushijiPilotReviewCard(project, character({ mother: "Notion側の値" }), item);
-  assert.ok(card);
-  assert.equal(card.answerRows.find((row) => row.label === "字母")?.value, "阿");
-  assert.equal(kuzushijiPilotExercise.provenance.status, "legacy-approved");
-  assert.equal(kuzushijiPilotExercise.provenance.approvedFrom, "PR #27");
+  const originalValue = kuzushijiPilotRecord.metadata.motherCharacter.value;
+  kuzushijiPilotRecord.metadata.motherCharacter.value = "教材record側の値";
+  try {
+    const card = createKuzushijiPilotReviewCard(project, character({ mother: "Notion側の値" }), item);
+    assert.ok(card);
+    assert.equal(card.answerRows.find((row) => row.label === "字母")?.value, "教材record側の値");
+    assert.equal(kuzushijiPilotRecord.metadata.motherCharacter.status, "legacy-approved");
+    assert.equal(kuzushijiPilotRecord.metadata.motherCharacter.approvedFrom, "PR #27");
+  } finally {
+    kuzushijiPilotRecord.metadata.motherCharacter.value = originalValue;
+  }
+  assert.equal(kuzushijiPilotRecord.metadata.motherCharacter.value, "阿");
 });
 
 test("answer is not exposed in the front-facing visual fields", () => {
