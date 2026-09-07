@@ -12,8 +12,8 @@ import { isPilotIssuanceEnabled } from "@/src/lib/review/pilot-operations";
 import { isKuzushijiPilotDefinition, issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
 import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
-import { getDueReviewItems, getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
-import { getPilotRuntimeConfig } from "@/src/lib/supabase/pilot";
+import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
+import { getKuzushijiPilotObjectiveState, getPilotRuntimeConfig } from "@/src/lib/supabase/pilot";
 
 export type ReviewProjectPayload = {
   project: StudyProjectDefinition;
@@ -37,30 +37,39 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
     );
   });
 
-  const scheduled = data.mode === "notion"
-    ? await getDueReviewItems(visualCandidates)
-    : { items: visualCandidates, persistence: "fallback" as const };
-
-  const selected: ReviewItem[] = [...scheduled.items];
-  const selectedIds = new Set(selected.map((item) => item.id));
-  for (const item of visualCandidates) {
-    if (selected.length >= project.review.sessionSize) break;
-    if (selectedIds.has(item.id)) continue;
-    selected.push(item);
-    selectedIds.add(item.id);
+  // Phase 4D-4: this pilot no longer consults legacy review_state for queue
+  // authority. No Objective state means the approved no-seed cutover is unseen;
+  // an existing Objective state is eligible only when its own due_at arrives.
+  let persistence: ReviewPersistenceMode = "fallback";
+  let objectiveState: Awaited<ReturnType<typeof getKuzushijiPilotObjectiveState>> = null;
+  let objectiveScheduleReady = false;
+  if (data.mode === "notion" && getPilotRuntimeConfig()) {
+    try {
+      objectiveState = await getKuzushijiPilotObjectiveState();
+      objectiveScheduleReady = true;
+      persistence = "supabase";
+    } catch (error) {
+      console.error("Study Graph: Kuzushiji Objective schedule unavailable", error);
+    }
   }
+
+  const dueAt = objectiveState ? new Date(objectiveState.due_at).getTime() : null;
+  const objectiveDue = objectiveScheduleReady && (
+    !objectiveState || (dueAt !== null && Number.isFinite(dueAt) && dueAt <= Date.now())
+  );
+  const selected: ReviewItem[] = objectiveDue ? visualCandidates.slice(0, 1) : [];
 
   const cards: ReviewCard[] = [];
   let pilotIssued = false;
-  for (const item of selected.slice(0, project.review.sessionSize)) {
+  for (const item of selected) {
     const character = data.characters.find((candidate) => candidate.id === item.id);
     const card = character ? createKuzushijiPilotReviewCard(project, character, item) : null;
     if (!card || !character) continue;
     const selectedCharacter = character;
 
     if (isKuzushijiPilotDefinition(card.definitionId)) {
-      // The Phase 4C cutover is intentionally one pilot card only. A failed
-      // or operationally disabled issue never falls back to the legacy writer.
+      // A failed or operationally disabled Objective issue never falls back to
+      // the legacy writer. One Objective is issued at most once per session.
       if (pilotIssued) continue;
       pilotIssued = true;
       if (data.mode !== "notion" || scope.sourceState !== "ready" || !getPilotRuntimeConfig() || !isPilotIssuanceEnabled()) continue;
@@ -103,15 +112,15 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
     project,
     projects: getActiveStudyProjects(),
     cards,
-    persistence: scheduled.persistence,
+    persistence,
     sourceMode: data.mode,
     session: {
       projectId: project.id,
       projectTitle: project.title,
       projectHref: project.href,
-      mode: scheduled.items.length > 0 ? "scheduled" : "practice",
+      mode: objectiveState ? "scheduled" : "practice",
       historyHref: "/projects/kuzushiji/progress",
-      emptyReason: scope.sourceState === "ready" ? "no-eligible-exercise" : "scope-unavailable",
+      emptyReason: scope.sourceState === "ready" && objectiveScheduleReady ? "no-eligible-exercise" : "scope-unavailable",
     },
   };
 }

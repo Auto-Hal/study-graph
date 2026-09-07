@@ -22,5 +22,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Phase 4D-4 cutover tests
+        run: npm run test:phase4d-4
+
       - name: Build
         run: npm run build

@@ -4,20 +4,29 @@ import { getKuzushijiDashboard, type Character, type ReviewItem } from "@/src/li
 import { buildKuzushijiScopeSnapshot, type ScopeDecision, type ScopeSnapshot } from "@/src/lib/review/scope";
 import { hashExerciseAttemptRequest, gradeExerciseRevision, planLegacySrs, type ExerciseAttemptRequest, type ReviewGrade } from "@/src/lib/review/exercises/attempt";
 import { createPilotPresentation, hashPilotPresentation, type PilotPresentation } from "@/src/lib/review/exercises/attempt";
-import { resultFromStoredReceipt, StoredReceiptIncompleteError, type StoredPilotReceiptResult } from "@/src/lib/review/exercises/receipt";
+import { resultFromStoredObjectiveReceipt, resultFromStoredReceipt, StoredReceiptIncompleteError, type StoredPilotReceiptResult } from "@/src/lib/review/exercises/receipt";
 import { KUZUSHIJI_PILOT_EXERCISE_ID } from "@/src/lib/review/exercises/kuzushiji-pilot";
+import {
+  KUZUSHIJI_PILOT_SRS_EPOCH,
+  kuzushijiPilotObjectiveBinding,
+} from "@/src/lib/review/exercises/kuzushiji-objective";
 import { kuzushijiPilotRevision, kuzushijiPilotRevisionPayload } from "@/src/lib/review/exercises/kuzushiji-revision";
+import type { ObjectiveSrsApplicationReason } from "@/src/lib/review/objective-srs";
 import {
   ensureKuzushijiPilotArchive,
   getKuzushijiPilotAttemptReceipt,
   getPilotRuntimeConfig,
   issueKuzushijiPilotInstance,
   PilotRpcError,
+  recordKuzushijiObjectivePilotAttempt,
   recordKuzushijiPilotAttempt,
   resolveKuzushijiPilotInstance,
+  type PilotObjectiveAttemptPlan,
+  type ResolvedPilotInstance,
 } from "@/src/lib/supabase/pilot";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PILOT_OBJECTIVE_SCHEDULER_VERSION = "objective-four-grade-v1";
 
 export type PilotScopeEvidence = {
   policyVersion: ScopeSnapshot["policyVersion"];
@@ -63,8 +72,7 @@ export function validatePilotAttemptInput(value: unknown): { ok: true; request: 
   ) return { ok: false, error: "invalid_raw_answer" };
   const rawText = typeof rawAnswer === "string" ? rawAnswer : (rawAnswer as Record<string, unknown>).value as string;
   if (rawText.length > 2_000) return { ok: false, error: "raw_answer_too_large" };
-  if (body.selfEvaluation !== null && body.selfEvaluation !== undefined
-    && !["again", "hard", "good", "easy"].includes(String(body.selfEvaluation))) {
+  if (typeof body.selfEvaluation !== "string" || !["again", "hard", "good", "easy"].includes(body.selfEvaluation)) {
     return { ok: false, error: "invalid_self_evaluation" };
   }
   if (body.responseMs !== null && body.responseMs !== undefined
@@ -78,7 +86,7 @@ export function validatePilotAttemptInput(value: unknown): { ok: true; request: 
       attemptId: body.attemptId,
       instanceId: body.instanceId,
       rawAnswer: rawAnswer as ExerciseAttemptRequest["rawAnswer"],
-      selfEvaluation: (body.selfEvaluation ?? null) as ReviewGrade | null,
+      selfEvaluation: body.selfEvaluation as ReviewGrade,
       responseMs: (body.responseMs ?? null) as number | null,
       usedHint: body.usedHint,
     },
@@ -114,14 +122,57 @@ export async function issueKuzushijiPilotReview(input: {
 
 export type PilotAttemptResult = StoredPilotReceiptResult;
 
-function receiptResult(receipt: Record<string, unknown>, instanceId: string): PilotAttemptResult {
+function receiptResult(
+  receipt: Record<string, unknown>,
+  instanceId: string,
+  srsTarget: ResolvedPilotInstance["srs_target"],
+): PilotAttemptResult {
   try {
-    return resultFromStoredReceipt(receipt, instanceId);
+    return srsTarget === "objective"
+      ? resultFromStoredObjectiveReceipt(receipt, instanceId)
+      : resultFromStoredReceipt(receipt, instanceId);
   } catch (error) {
     if (error instanceof StoredReceiptIncompleteError) {
       throw new PilotRpcError(error.code, 409, error.code);
     }
     throw error;
+  }
+}
+
+function planPilotObjectiveSrs(input: {
+  gradingStatus: "graded" | "ungraded";
+  scopeAccepted: boolean;
+  revisionStatus: ResolvedPilotInstance["revision_status"];
+  epochActive: boolean;
+}): PilotObjectiveAttemptPlan {
+  let reason: ObjectiveSrsApplicationReason = "applied";
+  if (input.revisionStatus === "quarantined") reason = "revision-quarantined";
+  else if (input.revisionStatus === "retired") reason = "revision-retired";
+  else if (kuzushijiPilotObjectiveBinding.evidenceUse === "practice-only") reason = "practice-only";
+  else if (!input.scopeAccepted) reason = "scope-not-eligible";
+  else if (!input.epochActive) reason = "epoch-inactive";
+  else if (input.gradingStatus !== "graded") reason = "grader-unavailable";
+
+  const srsApplied = reason === "applied";
+  return {
+    srsApplied,
+    reason,
+    revisionAllowed: input.revisionStatus === "approved",
+    epochActive: input.epochActive,
+    schedulerVersion: srsApplied ? PILOT_OBJECTIVE_SCHEDULER_VERSION : null,
+  };
+}
+
+function assertRetryMatches(
+  stored: { attempt_id: string; request_hash: string },
+  request: ExerciseAttemptRequest,
+  requestHash: string,
+) {
+  if (stored.attempt_id !== request.attemptId) {
+    throw new PilotRpcError("instance_already_answered", 409, "instance_already_answered");
+  }
+  if (stored.request_hash !== requestHash) {
+    throw new PilotRpcError("attempt_conflict", 409, "attempt_conflict");
   }
 }
 
@@ -131,14 +182,15 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
   if (instance.project_id !== "kuzushiji" || instance.exercise_id !== KUZUSHIJI_PILOT_EXERCISE_ID) {
     throw new PilotRpcError("unsupported_pilot_instance", 409, "unsupported_pilot_instance");
   }
+  if (instance.srs_target !== "legacy-item" && instance.srs_target !== "objective") {
+    throw new PilotRpcError("unsupported_pilot_srs_target", 409, "unsupported_pilot_srs_target");
+  }
 
   const requestHash = hashExerciseAttemptRequest(request);
   const existing = await getKuzushijiPilotAttemptReceipt(request.instanceId);
   if (existing) {
-    if (existing.attempt_id === request.attemptId && existing.request_hash !== requestHash) {
-      throw new PilotRpcError("attempt_conflict", 409, "attempt_conflict");
-    }
-    return receiptResult(existing.receipt, request.instanceId);
+    assertRetryMatches(existing, request, requestHash);
+    return receiptResult(existing.receipt, request.instanceId, instance.srs_target);
   }
 
   const grading = gradeExerciseRevision(instance.revision_payload, request.rawAnswer);
@@ -149,12 +201,34 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
     : undefined;
   const scopeAccepted = currentDecision?.status === "eligible";
   const revisionStatus = instance.revision_status;
-  const srsPlan = planLegacySrs({
-    gradingStatus: grading.gradingStatus,
-    scopeAccepted: revisionStatus === "retired" || revisionStatus === "draft" ? false : scopeAccepted,
-    revisionStatus,
-  });
+
   try {
+    if (instance.srs_target === "objective") {
+      if (revisionStatus === "draft") {
+        throw new PilotRpcError("revision_not_allowed", 409, "revision_not_allowed");
+      }
+      const epochActive = instance.srs_epoch === String(KUZUSHIJI_PILOT_SRS_EPOCH);
+      const srsPlan = planPilotObjectiveSrs({
+        gradingStatus: grading.gradingStatus,
+        scopeAccepted,
+        revisionStatus,
+        epochActive,
+      });
+      const receipt = await recordKuzushijiObjectivePilotAttempt({
+        request,
+        requestHash,
+        grading,
+        scopeAccepted,
+        srsPlan,
+      });
+      return receiptResult(receipt, request.instanceId, "objective");
+    }
+
+    const srsPlan = planLegacySrs({
+      gradingStatus: grading.gradingStatus,
+      scopeAccepted: revisionStatus === "retired" || revisionStatus === "draft" ? false : scopeAccepted,
+      revisionStatus,
+    });
     const receipt = await recordKuzushijiPilotAttempt({
       request,
       requestHash,
@@ -163,15 +237,13 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
       scopeAccepted,
       srsPlan,
     });
-    return receiptResult(receipt, request.instanceId);
+    return receiptResult(receipt, request.instanceId, "legacy-item");
   } catch (error) {
     if (error instanceof PilotRpcError && error.code === "instance_already_answered") {
       const stored = await getKuzushijiPilotAttemptReceipt(request.instanceId);
       if (!stored) throw new PilotRpcError("stored_receipt_incomplete", 409, "stored_receipt_incomplete");
-      if (stored.attempt_id === request.attemptId && stored.request_hash !== requestHash) {
-        throw new PilotRpcError("attempt_conflict", 409, "attempt_conflict");
-      }
-      return receiptResult(stored.receipt, request.instanceId);
+      assertRetryMatches(stored, request, requestHash);
+      return receiptResult(stored.receipt, request.instanceId, instance.srs_target);
     }
     throw error;
   }
