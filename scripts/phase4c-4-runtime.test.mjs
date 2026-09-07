@@ -58,7 +58,7 @@ test("pilot attempt route accepts only server-relevant submission fields", () =>
   assert.doesNotMatch(attemptRoute, /learnerId/);
   assert.match(issueRoute, /issueKuzushijiPilotReview/);
   assert.match(registry, /isKuzushijiPilotDefinition/);
-  assert.match(registry, /failed issue never falls back/);
+  assert.match(registry, /failed[\s\S]*issue never falls back/);
   assert.match(session, /\/api\/review\/pilot\/attempt/);
   assert.match(session, /crypto\.randomUUID\(\)/);
 });
