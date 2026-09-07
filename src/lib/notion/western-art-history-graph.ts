@@ -1,4 +1,5 @@
 import type { GraphData, GraphEdge, GraphNode } from "@/src/lib/graph/types";
+import { nextCursorOrThrow } from "./pagination";
 
 const PROJECT_ID = "western-art-history";
 const NOTION_API_VERSION = "2026-03-11";
@@ -65,7 +66,7 @@ async function queryAllDataSource(dataSourceId: string, token: string) {
 
     const payload = (await response.json()) as NotionQueryResponse;
     results.push(...(payload.results ?? []));
-    startCursor = payload.has_more ? payload.next_cursor ?? null : null;
+    startCursor = nextCursorOrThrow(payload, "Notion Western Art History query");
   } while (startCursor);
 
   return results;
