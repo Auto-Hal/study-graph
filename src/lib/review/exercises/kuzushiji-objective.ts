@@ -1,11 +1,12 @@
 import {
   assertValidExerciseObjectiveBinding,
-  assertValidObjectiveDefinitionRecord,
+  assertValidObjectiveSrsTarget,
   freezeObjectiveDefinition,
   hashObjectiveDefinition,
   INITIAL_SRS_EPOCH,
   type ExerciseObjectiveBinding,
-  type ObjectiveDefinitionRecord,
+  type ObjectiveDefinition,
+  type ObjectiveSrsTarget,
 } from "../objectives.ts";
 import { kuzushijiPilotRevision } from "./kuzushiji-revision.ts";
 
@@ -19,11 +20,10 @@ export const KUZUSHIJI_PILOT_SRS_EPOCH = INITIAL_SRS_EPOCH;
  * hint-free short-answer recall. The mother-character annotation is not part
  * of this capability definition.
  */
-export const kuzushijiPilotObjectiveDefinition: ObjectiveDefinitionRecord = freezeObjectiveDefinition({
+export const kuzushijiPilotObjectiveDefinition: ObjectiveDefinition = freezeObjectiveDefinition({
   projectId: "kuzushiji",
   objectiveId: KUZUSHIJI_PILOT_OBJECTIVE_ID,
   objectiveVersion: KUZUSHIJI_PILOT_OBJECTIVE_VERSION,
-  srsEpoch: KUZUSHIJI_PILOT_SRS_EPOCH,
   title: "日本永代蔵「あ」字形の単字読解",
   target: "日本永代蔵 U+3042 pilot source image の当該字形",
   action: "提示された単字字形を読み、読みを答える",
@@ -35,15 +35,24 @@ export const kuzushijiPilotObjectiveDefinition: ObjectiveDefinitionRecord = free
 /** Short alias for callers that treat the record as the active pilot objective. */
 export const kuzushijiPilotObjective = kuzushijiPilotObjectiveDefinition;
 
+/** Runtime-neutral SRS generation metadata; it is not part of the Objective hash. */
+export const kuzushijiPilotObjectiveSrsTarget: ObjectiveSrsTarget = Object.freeze({
+  projectId: kuzushijiPilotObjectiveDefinition.projectId,
+  objectiveId: kuzushijiPilotObjectiveDefinition.objectiveId,
+  srsEpoch: KUZUSHIJI_PILOT_SRS_EPOCH,
+});
+
+assertValidObjectiveSrsTarget(kuzushijiPilotObjectiveSrsTarget);
+
 /**
  * Git has no database-generated revision UUID. Phase 4D-1 therefore binds to
  * the existing immutable revision contentHash; archive registration maps it
  * to the database revision_id later without inventing an identifier here.
  */
-export const kuzushijiPilotRevisionId = kuzushijiPilotRevision.contentHash;
+export const kuzushijiPilotRevisionContentHash = kuzushijiPilotRevision.contentHash;
 
 export const kuzushijiPilotObjectiveBinding: ExerciseObjectiveBinding = Object.freeze({
-  revisionId: kuzushijiPilotRevisionId,
+  revisionContentHash: kuzushijiPilotRevisionContentHash,
   objectiveId: kuzushijiPilotObjectiveDefinition.objectiveId,
   objectiveVersion: kuzushijiPilotObjectiveDefinition.objectiveVersion,
   evidenceUse: "srs",
@@ -56,5 +65,4 @@ export const kuzushijiPilotObjectiveBindings: readonly ExerciseObjectiveBinding[
 
 export const kuzushijiPilotObjectiveContentHash = hashObjectiveDefinition(kuzushijiPilotObjectiveDefinition);
 
-assertValidObjectiveDefinitionRecord(kuzushijiPilotObjectiveDefinition);
 assertValidExerciseObjectiveBinding(kuzushijiPilotObjectiveBinding);

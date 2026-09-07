@@ -26,6 +26,6 @@ test("Phase 4D-1 does not cut the objective model into runtime or API paths", ()
     "app/api/review/pilot/attempt/route.ts",
   ]) {
     const source = readFileSync(resolve(root, relativePath), "utf8");
-    assert.doesNotMatch(source, /kuzushijiPilotObjective|ObjectiveDefinitionRecord|ExerciseObjectiveBinding/);
+    assert.doesNotMatch(source, /kuzushijiPilotObjective|ObjectiveSrsTarget|ExerciseObjectiveBinding/);
   }
 });

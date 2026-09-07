@@ -3,12 +3,12 @@ import test from "node:test";
 import {
   assertValidExerciseObjectiveBinding,
   assertValidObjectiveDefinition,
-  assertValidObjectiveDefinitionRecord,
+  assertValidObjectiveSrsTarget,
   assertValidSrsEpoch,
   canonicalizeObjectiveDefinition,
   hashObjectiveDefinition,
   validateExerciseObjectiveBindings,
-  type ObjectiveDefinitionRecord,
+  type ObjectiveDefinition,
 } from "./objectives.ts";
 import {
   KUZUSHIJI_PILOT_OBJECTIVE_ID,
@@ -17,7 +17,8 @@ import {
   kuzushijiPilotObjectiveBinding,
   kuzushijiPilotObjectiveBindings,
   kuzushijiPilotObjectiveDefinition,
-  kuzushijiPilotRevisionId,
+  kuzushijiPilotObjectiveSrsTarget,
+  kuzushijiPilotRevisionContentHash,
 } from "./exercises/kuzushiji-objective.ts";
 import { createKuzushijiPilotReviewCard } from "./exercises/kuzushiji-adapter.ts";
 import {
@@ -30,15 +31,19 @@ import {
   kuzushijiPilotRevision,
 } from "./exercises/kuzushiji-revision.ts";
 
-function objectiveCopy(): ObjectiveDefinitionRecord {
-  return JSON.parse(JSON.stringify(kuzushijiPilotObjectiveDefinition)) as ObjectiveDefinitionRecord;
+function objectiveCopy(): ObjectiveDefinition {
+  return JSON.parse(JSON.stringify(kuzushijiPilotObjectiveDefinition)) as ObjectiveDefinition;
 }
 
 test("pilot Objective identity, version, epoch, and recall mode remain exact", () => {
   assert.equal(kuzushijiPilotObjectiveDefinition.objectiveId, KUZUSHIJI_PILOT_OBJECTIVE_ID);
   assert.equal(kuzushijiPilotObjectiveDefinition.objectiveVersion, KUZUSHIJI_PILOT_OBJECTIVE_VERSION);
-  assert.equal(kuzushijiPilotObjectiveDefinition.srsEpoch, KUZUSHIJI_PILOT_SRS_EPOCH);
-  assert.equal(kuzushijiPilotObjectiveDefinition.srsEpoch, 1);
+  assert.equal(kuzushijiPilotObjectiveSrsTarget.projectId, "kuzushiji");
+  assert.equal(kuzushijiPilotObjectiveSrsTarget.objectiveId, KUZUSHIJI_PILOT_OBJECTIVE_ID);
+  assert.equal(kuzushijiPilotObjectiveSrsTarget.srsEpoch, KUZUSHIJI_PILOT_SRS_EPOCH);
+  assert.equal(kuzushijiPilotObjectiveSrsTarget.srsEpoch, 1);
+  assert.equal(Object.prototype.hasOwnProperty.call(kuzushijiPilotObjectiveDefinition, "srsEpoch"), false);
+  assert.doesNotThrow(() => assertValidObjectiveSrsTarget(kuzushijiPilotObjectiveSrsTarget));
   assert.equal(kuzushijiPilotObjectiveDefinition.responseMode, "recall");
   assert.equal(kuzushijiPilotObjectiveDefinition.target, "日本永代蔵 U+3042 pilot source image の当該字形");
   assert.equal(kuzushijiPilotObjectiveDefinition.action, "提示された単字字形を読み、読みを答える");
@@ -56,8 +61,9 @@ test("pilot Objective identity, version, epoch, and recall mode remain exact", (
 
 test("pilot revision has one explicit SRS binding to its existing content hash", () => {
   assert.equal(kuzushijiPilotObjectiveBindings.length, 1);
-  assert.equal(kuzushijiPilotObjectiveBinding.revisionId, kuzushijiPilotRevisionId);
-  assert.equal(kuzushijiPilotObjectiveBinding.revisionId, kuzushijiPilotRevision.contentHash);
+  assert.equal(kuzushijiPilotObjectiveBinding.revisionContentHash, kuzushijiPilotRevisionContentHash);
+  assert.equal(kuzushijiPilotObjectiveBinding.revisionContentHash, kuzushijiPilotRevision.contentHash);
+  assert.equal(Object.prototype.hasOwnProperty.call(kuzushijiPilotObjectiveBinding, "revisionId"), false);
   assert.equal(kuzushijiPilotObjectiveBinding.objectiveId, KUZUSHIJI_PILOT_OBJECTIVE_ID);
   assert.equal(kuzushijiPilotObjectiveBinding.objectiveVersion, 1);
   assert.equal(kuzushijiPilotObjectiveBinding.evidenceUse, "srs");
@@ -67,13 +73,17 @@ test("pilot revision has one explicit SRS binding to its existing content hash",
 test("Objective and binding validators reject invalid values", () => {
   const invalidVersion = objectiveCopy();
   invalidVersion.objectiveVersion = 0;
-  assert.throws(() => assertValidObjectiveDefinitionRecord(invalidVersion), /objectiveVersion/);
+  assert.throws(() => assertValidObjectiveDefinition(invalidVersion), /objectiveVersion/);
 
   assert.throws(() => assertValidSrsEpoch(0), /srsEpoch/);
   assert.throws(() => assertValidSrsEpoch(1.5), /srsEpoch/);
+  assert.throws(
+    () => assertValidObjectiveSrsTarget({ ...kuzushijiPilotObjectiveSrsTarget, srsEpoch: 0 }),
+    /srsEpoch/,
+  );
 
   const invalidMode = objectiveCopy();
-  invalidMode.responseMode = "choice" as ObjectiveDefinitionRecord["responseMode"];
+  invalidMode.responseMode = "choice" as ObjectiveDefinition["responseMode"];
   assert.throws(() => assertValidObjectiveDefinition(invalidMode), /responseMode/);
 
   const invalidEvidence = { ...kuzushijiPilotObjectiveBinding, evidenceUse: "generated" };
@@ -84,7 +94,7 @@ test("Objective and binding validators reject invalid values", () => {
     objectiveId: selfSuperseding.objectiveId,
     objectiveVersion: selfSuperseding.objectiveVersion,
   };
-  assert.throws(() => assertValidObjectiveDefinitionRecord(selfSuperseding), /supersede itself/);
+  assert.throws(() => assertValidObjectiveDefinition(selfSuperseding), /supersede itself/);
 
   const duplicateBindings = [kuzushijiPilotObjectiveBinding, { ...kuzushijiPilotObjectiveBinding }];
   assert.match(validateExerciseObjectiveBindings(duplicateBindings).join(";"), /multiple Objective bindings/);
@@ -92,7 +102,7 @@ test("Objective and binding validators reject invalid values", () => {
 
 test("Objective canonicalization and hash are deterministic and order independent", () => {
   const first = objectiveCopy();
-  const reordered: ObjectiveDefinitionRecord = {
+  const reordered: ObjectiveDefinition = {
     successCriterion: first.successCriterion,
     conditions: first.conditions,
     responseMode: first.responseMode,
@@ -102,11 +112,19 @@ test("Objective canonicalization and hash are deterministic and order independen
     objectiveVersion: first.objectiveVersion,
     objectiveId: first.objectiveId,
     projectId: first.projectId,
-    srsEpoch: first.srsEpoch,
   };
   assert.equal(canonicalizeObjectiveDefinition(first), canonicalizeObjectiveDefinition(reordered));
   assert.equal(hashObjectiveDefinition(first), hashObjectiveDefinition(reordered));
   assert.equal(hashObjectiveDefinition(first), hashObjectiveDefinition(objectiveCopy()));
+});
+
+test("SRS epoch is separate runtime metadata and never enters the Objective hash", () => {
+  const definition = objectiveCopy();
+  const epochOne = { ...definition, srsEpoch: 1 } as ObjectiveDefinition;
+  const epochTwo = { ...definition, srsEpoch: 2 } as ObjectiveDefinition;
+  assert.equal(hashObjectiveDefinition(epochOne), hashObjectiveDefinition(epochTwo));
+  assert.equal(canonicalizeObjectiveDefinition(epochOne), canonicalizeObjectiveDefinition(epochTwo));
+  assert.doesNotMatch(canonicalizeObjectiveDefinition(epochOne), /srsEpoch/);
 });
 
 test("Objective semantic changes alter the hash", () => {
@@ -125,9 +143,6 @@ test("Objective semantic changes alter the hash", () => {
   versionChanged.objectiveVersion = 2;
   assert.notEqual(hashObjectiveDefinition(versionChanged), baseHash);
 
-  const epochChanged = objectiveCopy();
-  epochChanged.srsEpoch = 2;
-  assert.notEqual(hashObjectiveDefinition(epochChanged), baseHash);
 });
 
 test("Phase 4C revision and release hashes remain unchanged", () => {
