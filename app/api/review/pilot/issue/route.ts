@@ -5,22 +5,15 @@ import { issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
 import { buildKuzushijiScopeSnapshot } from "@/src/lib/review/scope";
 import { getStudyProject } from "@/src/lib/projects/registry";
 import { PilotRpcError } from "@/src/lib/supabase/pilot";
+import { pilotWriteAuthorizationFailure } from "@/src/lib/review/pilot-auth";
 
 export const runtime = "nodejs";
 
-function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-  if (!origin || !host) return true;
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return NextResponse.json({ error: "cross_origin_request" }, { status: 403 });
+  const authorizationFailure = await pilotWriteAuthorizationFailure(request);
+  if (authorizationFailure) {
+    return NextResponse.json({ error: authorizationFailure }, { status: authorizationFailure === "cross_origin_request" ? 403 : 401 });
+  }
   if (Number(request.headers.get("content-length") ?? 0) > 16_384) return NextResponse.json({ error: "body_too_large" }, { status: 413 });
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;

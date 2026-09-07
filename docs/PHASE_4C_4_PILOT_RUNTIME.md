@@ -38,6 +38,25 @@ for the same attempt ID and request hash, rejects a changed body as
 available). Client `isCorrect`, normalized answers, scope flags, SRS fields,
 and learner identity are never trusted.
 
+The pilot write routes use a short-lived, server-signed HttpOnly session cookie
+minted by the review-page middleware. The signing secret is read only on the
+server from `STUDY_GRAPH_APP_TOKEN` (or its existing compatibility spelling)
+and is never placed in a `NEXT_PUBLIC_*` variable, client component, URL, or
+local storage. Same-origin is still checked as a CSRF boundary, but Origin
+alone is not authorization: a missing or invalid pilot session is rejected
+with `401`, and a cross-origin request with `403`. The learner UUID remains
+fixed in server configuration and cannot be supplied by the browser. This is a
+single-user write boundary for the pilot, not a replacement for a future full
+authentication system.
+
+Receipt restoration is receipt-first. A retry or an
+`instance_already_answered` response is reconstructed only from a complete
+stored receipt. The current request is never allowed to repair or replace
+`gradingStatus`, `isCorrect`, `effectiveSrsGrade`, `srsApplied`, `srsReason`,
+or `dueAt`. If an older immutable row lacks a required authority field, the
+route returns `stored_receipt_incomplete` and fails closed. Existing immutable
+attempt rows are preserved as-is.
+
 `public.review_attempts` and `public.review_state` are written only by the
 existing 4C-3 atomic RPC when the server plan says SRS is applicable. A saved
 no-SRS attempt remains in `private.exercise_attempts` with an immutable receipt
@@ -52,6 +71,12 @@ private tables remain unavailable to browser roles. The pilot runtime fails
 closed when service credentials, the fixed learner UUID, archive registration,
 current scope, or instance issuance is unavailable. It never silently falls
 back to the old writer.
+
+The additive `20260907130000_phase_4c_4_receipt_reconciliation.sql` migration
+recreates the 4C-3 attempt RPC with the complete receipt shape, including
+`gradingStatus`, `isCorrect`, `effectiveSrsGrade`, and `reviewStateBefore`.
+It does not update historical rows or alter existing tables; only attempts
+accepted after reconciliation receive the complete receipt.
 
 To roll back, stop pilot instance issuance and disable the pilot route at the
 server boundary before changing any UI selection. Preserve all archive,

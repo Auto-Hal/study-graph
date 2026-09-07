@@ -4,6 +4,7 @@ import { getKuzushijiDashboard, type Character, type ReviewItem } from "@/src/li
 import { buildKuzushijiScopeSnapshot, type ScopeDecision, type ScopeSnapshot } from "@/src/lib/review/scope";
 import { hashExerciseAttemptRequest, gradeExerciseRevision, planLegacySrs, type ExerciseAttemptRequest, type ReviewGrade } from "@/src/lib/review/exercises/attempt";
 import { createPilotPresentation, hashPilotPresentation, type PilotPresentation } from "@/src/lib/review/exercises/attempt";
+import { resultFromStoredReceipt, StoredReceiptIncompleteError, type StoredPilotReceiptResult } from "@/src/lib/review/exercises/receipt";
 import { KUZUSHIJI_PILOT_EXERCISE_ID } from "@/src/lib/review/exercises/kuzushiji-pilot";
 import { kuzushijiPilotRevision, kuzushijiPilotRevisionPayload } from "@/src/lib/review/exercises/kuzushiji-revision";
 import {
@@ -111,29 +112,33 @@ export async function issueKuzushijiPilotReview(input: {
   return { ...issue, presentation };
 }
 
-function receiptField<T>(receipt: Record<string, unknown>, key: string, fallback: T) {
-  return (receipt[key] as T | undefined) ?? fallback;
-}
+export type PilotAttemptResult = StoredPilotReceiptResult;
 
-export type PilotAttemptResult = {
-  saved: true;
-  attemptId: string;
-  instanceId: string;
-  gradingStatus: "graded" | "ungraded";
-  isCorrect: boolean | null;
-  normalizedAnswer: string | null;
-  effectiveSrsGrade: ReviewGrade | null;
-  srsApplied: boolean;
-  srsReason: string;
-  dueAt: string | null;
-  receipt: Record<string, unknown>;
-};
+function receiptResult(receipt: Record<string, unknown>, instanceId: string): PilotAttemptResult {
+  try {
+    return resultFromStoredReceipt(receipt, instanceId);
+  } catch (error) {
+    if (error instanceof StoredReceiptIncompleteError) {
+      throw new PilotRpcError(error.code, 409, error.code);
+    }
+    throw error;
+  }
+}
 
 export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptRequest): Promise<PilotAttemptResult> {
   if (!getPilotRuntimeConfig()) throw new PilotRpcError("pilot_runtime_not_configured", 503, "pilot_runtime_not_configured");
   const instance = await resolveKuzushijiPilotInstance(request.instanceId);
   if (instance.project_id !== "kuzushiji" || instance.exercise_id !== KUZUSHIJI_PILOT_EXERCISE_ID) {
     throw new PilotRpcError("unsupported_pilot_instance", 409, "unsupported_pilot_instance");
+  }
+
+  const requestHash = hashExerciseAttemptRequest(request);
+  const existing = await getKuzushijiPilotAttemptReceipt(request.instanceId);
+  if (existing) {
+    if (existing.attempt_id === request.attemptId && existing.request_hash !== requestHash) {
+      throw new PilotRpcError("attempt_conflict", 409, "attempt_conflict");
+    }
+    return receiptResult(existing.receipt, request.instanceId);
   }
 
   const grading = gradeExerciseRevision(instance.revision_payload, request.rawAnswer);
@@ -149,8 +154,6 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
     scopeAccepted: revisionStatus === "retired" || revisionStatus === "draft" ? false : scopeAccepted,
     revisionStatus,
   });
-  const requestHash = hashExerciseAttemptRequest(request);
-
   try {
     const receipt = await recordKuzushijiPilotAttempt({
       request,
@@ -160,40 +163,15 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
       scopeAccepted,
       srsPlan,
     });
-    const reviewStateAfter = receiptField<Record<string, unknown> | null>(receipt, "reviewStateAfter", null);
-    return {
-      saved: true,
-      attemptId: request.attemptId,
-      instanceId: request.instanceId,
-      gradingStatus: receiptField(receipt, "gradingStatus", grading.gradingStatus),
-      isCorrect: receiptField(receipt, "isCorrect", grading.isCorrect),
-      normalizedAnswer: grading.normalizedAnswer,
-      effectiveSrsGrade: receiptField(receipt, "effectiveSrsGrade", request.selfEvaluation),
-      srsApplied: receiptField(receipt, "srsApplied", srsPlan.srsApplied),
-      srsReason: receiptField(receipt, "srsReason", srsPlan.reason),
-      dueAt: reviewStateAfter && typeof reviewStateAfter.due_at === "string" ? reviewStateAfter.due_at : null,
-      receipt,
-    };
+    return receiptResult(receipt, request.instanceId);
   } catch (error) {
     if (error instanceof PilotRpcError && error.code === "instance_already_answered") {
       const stored = await getKuzushijiPilotAttemptReceipt(request.instanceId);
-      if (stored) {
-        const receipt = stored.receipt;
-        const reviewStateAfter = receiptField<Record<string, unknown> | null>(receipt, "reviewStateAfter", null);
-        return {
-          saved: true,
-          attemptId: stored.attempt_id,
-          instanceId: request.instanceId,
-          gradingStatus: receiptField(receipt, "gradingStatus", grading.gradingStatus),
-          isCorrect: receiptField(receipt, "isCorrect", grading.isCorrect),
-          normalizedAnswer: grading.normalizedAnswer,
-          effectiveSrsGrade: receiptField(receipt, "effectiveSrsGrade", null),
-          srsApplied: receiptField(receipt, "srsApplied", false),
-          srsReason: receiptField(receipt, "srsReason", "scope-not-eligible"),
-          dueAt: reviewStateAfter && typeof reviewStateAfter.due_at === "string" ? reviewStateAfter.due_at : null,
-          receipt,
-        };
+      if (!stored) throw new PilotRpcError("stored_receipt_incomplete", 409, "stored_receipt_incomplete");
+      if (stored.attempt_id === request.attemptId && stored.request_hash !== requestHash) {
+        throw new PilotRpcError("attempt_conflict", 409, "attempt_conflict");
       }
+      return receiptResult(stored.receipt, request.instanceId);
     }
     throw error;
   }
