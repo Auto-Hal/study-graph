@@ -110,6 +110,8 @@ test("Objective applications are immutable, one-per-attempt, and explicit about 
   assert.match(normalizedSql, /applied = true and reason = 'applied'/);
   assert.match(normalizedSql, /applied = false and reason <> 'applied' and effective_grade is null and state_before is null and state_after is null/);
   assert.match(normalizedSql, /before update or delete on private\.objective_srs_applications/);
+  assert.match(objectiveAttemptSql, /if p_srs_applied then v_state_before := to_jsonb\(v_state\);/);
+  assert.match(normalizedSql, /and state_before is null and state_after is null/);
 });
 
 test("All Objective tables are RLS protected and browser roles have no direct table access", () => {
@@ -153,6 +155,8 @@ test("Objective attempt transaction locks absent state, preserves retries, and d
   assert.notEqual(objectiveAttemptEnd, -1);
   assert.match(objectiveAttemptSql, /objective-attempt\|/);
   assert.match(objectiveAttemptSql, /attempt_conflict/);
+  assert.match(objectiveAttemptSql, /v_existing_attempt_instance_id <> p_instance_id/);
+  assert.match(objectiveAttemptSql, /v_existing_attempt_learner_id <> p_learner_id/);
   assert.match(objectiveAttemptSql, /attempt_not_objective/);
   assert.match(objectiveAttemptSql, /instance_already_answered/);
   assert.match(objectiveAttemptSql, /objective\|.*v_instance_binding\.project_id.*v_instance_binding\.objective_id.*v_instance_binding\.srs_epoch/);

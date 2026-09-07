@@ -417,7 +417,7 @@ begin
     p_objective_id,
     p_objective_version,
     p_evidence_use
-  ) returning binding_id into v_binding_id;
+  ) returning private.exercise_objective_bindings.binding_id into v_binding_id;
 
   return query select v_binding_id, v_revision.revision_id,
     p_project_id, p_objective_id, p_objective_version, p_evidence_use;
@@ -580,6 +580,8 @@ declare
   v_expected_normalizer_version text;
   v_existing_request_hash text;
   v_existing_receipt jsonb;
+  v_existing_attempt_instance_id uuid;
+  v_existing_attempt_learner_id uuid;
   v_existing_instance_attempt_id uuid;
   v_existing_application private.objective_srs_applications%rowtype;
   v_state private.objective_review_state%rowtype;
@@ -680,13 +682,19 @@ begin
     raise exception using errcode = 'P0001', message = 'instance_objective_project_mismatch';
   end if;
 
-  select ea.request_hash, ea.receipt
-    into v_existing_request_hash, v_existing_receipt
+  select ea.request_hash, ea.receipt, ea.instance_id, ea.learner_id
+    into v_existing_request_hash, v_existing_receipt,
+      v_existing_attempt_instance_id, v_existing_attempt_learner_id
   from private.exercise_attempts ea
   where ea.attempt_id = p_attempt_id
   for update;
   if found then
-    if v_existing_request_hash <> p_request_hash then
+    -- The request hash covers both IDs, but keep the row identity check here
+    -- so a forged/reused hash can never restore a receipt for another
+    -- instance or learner.
+    if v_existing_attempt_instance_id <> p_instance_id
+      or v_existing_attempt_learner_id <> p_learner_id
+      or v_existing_request_hash <> p_request_hash then
       raise exception using errcode = 'P0001', message = 'attempt_conflict';
     end if;
     select osa.*
@@ -775,9 +783,14 @@ begin
     and ors.srs_epoch = v_instance_binding.srs_epoch
   for update;
   if found then
-    v_state_before := to_jsonb(v_state);
     v_previous_interval := v_state.interval_days;
     v_previous_repetitions := v_state.repetitions;
+    -- State snapshots describe an applied Objective update only.  A no-SRS
+    -- application may inspect the current row for locking, but it must not
+    -- claim that the row was part of its state transition.
+    if p_srs_applied then
+      v_state_before := to_jsonb(v_state);
+    end if;
   end if;
 
   if p_srs_applied then
