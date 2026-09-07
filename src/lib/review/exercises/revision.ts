@@ -294,12 +294,17 @@ function revisionPayloadOf(value: ExerciseRevisionPayload | ExerciseRevision): E
   return value as ExerciseRevisionPayload;
 }
 
+function hashableRevisionPayload(value: ExerciseRevisionPayload | ExerciseRevision) {
+  const { status: _operationalStatus, ...payload } = revisionPayloadOf(value);
+  return payload;
+}
+
 export function getExerciseRevisionPayload(value: ExerciseRevision): ExerciseRevisionPayload {
   return deepFreeze(revisionPayloadOf(value));
 }
 
 export function canonicalizeExerciseRevision(value: ExerciseRevisionPayload | ExerciseRevision) {
-  return canonicalizeJson(revisionPayloadOf(value));
+  return canonicalizeJson(hashableRevisionPayload(value));
 }
 
 export function hashExerciseRevision(value: ExerciseRevisionPayload | ExerciseRevision) {
@@ -373,6 +378,25 @@ function revisionEntryFromRevision(revision: ExerciseRevision, options: ContentR
   };
 }
 
+function compareIdentityValues(left: string | number, right: string | number) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+function compareRevisionIdentities(left: RevisionIdentity, right: RevisionIdentity) {
+  return compareIdentityValues(left.projectId, right.projectId)
+    || compareIdentityValues(left.exerciseId, right.exerciseId)
+    || compareIdentityValues(left.exerciseVersion, right.exerciseVersion);
+}
+
+function normalizedContentReleaseManifest(manifest: ContentReleaseManifest): ContentReleaseManifest {
+  return {
+    ...manifest,
+    revisionEntries: manifest.revisionEntries.slice().sort(compareRevisionIdentities),
+  };
+}
+
 export function validateContentReleaseManifest(manifest: ContentReleaseManifest): string[] {
   const errors: string[] = [];
   if (manifest.manifestSchemaVersion !== 1) errors.push("manifestSchemaVersion must be 1");
@@ -405,7 +429,7 @@ export function validateContentReleaseManifest(manifest: ContentReleaseManifest)
 }
 
 export function canonicalizeContentReleaseManifest(manifest: ContentReleaseManifest) {
-  return canonicalizeJson(manifest);
+  return canonicalizeJson(normalizedContentReleaseManifest(manifest));
 }
 
 export function hashContentReleaseManifest(manifest: ContentReleaseManifest) {
@@ -416,10 +440,10 @@ export function createContentReleaseManifest(
   revisions: ExerciseRevision[],
   options: Pick<ContentReleaseBuildOptions, "rendererVersion" | "adapterVersion"> = {},
 ): ContentReleaseManifest {
-  const manifest = deepFreeze({
+  const manifest = deepFreeze(normalizedContentReleaseManifest({
     manifestSchemaVersion: 1 as const,
     revisionEntries: revisions.map((revision) => revisionEntryFromRevision(revision, options)),
-  });
+  }));
   const errors = validateContentReleaseManifest(manifest);
   if (errors.length > 0) throw new Error("Invalid content release manifest: " + errors.join("; "));
   return manifest;
@@ -429,12 +453,13 @@ export function createContentRelease(
   manifest: ContentReleaseManifest,
   options: Pick<ContentReleaseBuildOptions, "sourceGitSha"> = {},
 ): ContentRelease {
-  const errors = validateContentReleaseManifest(manifest);
+  const normalizedManifest = deepFreeze(normalizedContentReleaseManifest(manifest));
+  const errors = validateContentReleaseManifest(normalizedManifest);
   if (errors.length > 0) throw new Error("Invalid content release manifest: " + errors.join("; "));
   const provenance = options.sourceGitSha === undefined ? undefined : { sourceGitSha: options.sourceGitSha };
   return deepFreeze({
-    manifest,
-    manifestHash: hashContentReleaseManifest(manifest),
+    manifest: normalizedManifest,
+    manifestHash: hashContentReleaseManifest(normalizedManifest),
     ...(provenance === undefined ? {} : { provenance }),
   });
 }

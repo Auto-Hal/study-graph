@@ -7,6 +7,7 @@ import {
   canonicalizeExerciseRevision,
   canonicalizeJson,
   createContentRelease,
+  createContentReleaseManifest,
   findRevisionIdentityConflict,
   hashContentReleaseManifest,
   hashExerciseRevision,
@@ -100,6 +101,14 @@ test("archive metadata, contentHash itself, and release metadata are outside rev
     },
   };
   assert.equal(hashExerciseRevision(withMetadata), baseHash);
+
+  const quarantined = revisionCopy();
+  quarantined.status = "quarantined";
+  assert.equal(hashExerciseRevision(quarantined), baseHash);
+
+  const retired = revisionCopy();
+  retired.status = "retired";
+  assert.equal(hashExerciseRevision(retired), baseHash);
 });
 
 test("a revision identity collision is detected only when content differs", () => {
@@ -171,4 +180,22 @@ test("the manifest hash is deterministic and revision entry changes are visible"
     }],
   };
   assert.notEqual(hashContentReleaseManifest(changed), kuzushijiPilotContentRelease.manifestHash);
+});
+
+test("manifest revision entries are sorted by stable identity before hashing", () => {
+  const earlier = revisionCopy();
+  earlier.exerciseId = "kuzushiji.visual-reading.a-first";
+  earlier.contentHash = hashExerciseRevision(earlier);
+  const later = revisionCopy();
+  later.exerciseId = "kuzushiji.visual-reading.z-last";
+  later.contentHash = hashExerciseRevision(later);
+
+  const first = createContentReleaseManifest([later, earlier]);
+  const second = createContentReleaseManifest([earlier, later]);
+  assert.deepEqual(first.revisionEntries.map((entry) => entry.exerciseId), [
+    "kuzushiji.visual-reading.a-first",
+    "kuzushiji.visual-reading.z-last",
+  ]);
+  assert.equal(canonicalizeContentReleaseManifest(first), canonicalizeContentReleaseManifest(second));
+  assert.equal(hashContentReleaseManifest(first), hashContentReleaseManifest(second));
 });
