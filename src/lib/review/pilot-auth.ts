@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  createPilotSessionToken,
+  derivePilotSessionSecret,
   pilotAuthorizationFailure,
   verifyPilotSessionToken,
 } from "./pilot-auth-core";
@@ -10,8 +10,8 @@ export { PILOT_SESSION_TTL_SECONDS } from "./pilot-auth-core";
 
 export const PILOT_SESSION_COOKIE = "study_graph_pilot_session";
 
-function appToken() {
-  return process.env.STUDY_GRAPH_APP_TOKEN?.trim() || process.env.StudyGraph_APP_TOKEN?.trim() || null;
+function accessPassword() {
+  return process.env.STUDY_GRAPH_ACCESS_PASSWORD?.trim() || null;
 }
 
 function cookieValue(request: Request) {
@@ -26,13 +26,9 @@ function cookieValue(request: Request) {
   }
 }
 
-export async function createPilotSessionCookieValue() {
-  const secret = appToken();
-  return secret ? createPilotSessionToken(secret) : null;
-}
-
 export async function isPilotSessionCookieValid(value: string | null | undefined) {
-  const secret = appToken();
+  const password = accessPassword();
+  const secret = password ? derivePilotSessionSecret(password) : null;
   return Boolean(secret) && await verifyPilotSessionToken(value, secret!);
 }
 
@@ -40,7 +36,8 @@ export async function pilotWriteAuthorizationFailure(request: Request): Promise<
   return pilotAuthorizationFailure({
     origin: request.headers.get("origin"),
     host: request.headers.get("host"),
+    protocol: new URL(request.url).protocol,
     sessionToken: cookieValue(request),
-    secret: appToken(),
+    secret: accessPassword() ? derivePilotSessionSecret(accessPassword()!) : null,
   });
 }

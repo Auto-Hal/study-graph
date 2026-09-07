@@ -14,7 +14,12 @@ const issueRoute = readFileSync(resolve(root, "app/api/review/pilot/issue/route.
 const supabaseClient = readFileSync(resolve(root, "src/lib/supabase/pilot.ts"), "utf8");
 const auth = readFileSync(resolve(root, "src/lib/review/pilot-auth.ts"), "utf8");
 const authCore = readFileSync(resolve(root, "src/lib/review/pilot-auth-core.ts"), "utf8");
+const authServer = readFileSync(resolve(root, "src/lib/review/pilot-auth-server.ts"), "utf8");
 const middleware = readFileSync(resolve(root, "middleware.ts"), "utf8");
+const loginRoute = readFileSync(resolve(root, "app/api/auth/session/route.ts"), "utf8");
+const logoutRoute = readFileSync(resolve(root, "app/api/auth/logout/route.ts"), "utf8");
+const loginPage = readFileSync(resolve(root, "app/login/page.tsx"), "utf8");
+const envExample = readFileSync(resolve(root, ".env.example"), "utf8");
 const runtime = readFileSync(resolve(root, "src/lib/review/pilot-runtime.ts"), "utf8");
 const receipt = readFileSync(resolve(root, "src/lib/review/exercises/receipt.ts"), "utf8");
 const normalized = migration.replace(/--[^\n]*/g, "").replace(/\s+/g, " ");
@@ -60,12 +65,16 @@ test("pilot attempt route accepts only server-relevant submission fields", () =>
 
 test("pilot write APIs have a server-issued authorization boundary", () => {
   assert.match(auth, /server-only/);
-  assert.match(auth, /STUDY_GRAPH_APP_TOKEN/);
-  assert.match(auth, /StudyGraph_APP_TOKEN/);
+  assert.match(auth, /STUDY_GRAPH_ACCESS_PASSWORD/);
+  assert.doesNotMatch(auth, /STUDY_GRAPH_APP_TOKEN/);
+  assert.doesNotMatch(auth, /StudyGraph_APP_TOKEN/);
   assert.match(auth, /verifyPilotSessionToken/);
   assert.match(authCore, /HMAC/);
-  assert.match(middleware, /httpOnly: true/);
-  assert.match(middleware, /sameSite: "lax"/);
+  assert.match(authCore, /study-graph-session-v1/);
+  assert.match(middleware, /NextResponse\.redirect/);
+  assert.match(middleware, /pathname = "\/login"/);
+  assert.doesNotMatch(middleware, /createPilotSessionToken/);
+  assert.doesNotMatch(middleware, /cookies\.set/);
   assert.match(middleware, /PILOT_SESSION_COOKIE/);
   assert.doesNotMatch(auth, /NEXT_PUBLIC_/);
   assert.doesNotMatch(middleware, /SUPABASE_SERVICE_ROLE_KEY/);
@@ -73,6 +82,29 @@ test("pilot write APIs have a server-issued authorization boundary", () => {
   assert.match(attemptRoute, /authorizationFailure === "cross_origin_request" \? 403 : 401/);
   assert.doesNotMatch(issueRoute, /learnerId/);
   assert.doesNotMatch(attemptRoute, /learnerId/);
+});
+
+test("explicit login and logout are the only session issuance/removal boundary", () => {
+  assert.match(authServer, /STUDY_GRAPH_ACCESS_PASSWORD/);
+  assert.match(loginRoute, /createAuthenticatedPilotSessionCookieValue/);
+  assert.match(authServer, /timingSafeEqual/);
+  assert.match(loginRoute, /httpOnly: true/);
+  assert.match(loginRoute, /sameSite: "lax"/);
+  assert.match(loginRoute, /path: "\/"/);
+  assert.match(loginRoute, /PILOT_SESSION_TTL_SECONDS/);
+  assert.match(loginRoute, /status: 403/);
+  assert.match(loginRoute, /status: 401/);
+  assert.match(loginRoute, /status: 503/);
+  assert.doesNotMatch(loginRoute, /STUDY_GRAPH_APP_TOKEN/);
+  assert.doesNotMatch(loginRoute, /NextResponse\.json\(\{[^}]*password/);
+  assert.match(logoutRoute, /maxAge: 0/);
+  assert.match(logoutRoute, /\/login/);
+  assert.match(loginPage, /type="password"/);
+  assert.match(loginPage, /\/api\/auth\/session/);
+  assert.doesNotMatch(loginPage, /localStorage|sessionStorage/);
+  assert.doesNotMatch(loginPage, /STUDY_GRAPH_ACCESS_PASSWORD/);
+  assert.match(envExample, /STUDY_GRAPH_ACCESS_PASSWORD=/);
+  assert.match(envExample, /separate from STUDY_GRAPH_APP_TOKEN/);
 });
 
 test("receipt reconciliation restores canonical 4C-3 authority fields without destructive DDL", () => {

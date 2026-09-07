@@ -39,15 +39,22 @@ available). Client `isCorrect`, normalized answers, scope flags, SRS fields,
 and learner identity are never trusted.
 
 The pilot write routes use a short-lived, server-signed HttpOnly session cookie
-minted by the review-page middleware. The signing secret is read only on the
-server from `STUDY_GRAPH_APP_TOKEN` (or its existing compatibility spelling)
-and is never placed in a `NEXT_PUBLIC_*` variable, client component, URL, or
-local storage. Same-origin is still checked as a CSRF boundary, but Origin
-alone is not authorization: a missing or invalid pilot session is rejected
-with `401`, and a cross-origin request with `403`. The learner UUID remains
-fixed in server configuration and cannot be supplied by the browser. This is a
-single-user write boundary for the pilot, not a replacement for a future full
-authentication system.
+issued only after an explicit password login at `/login`. The login verifies
+the server-only `STUDY_GRAPH_ACCESS_PASSWORD`; it is deliberately separate
+from the legacy `STUDY_GRAPH_APP_TOKEN` used for Supabase RPCs. The access
+password is never placed in a `NEXT_PUBLIC_*` variable, client component, URL,
+cookie, or local storage. The password is submitted only to the same-origin
+login endpoint and is discarded after verification. Same-origin is still
+checked as a CSRF boundary, but Origin alone is not authentication: a missing
+or invalid pilot session is rejected with `401`, and a cross-origin request
+with `403`. The learner UUID remains fixed in server configuration and cannot
+be supplied by the browser.
+
+Review-page middleware never mints a session. It redirects an unauthenticated
+visit to `/login`; the pilot API routes independently verify the signed session
+cookie. Logout expires the cookie and returns to `/login`. Use a strong random
+access password in server configuration. This is a single-user write boundary
+for the pilot, not a replacement for a future full authentication system.
 
 Receipt restoration is receipt-first. A retry or an
 `instance_already_answered` response is reconstructed only from a complete

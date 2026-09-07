@@ -1,5 +1,10 @@
 const TOKEN_VERSION = "v1";
-export const PILOT_SESSION_TTL_SECONDS = 15 * 60;
+export const PILOT_SESSION_TTL_SECONDS = 12 * 60 * 60;
+
+/** Keep the web-login signing domain separate from the legacy Supabase token. */
+export function derivePilotSessionSecret(accessPassword: string) {
+  return `study-graph-session-v1|${accessPassword}`;
+}
 
 function encodeBase64Url(bytes: Uint8Array) {
   let binary = "";
@@ -46,11 +51,12 @@ export async function verifyPilotSessionToken(token: string | null | undefined, 
   return hmac(`${parts[0]}.${parts[1]}.${parts[2]}`, secret, "verify", parts[3]);
 }
 
-export function isSameOriginRequest(origin: string | null, host: string | null) {
+export function isSameOriginRequest(origin: string | null, host: string | null, protocol?: string | null) {
   if (!origin) return true;
   if (!host) return false;
   try {
-    return new URL(origin).host === host;
+    const parsed = new URL(origin);
+    return parsed.host === host && (!protocol || parsed.protocol === protocol);
   } catch {
     return false;
   }
@@ -59,10 +65,11 @@ export function isSameOriginRequest(origin: string | null, host: string | null) 
 export async function pilotAuthorizationFailure(input: {
   origin: string | null;
   host: string | null;
+  protocol?: string | null;
   sessionToken: string | null | undefined;
   secret: string | null | undefined;
 }, nowSeconds = Math.floor(Date.now() / 1000)) {
-  if (!isSameOriginRequest(input.origin, input.host)) return "cross_origin_request" as const;
   if (!input.secret || !await verifyPilotSessionToken(input.sessionToken, input.secret, nowSeconds)) return "pilot_authorization_required" as const;
+  if (!input.origin || !isSameOriginRequest(input.origin, input.host, input.protocol)) return "cross_origin_request" as const;
   return null;
 }
