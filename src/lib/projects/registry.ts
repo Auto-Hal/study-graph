@@ -74,7 +74,7 @@ export const studyProjects: StudyProjectDefinition[] = [
     ],
     review: {
       strategy: "graph-practice",
-      eligibleKinds: ["artwork", "movement", "term", "period"],
+      eligibleKinds: ["artwork", "artist", "movement", "term", "period", "culture", "museum"],
       sessionSize: 12,
     },
   },
@@ -102,7 +102,7 @@ export const studyProjects: StudyProjectDefinition[] = [
     ],
     review: {
       strategy: "graph-practice",
-      eligibleKinds: ["philosopher", "work", "term", "problem"],
+      eligibleKinds: ["philosopher", "work", "term", "problem", "culture", "period"],
       sessionSize: 12,
     },
   },

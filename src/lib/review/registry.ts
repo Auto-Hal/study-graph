@@ -8,6 +8,7 @@ import { reviewAssetProvider } from "@/src/lib/review/assets/manifest";
 import { attachReviewAssets } from "@/src/lib/review/assets/provider";
 import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
+import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getDueReviewItems, getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
 
@@ -22,10 +23,15 @@ export type ReviewProjectPayload = {
 
 async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
   const data = await getKuzushijiDashboard();
+  const scope = buildKuzushijiScopeSnapshot(data);
   const visualCandidates = data.reviewQueue.filter((item) => {
     if (item.kind !== "character") return false;
     const character = data.characters.find((candidate) => candidate.id === item.id);
-    return Boolean(character && createKuzushijiPilotReviewCard(project, character, item));
+    return Boolean(
+      character &&
+      scope.decisions[character.id]?.status === "eligible" &&
+      createKuzushijiPilotReviewCard(project, character, item),
+    );
   });
 
   const scheduled = data.mode === "notion"
@@ -66,13 +72,15 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
 }
 
 async function loadGraphPractice(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
-  const graph = await loadProjectGraph(project.id);
+  const graph = await loadProjectGraph(project.id, { cache: false });
+  const scope = buildGraphScopeSnapshot(project.id as "philosophy" | "western-art-history", graph);
+  const eligibleIds = eligibleNodeIds(scope);
   const eligibleKinds = new Set(project.review.eligibleKinds);
-  const eligibleNodes = graph.nodes.filter((node) => eligibleKinds.has(node.kind));
+  const eligibleNodes = graph.nodes.filter((node) => eligibleKinds.has(node.kind) && eligibleIds.has(node.id));
   let persistence: ReviewPersistenceMode = "fallback";
   let states: ReviewState[] = [];
 
-  if (graph.mode === "notion" && isReviewPersistenceConfigured()) {
+  if (graph.mode === "notion" && scope.sourceState === "ready" && isReviewPersistenceConfigured()) {
     try {
       states = await getReviewStates();
       persistence = "supabase";
@@ -89,10 +97,13 @@ async function loadGraphPractice(project: StudyProjectDefinition): Promise<Revie
     .sort((a, b) => new Date(a.state.due_at).getTime() - new Date(b.state.due_at).getTime());
   const unseen = eligibleNodes.filter((node) => !statesById.has(node.id));
   const selected = persistence === "supabase"
-    ? [...dueTracked.map((entry) => ({ node: entry.node, state: entry.state })), ...unseen.map((node) => ({ node, state: undefined }))].slice(0, project.review.sessionSize)
-    : eligibleNodes.slice(0, project.review.sessionSize).map((node) => ({ node, state: undefined }));
+    ? [...dueTracked.map((entry) => ({ node: entry.node, state: entry.state })), ...unseen.map((node) => ({ node, state: undefined }))]
+    : eligibleNodes.map((node) => ({ node, state: undefined }));
 
-  const cards = selected.map(({ node, state }) => createDomainExercise(project, graph, node, state));
+  const cards = selected
+    .map(({ node, state }) => createDomainExercise(project, graph, node, state, eligibleIds))
+    .filter((card): card is ReviewCard => Boolean(card))
+    .slice(0, project.review.sessionSize);
   return {
     project,
     projects: getActiveStudyProjects(),

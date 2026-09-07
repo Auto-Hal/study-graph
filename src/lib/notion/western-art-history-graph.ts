@@ -19,6 +19,7 @@ type NotionProperty = {
   number?: number | null;
   select?: { name?: string } | null;
   multi_select?: Array<{ name?: string }>;
+  date?: { start?: string | null; end?: string | null } | null;
   relation?: Array<{ id?: string }>;
 };
 
@@ -94,6 +95,10 @@ function number(property?: NotionProperty) {
   return property?.number ?? null;
 }
 
+function date(property?: NotionProperty) {
+  return property?.date?.start ?? "";
+}
+
 function multiSelect(property?: NotionProperty) {
   return property?.multi_select?.flatMap((item) => (item.name ? [item.name] : [])) ?? [];
 }
@@ -106,7 +111,7 @@ function joinMeta(values: Array<string | null | undefined>) {
   return values.filter((value): value is string => Boolean(value)).join("・");
 }
 
-function demoGraph(): GraphData {
+function demoGraph(sourceState: "demo" | "unavailable" = "demo"): GraphData {
   const nodes: GraphNode[] = [
     { id: "demo-art-lecture", kind: "lecture", label: "第1回 先史美術", meta: "先史・古代美術・Demo", href: null, notionUrl: "#" },
     { id: "demo-art-artwork", kind: "artwork", label: "ラスコー洞窟壁画", meta: "旧石器時代・壁画", href: null, notionUrl: "#" },
@@ -126,7 +131,13 @@ function demoGraph(): GraphData {
     { id: "demo-art-6", source: "demo-art-period", target: "demo-art-culture", kind: "period-culture", label: "文化・歴史" },
   ];
 
-  return { projectId: PROJECT_ID, mode: "demo", nodes, edges };
+  return {
+    projectId: PROJECT_ID,
+    mode: "demo",
+    scope: { sourceState, anchors: [] },
+    nodes,
+    edges,
+  };
 }
 
 export async function getWesternArtHistoryGraph(): Promise<GraphData> {
@@ -181,6 +192,7 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
           select(page.properties["重要度"]),
           text(page.properties["技法・特徴"]),
         ]),
+        reviewText: text(page.properties["技法・特徴"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -195,6 +207,7 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
           select(page.properties["重要度"]),
           multiSelect(page.properties["主題"]).slice(0, 2).join("・"),
         ]),
+        reviewText: multiSelect(page.properties["主題"]).slice(0, 2).join("・"),
         href: null,
         notionUrl: page.url,
       })),
@@ -207,6 +220,7 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
           select(page.properties["重要度"]),
           text(page.properties["特徴"]),
         ]),
+        reviewText: text(page.properties["特徴"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -219,6 +233,7 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
           select(page.properties["重要度"]),
           text(page.properties["意味"]),
         ]),
+        reviewText: text(page.properties["意味"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -231,6 +246,7 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
           select(page.properties["地域"]),
           text(page.properties["特徴"]),
         ]),
+        reviewText: text(page.properties["特徴"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -244,6 +260,7 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
           select(page.properties["地域"]),
           text(page.properties["解説"]),
         ]),
+        reviewText: text(page.properties["解説"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -257,6 +274,7 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
           text(page.properties["建立年"]),
           text(page.properties["解説"]),
         ]),
+        reviewText: text(page.properties["解説"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -324,9 +342,24 @@ export async function getWesternArtHistoryGraph(): Promise<GraphData> {
       for (const id of relations(page.properties["建築様式"])) connect(page.id, id, "museum-movement", "建築様式");
     }
 
-    return { projectId: PROJECT_ID, mode: "notion", nodes, edges };
+    const scopeAnchors = lectures.map((page) => ({
+      id: page.id,
+      completion: "unknown" as const,
+      date: date(page.properties["実施日"]) || date(page.properties["日付"]),
+      directRelations: edges
+        .filter((edge) => edge.source === page.id)
+        .map((edge) => ({ nodeId: edge.target, kind: edge.kind })),
+    }));
+
+    return {
+      projectId: PROJECT_ID,
+      mode: "notion",
+      scope: { sourceState: "ready", anchors: scopeAnchors },
+      nodes,
+      edges,
+    };
   } catch (error) {
     console.error("Study Graph: Western Art History Graph sync failed", error);
-    return demoGraph();
+    return demoGraph("unavailable");
   }
 }
