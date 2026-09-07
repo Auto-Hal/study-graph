@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:pilot": "node --experimental-strip-types --test src/lib/review/exercises/kuzushiji-pilot.test.ts"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",
