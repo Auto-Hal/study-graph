@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
+import { isPilotIssuanceEnabled } from "@/src/lib/review/pilot-operations";
 import { issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
 import { buildKuzushijiScopeSnapshot } from "@/src/lib/review/scope";
 import { getStudyProject } from "@/src/lib/projects/registry";
@@ -13,6 +14,9 @@ export async function POST(request: Request) {
   const authorizationFailure = await pilotWriteAuthorizationFailure(request);
   if (authorizationFailure) {
     return NextResponse.json({ error: authorizationFailure }, { status: authorizationFailure === "cross_origin_request" ? 403 : 401 });
+  }
+  if (!isPilotIssuanceEnabled()) {
+    return NextResponse.json({ error: "pilot_issuance_disabled" }, { status: 503 });
   }
   if (Number(request.headers.get("content-length") ?? 0) > 16_384) return NextResponse.json({ error: "body_too_large" }, { status: 413 });
   try {

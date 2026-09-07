@@ -8,6 +8,7 @@ import { reviewAssetProvider } from "@/src/lib/review/assets/manifest";
 import { attachReviewAssets } from "@/src/lib/review/assets/provider";
 import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
+import { isPilotIssuanceEnabled } from "@/src/lib/review/pilot-operations";
 import { isKuzushijiPilotDefinition, issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
 import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
@@ -58,11 +59,11 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
     const selectedCharacter = character;
 
     if (isKuzushijiPilotDefinition(card.definitionId)) {
-      // The Phase 4C-4 cutover is intentionally one pilot card only. A
-      // failed issue never falls back to the legacy writer.
+      // The Phase 4C cutover is intentionally one pilot card only. A failed
+      // or operationally disabled issue never falls back to the legacy writer.
       if (pilotIssued) continue;
       pilotIssued = true;
-      if (data.mode !== "notion" || scope.sourceState !== "ready" || !getPilotRuntimeConfig()) continue;
+      if (data.mode !== "notion" || scope.sourceState !== "ready" || !getPilotRuntimeConfig() || !isPilotIssuanceEnabled()) continue;
       try {
         const issued = await issueKuzushijiPilotReview({
           character: selectedCharacter,

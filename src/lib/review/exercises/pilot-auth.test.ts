@@ -8,12 +8,13 @@ import {
   verifyPilotSessionToken,
 } from "../pilot-auth-core.ts";
 
-test("pilot session token is server-signed and expires", async () => {
+test("pilot session token is server-signed and expires after the long-lived single-user window", async () => {
   const token = await createPilotSessionToken(derivePilotSessionSecret("study-graph-test-secret"), 1_000, "nonce");
   assert.ok(token);
   assert.equal(await verifyPilotSessionToken(token, derivePilotSessionSecret("study-graph-test-secret"), 1_001), true);
+  assert.equal(await verifyPilotSessionToken(token, derivePilotSessionSecret("study-graph-test-secret"), 44_201), true);
   assert.equal(await verifyPilotSessionToken(token, derivePilotSessionSecret("wrong-secret"), 1_001), false);
-  assert.equal(await verifyPilotSessionToken(token, derivePilotSessionSecret("study-graph-test-secret"), 44_201), false);
+  assert.equal(await verifyPilotSessionToken(token, derivePilotSessionSecret("study-graph-test-secret"), 7_777_001), false);
   assert.equal(await verifyPilotSessionToken(token, "study-graph-test-secret", 1_001), false);
 });
 
