@@ -79,7 +79,8 @@ export default function ReviewSession({ cards, persistence, session }: { cards: 
 
   if (cards.length === 0) {
     const practice = session.mode === "practice";
-    return <section className="review-stage empty-stage"><p className="eyebrow">{practice ? "PRACTICE" : "REVIEW"}</p><h1>{practice ? "今できるPracticeはありません。" : "今日は復習項目がありません。"}</h1><p>{practice ? "未追跡の候補を一巡済みか、追跡中の知識はまだ復習期限前です。" : "次回復習日になった項目がここに自動で出てきます。"}</p><div className="result-actions single-action-row"><Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.historyHref ? "次回予定を見る" : "Knowledge Graphを見る"}</Link><Link className="secondary-action" href="/">ホームへ戻る</Link></div></section>;
+    const scopeUnavailable = session.emptyReason === "scope-unavailable";
+    return <section className="review-stage empty-stage"><p className="eyebrow">{practice ? "PRACTICE" : "REVIEW"}</p><h1>{scopeUnavailable ? "学習範囲を確認できません。" : practice ? "今できるPracticeはありません。" : "今日は復習項目がありません。"}</h1><p>{scopeUnavailable ? "Notionの学習範囲を確認できるまで、Reviewは開始しません。" : practice ? "Scope内で条件を満たす問題がまだありません。" : "次回復習日になった項目がここに自動で出てきます。"}</p><div className="result-actions single-action-row"><Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.historyHref ? "次回予定を見る" : "Knowledge Graphを見る"}</Link><Link className="secondary-action" href="/">ホームへ戻る</Link></div></section>;
   }
 
   if (finished) {

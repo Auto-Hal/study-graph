@@ -67,6 +67,7 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
       projectHref: project.href,
       mode: scheduled.items.length > 0 ? "scheduled" : "practice",
       historyHref: "/projects/kuzushiji/progress",
+      emptyReason: scope.sourceState === "ready" ? "no-eligible-exercise" : "scope-unavailable",
     },
   };
 }
@@ -110,7 +111,13 @@ async function loadGraphPractice(project: StudyProjectDefinition): Promise<Revie
     cards: attachReviewAssets(cards, reviewAssetProvider),
     persistence,
     sourceMode: graph.mode,
-    session: { projectId: project.id, projectTitle: project.title, projectHref: project.href, mode: "practice" },
+    session: {
+      projectId: project.id,
+      projectTitle: project.title,
+      projectHref: project.href,
+      mode: "practice",
+      emptyReason: scope.sourceState === "ready" ? "no-eligible-exercise" : "scope-unavailable",
+    },
   };
 }
 

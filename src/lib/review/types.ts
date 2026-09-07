@@ -63,4 +63,5 @@ export type ReviewSessionContext = {
   projectHref: string;
   mode: ReviewSessionMode;
   historyHref?: string;
+  emptyReason?: "scope-unavailable" | "no-eligible-exercise";
 };
