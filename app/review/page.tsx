@@ -27,6 +27,9 @@ export default async function ReviewPage({
           <span className="dot" />
           {data.sourceMode === "notion" ? "Notion 接続中" : "Demo data"}
         </div>
+        <form action="/api/auth/logout" method="post">
+          <button type="submit">ログアウト</button>
+        </form>
       </header>
 
       <section className="review-project-intro">

@@ -8,9 +8,11 @@ import { reviewAssetProvider } from "@/src/lib/review/assets/manifest";
 import { attachReviewAssets } from "@/src/lib/review/assets/provider";
 import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
+import { isKuzushijiPilotDefinition, issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
 import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getDueReviewItems, getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
+import { getPilotRuntimeConfig } from "@/src/lib/supabase/pilot";
 
 export type ReviewProjectPayload = {
   project: StudyProjectDefinition;
@@ -47,13 +49,54 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
     selectedIds.add(item.id);
   }
 
-  const cards: ReviewCard[] = selected
-    .slice(0, project.review.sessionSize)
-    .map((item) => {
-      const character = data.characters.find((candidate) => candidate.id === item.id);
-      return character ? createKuzushijiPilotReviewCard(project, character, item) : null;
-    })
-    .filter((card): card is ReviewCard => Boolean(card));
+  const cards: ReviewCard[] = [];
+  let pilotIssued = false;
+  for (const item of selected.slice(0, project.review.sessionSize)) {
+    const character = data.characters.find((candidate) => candidate.id === item.id);
+    const card = character ? createKuzushijiPilotReviewCard(project, character, item) : null;
+    if (!card || !character) continue;
+    const selectedCharacter = character;
+
+    if (isKuzushijiPilotDefinition(card.definitionId)) {
+      // The Phase 4C-4 cutover is intentionally one pilot card only. A
+      // failed issue never falls back to the legacy writer.
+      if (pilotIssued) continue;
+      pilotIssued = true;
+      if (data.mode !== "notion" || scope.sourceState !== "ready" || !getPilotRuntimeConfig()) continue;
+      try {
+        const issued = await issueKuzushijiPilotReview({
+          character: selectedCharacter,
+          item,
+          scope,
+          legacyExerciseId: card.exerciseId,
+        });
+        const asset = issued.presentation.asset;
+        cards.push({
+          ...card,
+          prompt: issued.presentation.prompt,
+          front: issued.presentation.front,
+          asset: {
+            type: "image",
+            src: asset.src,
+            alt: asset.alt,
+            width: asset.width,
+            height: asset.height,
+            presentation: "full",
+            attribution: asset.source.attribution,
+            sourceUrl: asset.source.url,
+            license: asset.source.license,
+          },
+          sourceUrl: asset.source.url,
+          instanceId: issued.instanceId,
+        });
+      } catch (error) {
+        console.error("Study Graph: Kuzushiji pilot instance issue failed", error);
+      }
+      continue;
+    }
+
+    cards.push(card);
+  }
 
   return {
     project,
