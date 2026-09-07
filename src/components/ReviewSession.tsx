@@ -8,8 +8,30 @@ import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/
 export type { ReviewCard } from "@/src/lib/review/types";
 
 type Grade = "again" | "hard" | "good" | "easy";
-type Result = { id: string; grade: Grade; saved: boolean; dueAt: string | null; correct: boolean | null };
-type SaveResponse = { saved?: boolean; dueAt?: string; intervalDays?: number; repetitions?: number; error?: string };
+type Result = { id: string; grade: Grade; saved: boolean; dueAt: string | null; correct: boolean | null; srsApplied?: boolean };
+type SaveResponse = {
+  saved?: boolean;
+  dueAt?: string | null;
+  intervalDays?: number;
+  repetitions?: number;
+  attemptId?: string;
+  instanceId?: string;
+  gradingStatus?: "graded" | "ungraded";
+  isCorrect?: boolean | null;
+  effectiveSrsGrade?: Grade | null;
+  srsApplied?: boolean;
+  srsReason?: string;
+  receipt?: Record<string, unknown>;
+  error?: string;
+};
+type PilotSubmission = {
+  attemptId: string;
+  instanceId: string;
+  rawAnswer: string;
+  selfEvaluation: Grade;
+  responseMs: number;
+  usedHint: boolean;
+};
 
 const gradeOptions: Array<{ grade: Grade; label: string; hint: string }> = [
   { grade: "again", label: "もう一度", hint: "不正解・ほぼ思い出せなかった" },
@@ -47,7 +69,7 @@ function formatNextDue(value: string | null) {
   return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-export default function ReviewSession({ cards, persistence, session }: { cards: ReviewCard[]; persistence: ReviewPersistenceMode; session: ReviewSessionContext }) {
+export default function ReviewSession({ cards, persistence: requestedPersistence, session }: { cards: ReviewCard[]; persistence: ReviewPersistenceMode; session: ReviewSessionContext }) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [answerValue, setAnswerValue] = useState("");
@@ -59,6 +81,11 @@ export default function ReviewSession({ cards, persistence, session }: { cards: 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const startedAt = useRef(Date.now());
+  const pilotAttemptId = useRef<string | null>(null);
+  const pilotSubmission = useRef<PilotSubmission | null>(null);
+  const persistence: ReviewPersistenceMode = cards[index]?.persistenceKind === "versioned-pilot"
+    ? "supabase"
+    : requestedPersistence;
 
   const summary = useMemo(() => {
     const counts: Record<Grade, number> = { again: 0, hard: 0, good: 0, easy: 0 };
@@ -106,19 +133,72 @@ export default function ReviewSession({ cards, persistence, session }: { cards: 
   function advance(result: Result) {
     const nextResults = [...results, result];
     setResults(nextResults);
-    if (index >= cards.length - 1) { setFinished(true); return; }
+    if (index >= cards.length - 1) { pilotAttemptId.current = null; pilotSubmission.current = null; setFinished(true); return; }
     setIndex((current) => current + 1);
     setRevealed(false);
     setAnswerValue("");
     setAnswerCorrect(null);
     setRecommended(null);
     setResponseMs(0);
+    pilotAttemptId.current = null;
+    pilotSubmission.current = null;
     startedAt.current = Date.now();
   }
 
   async function gradeCurrent(grade: Grade) {
     if (saving) return;
     setSaveError(null);
+    const isPilot = card.persistenceKind === "versioned-pilot" && Boolean(card.instanceId);
+    if (isPilot) {
+      setSaving(true);
+      const submission = pilotSubmission.current ?? {
+        attemptId: pilotAttemptId.current ?? crypto.randomUUID(),
+        instanceId: card.instanceId!,
+        rawAnswer: answerValue,
+        selfEvaluation: grade,
+        responseMs,
+        usedHint: false,
+      };
+      pilotSubmission.current = submission;
+      pilotAttemptId.current = submission.attemptId;
+      try {
+        const response = await fetch("/api/review/pilot/attempt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            attemptId: submission.attemptId,
+            instanceId: submission.instanceId,
+            rawAnswer: submission.rawAnswer,
+            selfEvaluation: submission.selfEvaluation,
+            responseMs: submission.responseMs,
+            usedHint: submission.usedHint,
+          }),
+        });
+        const payload = (await response.json()) as SaveResponse;
+        if (!response.ok) {
+          if (payload.error === "attempt_conflict") {
+            setSaveError("この回答は別の内容です。保存競合のため、自動再送しません。");
+          } else if (payload.error === "instance_already_answered") {
+            setSaveError("この問題はすでに保存済みです。");
+          } else {
+            throw new Error(payload.error || "pilot_save_failed");
+          }
+          return;
+        }
+        advance({
+          id: card.id,
+          grade: submission.selfEvaluation,
+          saved: payload.saved === true,
+          dueAt: typeof payload.dueAt === "string" ? payload.dueAt : null,
+          correct: typeof payload.isCorrect === "boolean" ? payload.isCorrect : answerCorrect,
+          srsApplied: payload.srsApplied,
+        });
+      } catch (error) {
+        console.error("Study Graph: Kuzushiji pilot save failed", error);
+        setSaveError("回答を保存できませんでした。通信状態を確認して、同じ評価をもう一度押してください。");
+      } finally { setSaving(false); }
+      return;
+    }
     if (persistence === "fallback") { advance({ id: card.id, grade, saved: false, dueAt: null, correct: answerCorrect }); return; }
     setSaving(true);
     try {

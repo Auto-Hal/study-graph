@@ -68,5 +68,7 @@ export function createKuzushijiPilotReviewCard(
       { label: "学習ポイント", value: kuzushijiPilotRecord.exercise.explanation.summary },
     ],
     sourceUrl: kuzushijiPilotRecord.asset.source.url,
+    persistenceKind: "versioned-pilot",
+    definitionId: kuzushijiPilotRecord.exercise.exerciseId,
   };
 }

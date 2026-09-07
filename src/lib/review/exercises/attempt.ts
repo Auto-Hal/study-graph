@@ -1,6 +1,59 @@
 import { canonicalizeJson, sha256Hex, type ExerciseRevisionPayload, type JsonValue } from "./revision.ts";
 import type { ExerciseStatus } from "./types.ts";
 
+export type PilotPresentation = {
+  prompt: string;
+  front: string;
+  asset: {
+    assetId: string;
+    assetVersion: number;
+    mediaType: string;
+    src: string;
+    width: number;
+    height: number;
+    alt: string;
+    checksum: string | null;
+    source: {
+      title: string;
+      image?: string;
+      url: string;
+      attribution: string;
+      license: string;
+    };
+  };
+};
+
+/** Build the exact answer-free presentation persisted on a pilot instance. */
+export function createPilotPresentation(revision: ExerciseRevisionPayload): PilotPresentation {
+  const asset = revision.visualAssets[0];
+  if (!asset) throw new Error("Pilot revision has no visual asset");
+  return {
+    prompt: revision.prompt,
+    front: revision.front,
+    asset: {
+      assetId: asset.assetId,
+      assetVersion: asset.assetVersion,
+      mediaType: asset.mediaType,
+      src: asset.src,
+      width: asset.width,
+      height: asset.height,
+      alt: asset.alt,
+      checksum: asset.checksum,
+      source: {
+        title: asset.source.title,
+        ...(asset.source.image === undefined ? {} : { image: asset.source.image }),
+        url: asset.source.url,
+        attribution: asset.source.attribution,
+        license: asset.source.license,
+      },
+    },
+  };
+}
+
+export function hashPilotPresentation(presentation: PilotPresentation) {
+  return sha256Hex(canonicalizeJson(presentation));
+}
+
 export type ReviewGrade = "again" | "hard" | "good" | "easy";
 
 export const LEGACY_TEXT_GRADING = {

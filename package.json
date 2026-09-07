@@ -10,7 +10,8 @@
     "test:phase4b": "node --experimental-strip-types --test src/lib/review/scope.test.ts src/lib/review/quality.test.ts src/lib/notion/pagination.test.ts",
     "test:phase4c-1": "node --experimental-strip-types --test src/lib/review/exercises/revision.test.ts",
     "test:phase4c-2": "node --test scripts/phase4c-2-migration.test.mjs",
-    "test:phase4c-3": "node --experimental-strip-types --test src/lib/review/exercises/attempt.test.ts scripts/phase4c-3-migration.test.mjs"
+    "test:phase4c-3": "node --experimental-strip-types --test src/lib/review/exercises/attempt.test.ts scripts/phase4c-3-migration.test.mjs",
+    "test:phase4c-4": "node --experimental-strip-types --test src/lib/review/exercises/pilot-runtime.test.ts scripts/phase4c-4-runtime.test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",
