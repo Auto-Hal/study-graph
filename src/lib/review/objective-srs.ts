@@ -52,6 +52,7 @@ export type ObjectiveSrsReceipt = {
   objectiveId: string;
   objectiveVersion: number;
   srsEpoch: SrsEpoch;
+  evidenceUse: "srs" | "practice-only";
   gradingStatus: "graded" | "ungraded";
   isCorrect: boolean | null;
   applied: boolean;

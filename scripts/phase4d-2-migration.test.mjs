@@ -166,6 +166,7 @@ test("Objective attempt transaction locks absent state, preserves retries, and d
   assert.match(objectiveAttemptSql, /'acceptedAt', v_now/);
   assert.match(objectiveAttemptSql, /'gradingStatus', p_grading_status/);
   assert.match(objectiveAttemptSql, /'isCorrect', p_is_correct/);
+  assert.match(objectiveAttemptSql, /'evidenceUse', v_instance_binding\.evidence_use/);
   assert.match(objectiveAttemptSql, /'objectiveVersion'/);
   assert.match(objectiveAttemptSql, /'srsEpoch'/);
   assert.match(objectiveAttemptSql, /return query select v_existing_application\.receipt/);

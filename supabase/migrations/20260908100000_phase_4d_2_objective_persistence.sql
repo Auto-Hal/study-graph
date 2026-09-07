@@ -886,6 +886,7 @@ begin
     'objectiveId', v_instance_binding.objective_id,
     'objectiveVersion', v_instance_binding.objective_version,
     'srsEpoch', v_instance_binding.srs_epoch,
+    'evidenceUse', v_instance_binding.evidence_use,
     'gradingStatus', p_grading_status,
     'isCorrect', p_is_correct,
     'applied', p_srs_applied,
