@@ -1,5 +1,5 @@
 const TOKEN_VERSION = "v1";
-export const PILOT_SESSION_TTL_SECONDS = 12 * 60 * 60;
+export const PILOT_SESSION_TTL_SECONDS = 90 * 24 * 60 * 60;
 
 /** Keep the web-login signing domain separate from the legacy Supabase token. */
 export function derivePilotSessionSecret(accessPassword: string) {
