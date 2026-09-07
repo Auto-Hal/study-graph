@@ -85,7 +85,7 @@ nonpilot legacy writer remains available. A later phase may re-enable the
 pilot only after the new writer is disabled and the issue/attempt boundary has
 been reviewed.
 
-This phase does not implement authentication, offline replay, cache/IndexedDB,
+This phase does not implement a full authentication/session system, offline replay, cache/IndexedDB,
 Objective SRS, server route cutover for other domains, or production archive
 registration. Production Supabase application and deployment remain separate
 supervisor actions.
