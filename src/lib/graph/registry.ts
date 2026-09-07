@@ -47,6 +47,7 @@ const kuzushijiAdapter: GraphAdapter = {
               : null
         ),
       })),
+      scope: { sourceState: "unavailable", anchors: [] },
       edges: graph.edges,
     };
   },
@@ -91,7 +92,11 @@ export function listGraphProjects() {
   return studyProjects.map((project) => ({ ...project, graphAvailable: Boolean(graphAdapters[project.id]) }));
 }
 
-export async function loadProjectGraph(projectId: string | undefined | null): Promise<GraphData> {
+export async function loadProjectGraph(
+  projectId: string | undefined | null,
+  options: { cache?: boolean } = {},
+): Promise<GraphData> {
   const project = getGraphProject(projectId);
+  if (options.cache === false) return graphAdapters[project.id].load();
   return cachedGraphLoaders[project.id]();
 }

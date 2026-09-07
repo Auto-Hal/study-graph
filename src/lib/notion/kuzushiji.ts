@@ -67,6 +67,7 @@ export type ReviewItem = {
 
 export type KuzushijiDashboard = {
   mode: "notion" | "demo";
+  sourceState?: "ready" | "demo" | "unavailable";
   lectures: Lecture[];
   characters: Character[];
   mistakes: Mistake[];
@@ -129,9 +130,10 @@ function asPages(results: unknown[] = []) {
   );
 }
 
-function demoData(): KuzushijiDashboard {
+function demoData(sourceState: "demo" | "unavailable" = "demo"): KuzushijiDashboard {
   return {
     mode: "demo",
+    sourceState,
     lectures: [
       {
         id: "demo-lecture-1",
@@ -268,6 +270,7 @@ export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
 
     return {
       mode: "notion",
+      sourceState: "ready",
       lectures,
       characters,
       mistakes,
@@ -275,6 +278,6 @@ export async function getKuzushijiDashboard(): Promise<KuzushijiDashboard> {
     };
   } catch (error) {
     console.error("Study Graph: Notion sync failed", error);
-    return demoData();
+    return demoData("unavailable");
   }
 }

@@ -1,4 +1,17 @@
 export type GraphMode = "notion" | "demo";
+export type GraphSourceState = "ready" | "demo" | "unavailable";
+
+export type GraphScopeAnchor = {
+  id: string;
+  completion: "completed" | "incomplete" | "unknown";
+  date: string | null;
+  directRelations: Array<{ nodeId: string; kind: string }>;
+};
+
+export type GraphScopeEvidence = {
+  sourceState: GraphSourceState;
+  anchors: GraphScopeAnchor[];
+};
 
 export type GraphNodeKindDefinition = {
   id: string;
@@ -11,6 +24,7 @@ export type GraphNode = {
   kind: string;
   label: string;
   meta: string;
+  reviewText?: string;
   href: string | null;
   notionUrl: string;
 };
@@ -26,6 +40,7 @@ export type GraphEdge = {
 export type GraphData = {
   projectId: string;
   mode: GraphMode;
+  scope?: GraphScopeEvidence;
   nodes: GraphNode[];
   edges: GraphEdge[];
 };

@@ -1,4 +1,5 @@
 import type { GraphData, GraphEdge, GraphNode } from "@/src/lib/graph/types";
+import { nextCursorOrThrow } from "./pagination";
 
 const PROJECT_ID = "philosophy";
 const NOTION_API_VERSION = "2026-03-11";
@@ -67,7 +68,7 @@ async function queryAllDataSource(dataSourceId: string, token: string) {
 
     const payload = (await response.json()) as NotionQueryResponse;
     results.push(...(payload.results ?? []));
-    startCursor = payload.has_more ? payload.next_cursor ?? null : null;
+    startCursor = nextCursorOrThrow(payload, "Notion Philosophy query");
   } while (startCursor);
 
   return results;
@@ -98,7 +99,7 @@ function select(property?: NotionProperty) {
 }
 
 function status(property?: NotionProperty) {
-  return property?.status?.name ?? "";
+  return property?.status?.name ?? property?.select?.name ?? "";
 }
 
 function multiSelect(property?: NotionProperty) {
@@ -130,7 +131,7 @@ function lifespan(birth: number | null, death: number | null) {
   return `${formatYear(birth)}–${formatYear(death)}`;
 }
 
-function demoGraph(): GraphData {
+function demoGraph(sourceState: "demo" | "unavailable" = "demo"): GraphData {
   const nodes: GraphNode[] = [
     { id: "demo-phil-lecture", kind: "lecture", label: "01_なぜ哲学はギリシアで始まったのか", meta: "第1回・受講済", href: null, notionUrl: "#" },
     { id: "demo-phil-philosopher", kind: "philosopher", label: "タレス", meta: "ミレトス学派・自然哲学", href: null, notionUrl: "#" },
@@ -151,7 +152,13 @@ function demoGraph(): GraphData {
     { id: "demo-phil-6", source: "demo-phil-thought", target: "demo-phil-problem", kind: "thought-problem", label: "思考対象" },
   ];
 
-  return { projectId: PROJECT_ID, mode: "demo", nodes, edges };
+  return {
+    projectId: PROJECT_ID,
+    mode: "demo",
+    scope: { sourceState, anchors: [] },
+    nodes,
+    edges,
+  };
 }
 
 export async function getPhilosophyGraph(): Promise<GraphData> {
@@ -205,6 +212,7 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
           multiSelect(page.properties["地域"]).slice(0, 2).join("・"),
           text(page.properties["人物メモ"]),
         ]),
+        reviewText: text(page.properties["人物メモ"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -216,6 +224,7 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
           multiSelect(page.properties["分野"]).slice(0, 2).join("・"),
           text(page.properties["定義"]),
         ]),
+        reviewText: text(page.properties["定義"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -225,6 +234,10 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
         label: text(page.properties["問題"]) || "哲学的問題",
         meta: joinMeta([
           multiSelect(page.properties["分野"]).slice(0, 2).join("・"),
+          text(page.properties["問題の概要"]),
+          text(page.properties["現在の理解"]),
+        ]),
+        reviewText: joinMeta([
           text(page.properties["問題の概要"]),
           text(page.properties["現在の理解"]),
         ]),
@@ -242,6 +255,9 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
           select(page.properties["読書優先度"]),
           checkbox(page.properties["読了"]) ? "読了" : null,
         ]),
+        // The current Works schema has metadata only; do not treat it as an
+        // explanatory Review prompt.
+        reviewText: "",
         href: null,
         notionUrl: page.url,
       })),
@@ -255,6 +271,7 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
           text(page.properties["年代"]),
           text(page.properties["コメント"]),
         ]),
+        reviewText: text(page.properties["コメント"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -266,6 +283,7 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
           text(page.properties["年代"]),
           text(page.properties["特徴"]),
         ]),
+        reviewText: text(page.properties["特徴"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -278,6 +296,7 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
           text(page.properties["内容"]),
           checkbox(page.properties["後から修正したか"]) ? "後から修正" : null,
         ]),
+        reviewText: text(page.properties["内容"]),
         href: null,
         notionUrl: page.url,
       })),
@@ -329,9 +348,32 @@ export async function getPhilosophyGraph(): Promise<GraphData> {
       for (const id of relations(page.properties["❓ 哲学的問題"])) connect(page.id, id, "thought-problem", "哲学的問題");
     }
 
-    return { projectId: PROJECT_ID, mode: "notion", nodes, edges };
+    const scopeAnchors = lectures.map((page) => {
+      const lectureStatus = status(page.properties["状態"]);
+      const completion = lectureStatus === "受講済" || lectureStatus === "復習済"
+        ? "completed" as const
+        : lectureStatus === "未受講"
+          ? "incomplete" as const
+          : "unknown" as const;
+      return {
+        id: page.id,
+        completion,
+        date: null,
+        directRelations: edges
+          .filter((edge) => edge.source === page.id)
+          .map((edge) => ({ nodeId: edge.target, kind: edge.kind })),
+      };
+    });
+
+    return {
+      projectId: PROJECT_ID,
+      mode: "notion",
+      scope: { sourceState: "ready", anchors: scopeAnchors },
+      nodes,
+      edges,
+    };
   } catch (error) {
     console.error("Study Graph: Philosophy Graph sync failed", error);
-    return demoGraph();
+    return demoGraph("unavailable");
   }
 }
