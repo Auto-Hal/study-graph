@@ -13,6 +13,13 @@ import {
   deepFreeze,
 } from "./model-core.ts";
 
+/** Safe transport-only diagnostics; never part of submission identity. */
+export type OfflineTransportDiagnostics = Readonly<{
+  httpStatus: number | null;
+  serverErrorCode: string | null;
+  observedAt: string;
+}>;
+
 export type OfflineAttemptEvent =
   | { type: "confirm-submission"; submission: OfflineSubmissionInput; requestHash?: string }
   | { type: "begin-send" }
@@ -24,12 +31,19 @@ export type OfflineAttemptEvent =
   | { type: "blocked"; reason: OfflineBlockedReason };
 
 export type OfflineDeliveryClassification =
-  | { kind: "retryable"; reason: "network" | "server" | "rate-limit" }
-  | { kind: "auth-required" }
+  | { kind: "retryable"; reason: "network" | "server" | "rate-limit"; diagnostics?: OfflineTransportDiagnostics }
+  | { kind: "auth-required"; diagnostics?: OfflineTransportDiagnostics }
   /** The transport must perform an authenticated stored-receipt lookup first. */
-  | { kind: "receipt-lookup-required"; reason: "instance-already-answered" }
-  | { kind: "accepted"; receipt: OfflineReceiptRecord }
-  | { kind: "blocked"; reason: OfflineBlockedReason };
+  | { kind: "receipt-lookup-required"; reason: "instance-already-answered"; diagnostics?: OfflineTransportDiagnostics }
+  | { kind: "accepted"; receipt: OfflineReceiptRecord; diagnostics?: OfflineTransportDiagnostics }
+  | { kind: "blocked"; reason: OfflineBlockedReason; diagnostics?: OfflineTransportDiagnostics };
+
+/** Keep server error codes bounded and code-shaped before local diagnostics storage. */
+export function safeTransportErrorCode(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const code = value.trim();
+  return /^[a-z][a-z0-9_-]{0,63}$/.test(code) ? code : null;
+}
 
 export type OfflineServerOutcome =
   | { type: "network-error" }

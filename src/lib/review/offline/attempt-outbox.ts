@@ -5,6 +5,7 @@ import {
   type OfflineAttemptRecord,
   type OfflineDeliveryClassification,
   type OfflineReceiptRecord,
+  type OfflineTransportDiagnostics,
 } from "./outbox-core.ts";
 import { transitionOfflineAttempt } from "./outbox-core.ts";
 
@@ -20,6 +21,10 @@ export type AttemptOutboxTransportMetadata = Readonly<{
   lastAttemptedAt: string | null;
   retryCount: number;
   lastTransportError: string | null;
+  /** Response metadata is mutable transport history, never submission identity. */
+  lastHttpStatus?: number | null;
+  lastServerErrorCode?: string | null;
+  lastTransportObservedAt?: string | null;
 }>;
 
 /** The submission is immutable; transport metadata is the only mutable part. */
@@ -138,6 +143,9 @@ function makePersisted(
       lastAttemptedAt: previous?.lastAttemptedAt ?? null,
       retryCount: previous?.retryCount ?? 0,
       lastTransportError: previous?.lastTransportError ?? null,
+      lastHttpStatus: previous?.lastHttpStatus ?? null,
+      lastServerErrorCode: previous?.lastServerErrorCode ?? null,
+      lastTransportObservedAt: previous?.lastTransportObservedAt ?? null,
     },
   });
 }
@@ -367,6 +375,7 @@ export async function applyOfflineDelivery(
               ? { type: "accepted", receipt: classification.receipt }
               : { type: "blocked", reason: classification.reason }) as OfflineAttemptCommitted;
         const now = clock(options)();
+        const diagnostics: OfflineTransportDiagnostics | undefined = classification.diagnostics;
         const persisted = deepFreeze({
           ...current,
           record: next,
@@ -378,6 +387,9 @@ export async function applyOfflineDelivery(
               : classification.kind === "blocked"
                 ? classification.reason
                 : null,
+            lastHttpStatus: diagnostics?.httpStatus ?? current.transport.lastHttpStatus ?? null,
+            lastServerErrorCode: diagnostics?.serverErrorCode ?? current.transport.lastServerErrorCode ?? null,
+            lastTransportObservedAt: diagnostics?.observedAt ?? current.transport.lastTransportObservedAt ?? null,
           },
         });
         if (classification.kind === "accepted") {
