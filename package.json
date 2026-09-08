@@ -16,7 +16,8 @@
     "test:phase4d-1": "node --experimental-strip-types --test src/lib/review/objectives.test.ts scripts/phase4d-1-boundary.test.mjs",
     "test:phase4d-2": "node --experimental-strip-types --test src/lib/review/objective-srs.test.ts scripts/phase4d-2-migration.test.mjs",
     "test:phase4d-4": "node --experimental-strip-types --test src/lib/review/exercises/receipt.test.ts src/lib/review/objective-srs.test.ts scripts/phase4d-4-cutover.test.mjs",
-    "test:phase4d-5": "npm run test:phase4d-4 && node --test scripts/phase4c-5-operations.test.mjs scripts/phase4d-5-operations.test.mjs"
+    "test:phase4d-5": "npm run test:phase4d-4 && node --test scripts/phase4c-5-operations.test.mjs scripts/phase4d-5-operations.test.mjs",
+    "test:phase4e-1": "node --experimental-strip-types --test src/lib/review/offline/model.test.ts"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",
