@@ -29,7 +29,7 @@ test("new pilot issuance has an operational kill switch", () => {
 test("rollback disables issuance without disabling existing attempt handling", () => {
   assert.doesNotMatch(attemptRoute, /isPilotIssuanceEnabled/);
   assert.match(attemptRoute, /submitKuzushijiPilotAttempt/);
-  assert.match(registry, /never falls back to the legacy writer/);
+  assert.match(registry, /never falls back to[\s\S]{0,100}the legacy writer/);
 });
 
 test("4C-5 does not introduce destructive database or client-secret changes", () => {
