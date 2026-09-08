@@ -52,6 +52,11 @@ test("v2 archive registration and prefetch functions are server-only hardened bo
   assert.match(normalized, /p_legacy_item_id is distinct from '3ccd2793-4134-815f-95f0-cc64dcdb86c7'/);
   assert.match(normalized, /decision ->> 'subjectId' = '3ccd2793-4134-815f-95f0-cc64dcdb86c7'/);
   assert.doesNotMatch(normalized, /v_instance\.project_id/);
+  assert.match(normalized, /v_exercise_binding private\.exercise_objective_bindings%rowtype/);
+  assert.match(normalized, /v_instance_binding private\.instance_objective_bindings%rowtype/);
+  assert.doesNotMatch(normalized, /v_binding private\.exercise_objective_bindings%rowtype/);
+  assert.doesNotMatch(normalized, /select iob\.\* into v_exercise_binding/);
+  assert.doesNotMatch(normalized, /v_binding\./);
   for (const field of [
     "instance_id",
     "learner_id",
@@ -87,4 +92,12 @@ test("prefetch function preserves request idempotency and one-unused-instance se
   assert.ok(reuse < killSwitch, "same-device reuse must precede kill-switch rejection");
   assert.ok(killSwitch < instanceInsert, "kill-switch rejection must precede new instance insert");
   assert.match(functionBody, /coalesce\(p_new_issuance_allowed, false\) is not true/);
+});
+
+test("prefetch rowtype variables match their source tables", () => {
+  const functionBody = normalized.slice(normalized.indexOf("create or replace function public.study_graph_prefetch_kuzushiji_objective_instance"));
+  assert.match(functionBody, /select eob\.\* into v_exercise_binding from private\.exercise_objective_bindings/);
+  assert.match(functionBody, /select iob\.\* into v_instance_binding from private\.instance_objective_bindings/);
+  assert.doesNotMatch(functionBody, /select iob\.\* into v_exercise_binding/);
+  assert.doesNotMatch(functionBody, /select eob\.\* into v_instance_binding/);
 });

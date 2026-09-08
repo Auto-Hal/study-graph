@@ -217,7 +217,8 @@ declare
   v_request private.offline_instance_issuance_requests%rowtype;
   v_instance private.exercise_instances%rowtype;
   v_revision private.exercise_revisions%rowtype;
-  v_binding private.exercise_objective_bindings%rowtype;
+  v_exercise_binding private.exercise_objective_bindings%rowtype;
+  v_instance_binding private.instance_objective_bindings%rowtype;
   v_snapshot private.scope_knowledge_snapshots%rowtype;
   v_now timestamptz := clock_timestamp();
   v_instance_id uuid;
@@ -264,7 +265,7 @@ begin
       raise exception using errcode = 'P0001', message = 'offline_prefetch_request_conflict';
     end if;
     select iob.*
-      into v_binding
+      into v_instance_binding
     from private.instance_objective_bindings as iob
     where iob.instance_id = v_instance.instance_id
       and iob.project_id = 'kuzushiji'
@@ -289,10 +290,10 @@ begin
       v_instance.scope_evidence,
       v_request.snapshot_id,
       v_request.snapshot_generation,
-      v_binding.objective_id,
-      v_binding.objective_version,
-      v_binding.srs_epoch,
-      v_binding.evidence_use,
+      v_instance_binding.objective_id,
+      v_instance_binding.objective_version,
+      v_instance_binding.srs_epoch,
+      v_instance_binding.evidence_use,
       v_instance.legacy_item_id,
       v_instance.legacy_exercise_id,
       v_request.assets,
@@ -339,7 +340,7 @@ begin
   end if;
 
   select eob.*
-    into v_binding
+    into v_exercise_binding
   from private.exercise_objective_bindings as eob
   where eob.revision_id = p_revision_id
     and eob.project_id = 'kuzushiji'
@@ -420,7 +421,7 @@ begin
     end if;
 
     select iob.*
-      into v_binding
+      into v_instance_binding
     from private.instance_objective_bindings as iob
     where iob.instance_id = v_instance.instance_id
       and iob.project_id = 'kuzushiji'
@@ -454,10 +455,10 @@ begin
       v_instance.scope_evidence,
       v_request.snapshot_id,
       v_request.snapshot_generation,
-      v_binding.objective_id,
-      v_binding.objective_version,
-      v_binding.srs_epoch,
-      v_binding.evidence_use,
+      v_instance_binding.objective_id,
+      v_instance_binding.objective_version,
+      v_instance_binding.srs_epoch,
+      v_instance_binding.evidence_use,
       v_instance.legacy_item_id,
       v_instance.legacy_exercise_id,
       v_request.assets,
@@ -489,8 +490,8 @@ begin
   insert into private.instance_objective_bindings (
     instance_id, project_id, objective_id, objective_version, srs_epoch, evidence_use
   ) values (
-    v_instance_id, v_binding.project_id, v_binding.objective_id,
-    v_binding.objective_version, p_srs_epoch, v_binding.evidence_use
+    v_instance_id, v_exercise_binding.project_id, v_exercise_binding.objective_id,
+    v_exercise_binding.objective_version, p_srs_epoch, v_exercise_binding.evidence_use
   );
 
   insert into private.offline_instance_issuance_requests (
@@ -518,10 +519,10 @@ begin
     v_instance.scope_evidence,
     p_snapshot_id,
     p_snapshot_generation,
-    v_binding.objective_id,
-    v_binding.objective_version,
+    v_exercise_binding.objective_id,
+    v_exercise_binding.objective_version,
     p_srs_epoch,
-    v_binding.evidence_use,
+    v_exercise_binding.evidence_use,
     v_instance.legacy_item_id,
     v_instance.legacy_exercise_id,
     p_assets,
