@@ -37,6 +37,24 @@ export type PersistedOfflineReceipt = Readonly<{
   receivedAt: string;
 }>;
 
+export type OfflineAttemptStatusCounts = Readonly<{
+  pending: number;
+  authRequired: number;
+  blocked: number;
+}>;
+
+/** Counts only durable records that still need user/transport attention. */
+export function countOfflineAttemptStatuses(
+  records: readonly PersistedOfflineAttempt[],
+): OfflineAttemptStatusCounts {
+  return records.reduce((counts, record) => {
+    if (record.record.status === "pending" || record.record.status === "sending") counts.pending += 1;
+    else if (record.record.status === "auth-required") counts.authRequired += 1;
+    else if (record.record.status === "blocked") counts.blocked += 1;
+    return counts;
+  }, { pending: 0, authRequired: 0, blocked: 0 });
+}
+
 export type AttemptOutboxOptions = Readonly<{
   indexedDB?: IDBFactory;
   dbName?: string;
@@ -336,7 +354,8 @@ export async function applyOfflineDelivery(
       request.onerror = () => { operationError = new OfflineOutboxError("outbox_storage_failed"); transaction.abort(); };
       request.onsuccess = () => {
         const current = asPersisted(request.result);
-        if (!current || classification.kind === "receipt-lookup-required" || current.record.status !== "sending") {
+        const canConsume = current?.record.status === "sending" || current?.record.status === "auth-required";
+        if (!current || classification.kind === "receipt-lookup-required" || !canConsume) {
           result = current;
           return;
         }

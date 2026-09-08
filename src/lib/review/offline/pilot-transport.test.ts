@@ -4,7 +4,10 @@ import test from "node:test";
 import {
   ATTEMPT_OUTBOX_INSTANCE_INDEX,
   ATTEMPT_OUTBOX_STORE_NAME,
+  applyOfflineDelivery,
   commitOfflineAttempt,
+  getOfflineAttempt,
+  markOfflineAttemptSending,
 } from "./attempt-outbox.ts";
 import { createOfflineAttemptDraft } from "./model-core.ts";
 import { transitionOfflineAttempt } from "./outbox.ts";
@@ -241,4 +244,115 @@ test("durable commit failure prevents any pilot transport", async () => {
     }, { indexedDB: undefined, cryptoProvider: browserCrypto }),
     /IndexedDB is unavailable/,
   );
+});
+
+async function seedAuthRequired(indexedDB: FakeIndexedDb, dbName: string) {
+  const options = opts(indexedDB, dbName);
+  await seeded(indexedDB, dbName);
+  await markOfflineAttemptSending(attemptId, options);
+  await applyOfflineDelivery(attemptId, { kind: "auth-required" }, options);
+  return options;
+}
+
+test("auth-required probes authentication before any POST", async () => {
+  const cases = [
+    {
+      name: "401",
+      response: async () => new Response("", { status: 401 }),
+      expected: "auth-required",
+    },
+    {
+      name: "network",
+      response: async () => { throw new Error("offline"); },
+      expected: "auth-required",
+    },
+    {
+      name: "server",
+      response: async () => new Response("", { status: 503 }),
+      expected: "auth-required",
+    },
+    {
+      name: "rate-limit",
+      response: async () => new Response("", { status: 429 }),
+      expected: "auth-required",
+    },
+  ] as const;
+  for (const currentCase of cases) {
+    const indexedDB = new FakeIndexedDb();
+    const options = await seedAuthRequired(indexedDB, "auth-probe-" + currentCase.name);
+    const calls: string[] = [];
+    const result = await sendPilotOutboxAttempt(attemptId, {
+      ...options,
+      receiptKind: "legacy",
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        return currentCase.response();
+      },
+    });
+    assert.equal(result?.kind, currentCase.expected);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].includes("/receipt?"), true);
+    assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "auth-required");
+  }
+});
+
+test("auth-required 404 proves a live session and retries the same submission", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = await seedAuthRequired(indexedDB, "auth-probe-404");
+  const calls: string[] = [];
+  const result = await sendPilotOutboxAttempt(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    fetchImpl: async (input) => {
+      calls.push(String(input));
+      if (calls.length === 1) return new Response("", { status: 404 });
+      return new Response(JSON.stringify({ saved: true, receipt: receipt() }), { status: 200 });
+    },
+  });
+  assert.equal(result?.kind, "accepted");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].includes("/receipt?"), true);
+  assert.equal(calls[1].includes("/attempt"), true);
+});
+
+test("auth-required complete stored receipt is accepted without POST", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = await seedAuthRequired(indexedDB, "auth-probe-receipt");
+  const calls: string[] = [];
+  const result = await sendPilotOutboxAttempt(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    fetchImpl: async (input) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({
+        attemptId,
+        requestHash: "a".repeat(64),
+        receiptKind: "legacy",
+        receipt: receipt(),
+      }), { status: 200 });
+    },
+  });
+  assert.equal(result?.kind, "accepted");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].includes("/receipt?"), true);
+  assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "accepted-applied");
+});
+
+test("auth-required malformed receipt fails closed without discarding the submission", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = await seedAuthRequired(indexedDB, "auth-probe-malformed");
+  const result = await sendPilotOutboxAttempt(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    fetchImpl: async () => new Response(JSON.stringify({
+      attemptId,
+      requestHash: "a".repeat(64),
+      receiptKind: "legacy",
+      receipt: { attemptId, instanceId },
+    }), { status: 200 }),
+  });
+  assert.equal(result?.kind, "blocked");
+  const persisted = await getOfflineAttempt(attemptId, options);
+  assert.equal(persisted?.record.status, "blocked");
+  assert.equal(persisted?.record.submission.rawAnswer, "あ");
 });

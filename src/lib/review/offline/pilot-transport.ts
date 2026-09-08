@@ -67,12 +67,13 @@ function receiptFromStoredRecord(record: PersistedOfflineAttempt): StoredPilotRe
 function classifyReceiptLookupResponse(
   payload: Record<string, unknown>,
   context: { attemptId: string; instanceId: string; requestHash: string; receiptKind: OfflineReceiptKind },
-): OfflineDeliveryClassification {
-  if (!payload.receipt) return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
+): Extract<OfflineDeliveryClassification, { kind: "accepted" | "blocked" }> {
+  if (payload.receipt === undefined) return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
   const lookup = classifyStoredReceiptLookup({
+    attemptId: payload.attemptId,
     receipt: payload.receipt,
     receiptKind: payload.receiptKind as OfflineReceiptKind | undefined,
-    requestHash: typeof payload.requestHash === "string" ? payload.requestHash : undefined,
+    requestHash: payload.requestHash,
   }, context);
   return lookup;
 }
@@ -100,6 +101,46 @@ async function lookupStoredReceipt(
     });
   } catch {
     return { kind: "retryable", reason: "network" };
+  }
+}
+
+type AuthRecoveryClassification =
+  | { kind: "reauthenticated" }
+  | { kind: "auth-required" }
+  | { kind: "accepted"; receipt: import("./model-core.ts").OfflineReceiptRecord }
+  | { kind: "blocked"; reason: import("./model-core.ts").OfflineBlockedReason };
+
+/**
+ * Verify that authentication has recovered before changing auth-required to
+ * pending. A receipt response can also finish the attempt without a POST.
+ */
+async function probeAuthentication(
+  record: PersistedOfflineAttempt,
+  receiptKind: OfflineReceiptKind,
+  fetchImpl: FetchLike,
+): Promise<AuthRecoveryClassification> {
+  try {
+    const response = await fetchImpl(`/api/review/pilot/receipt?instanceId=${encodeURIComponent(record.instanceId)}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (response.status === 401) return { kind: "auth-required" };
+    if (response.status === 404) return { kind: "reauthenticated" };
+    if (response.status === 429 || (response.status >= 500 && response.status <= 599)) {
+      // A transient response does not prove that the session recovered.
+      return { kind: "auth-required" };
+    }
+    if (!response.ok) return { kind: "blocked", reason: "malformed-response" };
+    return classifyReceiptLookupResponse(await parseJson(response), {
+      attemptId: record.record.submission.attemptId,
+      instanceId: record.instanceId,
+      requestHash: record.record.requestHash,
+      receiptKind,
+    });
+  } catch {
+    // Keep the record auth-required until a successful probe (404 or a valid
+    // stored receipt) proves that reauthentication completed.
+    return { kind: "auth-required" };
   }
 }
 
@@ -139,8 +180,25 @@ export async function sendPilotOutboxAttempt(
   }
   if (current.record.status === "blocked") return { kind: "terminal", record: current };
   if (current.record.status === "auth-required") {
+    const recovery = await probeAuthentication(current, options.receiptKind ?? "objective", fetchImpl);
+    if (recovery.kind === "auth-required") return { kind: "auth-required", record: current };
+    if (recovery.kind === "accepted" || recovery.kind === "blocked") {
+      const updated = await applyOfflineDelivery(attemptId, recovery, options);
+      if (!updated) return null;
+      if (updated.record.status === "accepted-applied" || updated.record.status === "accepted-no-srs") {
+        return { kind: "accepted", record: updated, result: resultForAccepted(updated) };
+      }
+      if (updated.record.status === "blocked") {
+        return { kind: "blocked", record: updated, reason: updated.record.blockedReason ?? "malformed-response" };
+      }
+      return { kind: "auth-required", record: updated };
+    }
     current = await markOfflineAttemptReauthenticated(attemptId, options);
     if (!current) return null;
+    if (current.record.status === "accepted-applied" || current.record.status === "accepted-no-srs") {
+      return { kind: "terminal", record: current, result: resultForAccepted(current) };
+    }
+    if (current.record.status === "blocked") return { kind: "terminal", record: current };
   }
   if (current.record.status !== "pending") return { kind: "terminal", record: current };
   current = await markOfflineAttemptSending(attemptId, options);

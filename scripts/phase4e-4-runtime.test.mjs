@@ -46,8 +46,26 @@ test("receipt lookup is authenticated, read-only, and server-derived", () => {
 test("Phase 4E-4 leaves database migrations and non-pilot writer untouched", () => {
   const session = read("src/components/ReviewSession.tsx");
   assert.match(session, /fetch\("\/api\/review\/attempt"/);
+  assert.match(session, /syncStatus: "auth-required"/);
+  assert.match(session, /syncStatus: "blocked"/);
+  assert.match(session, /href="\/login"/);
+  assert.match(session, /outboxCounts\.authRequired/);
+  assert.match(session, /outboxCounts\.blocked/);
+  assert.match(session, /countOfflineAttemptStatuses/);
   const docs = read("docs/PHASE_4E_4_DURABLE_ATTEMPT_OUTBOX.md");
   assert.match(docs, /durable-before-send/i);
   assert.match(docs, /no SRS semantics change/);
   assert.match(docs, /rollback/i);
+});
+
+test("auth recovery and stored receipt identity checks fail closed", () => {
+  const transport = read("src/lib/review/offline/pilot-transport.ts");
+  const outbox = read("src/lib/review/offline/outbox-core.ts");
+  assert.match(transport, /probeAuthentication/);
+  assert.match(transport, /response\.status === 404/);
+  assert.match(transport, /response\.status === 401/);
+  assert.match(transport, /auth-required/);
+  assert.match(outbox, /typeof lookup\.requestHash !== "string"/);
+  assert.match(outbox, /lookup\.requestHash !== context\.requestHash/);
+  assert.match(outbox, /lookup\.attemptId !== context\.attemptId/);
 });
