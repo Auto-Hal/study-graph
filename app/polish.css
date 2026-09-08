@@ -222,6 +222,60 @@ button:focus-visible {
   line-height: 1.65;
 }
 
+.snapshot-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  color: #6d6b64;
+  font-size: 12px;
+}
+
+.snapshot-sync-link {
+  border: 0;
+  background: transparent;
+  color: #236f63;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 0;
+  text-decoration: underline;
+}
+
+.snapshot-sync-link:disabled,
+.snapshot-sync-button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.snapshot-freshness {
+  color: #8c6a2c;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.snapshot-bootstrap,
+.snapshot-loading {
+  margin: 48px auto;
+  max-width: 720px;
+  text-align: center;
+}
+
+.snapshot-bootstrap h1 {
+  margin: 8px 0 12px;
+}
+
+.snapshot-bootstrap p:not(.eyebrow) {
+  color: #6d6b64;
+  margin-bottom: 24px;
+}
+
+.snapshot-sync-button {
+  border: 0;
+  cursor: pointer;
+  display: inline-block;
+  font: inherit;
+}
+
 .system-page {
   width: min(680px, calc(100% - 28px));
   min-height: 100svh;
