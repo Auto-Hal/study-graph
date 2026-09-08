@@ -6,10 +6,13 @@ import test from "node:test";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const migrationPath = resolve(root, "supabase/migrations/20260908140000_phase_4e_2_scope_snapshot_sync.sql");
+const fixMigrationPath = resolve(root, "supabase/migrations/20260908143000_phase_4e_2_sync_conflict_target_fix.sql");
 const documentationPath = resolve(root, "docs/PHASE_4E_2_SNAPSHOT_SYNC.md");
 const sql = readFileSync(migrationPath, "utf8");
+const fixSql = readFileSync(fixMigrationPath, "utf8");
 const documentation = readFileSync(documentationPath, "utf8");
 const normalized = sql.replace(/--[^\n]*/g, "").replace(/\s+/g, " ").trim();
+const fixNormalized = fixSql.replace(/--[^\n]*/g, "").replace(/\s+/g, " ").trim();
 
 test("Phase 4E-2 migration is additive and creates only the two snapshot tables", () => {
   assert.match(normalized, /^begin; /);
@@ -80,6 +83,20 @@ test("PL/pgSQL sync-state updates qualify columns that collide with OUT paramete
     4,
   );
   assert.doesNotMatch(normalized, /\bwhere\s+project_id\s*=\s*p_project_id\b/);
+});
+
+test("follow-up integration fix disambiguates the begin-sync conflict target", () => {
+  assert.match(fixNormalized, /^begin; /);
+  assert.match(fixNormalized, / commit;$/);
+  assert.match(fixNormalized, /create or replace function public\.study_graph_begin_scope_snapshot_sync\(/);
+  assert.match(fixNormalized, /security definer/);
+  assert.match(fixNormalized, /set search_path = pg_catalog/);
+  assert.match(fixNormalized, /on conflict on constraint project_snapshot_sync_state_pkey do nothing/);
+  assert.doesNotMatch(fixNormalized, /on conflict\s*\(\s*project_id\s*\)/);
+  assert.match(fixNormalized, /revoke all on function public\.study_graph_begin_scope_snapshot_sync\(text, uuid\) from public, anon, authenticated, service_role/);
+  assert.match(fixNormalized, /grant execute on function public\.study_graph_begin_scope_snapshot_sync\(text, uuid\) to service_role/);
+  assert.doesNotMatch(fixNormalized, /\bdrop\s+(table|function|schema|trigger|index)\b/);
+  assert.doesNotMatch(fixNormalized, /\btruncate\b/);
 });
 
 test("publish requires complete evidence and moves the current pointer transactionally", () => {
