@@ -5,7 +5,7 @@ import {
   assertValidSrsEpoch,
   isPositiveInteger,
   type SrsEpoch,
-} from "./objectives.ts";
+} from "./objective-validation.ts";
 
 /** The Objective state key deliberately excludes objectiveVersion. */
 export type ObjectiveSrsKey = {

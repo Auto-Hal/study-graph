@@ -2,13 +2,23 @@ import {
   canonicalizeJson,
   sha256Hex,
 } from "./exercises/revision.ts";
+import {
+  assertValidSrsEpoch,
+  INITIAL_SRS_EPOCH,
+  isPositiveInteger,
+  validateSrsEpoch,
+  type SrsEpoch,
+} from "./objective-validation.ts";
+
+export {
+  assertValidSrsEpoch,
+  INITIAL_SRS_EPOCH,
+  isPositiveInteger,
+  validateSrsEpoch,
+} from "./objective-validation.ts";
+export type { SrsEpoch } from "./objective-validation.ts";
 
 export type ObjectiveResponseMode = "recognition" | "recall" | "production";
-
-/** SRS generation number. It is deliberately validated at runtime. */
-export type SrsEpoch = number;
-
-export const INITIAL_SRS_EPOCH: SrsEpoch = 1;
 
 export type ObjectiveSupersedes = {
   objectiveId: string;
@@ -64,19 +74,6 @@ function hasOwn(value: Record<string, unknown>, key: string) {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-export function isPositiveInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0;
-}
-
-export function validateSrsEpoch(value: unknown): string[] {
-  return isPositiveInteger(value) ? [] : ["srsEpoch must be a positive integer"];
-}
-
-export function assertValidSrsEpoch(value: unknown): asserts value is SrsEpoch {
-  const errors = validateSrsEpoch(value);
-  if (errors.length > 0) throw new Error(errors.join("; "));
 }
 
 export function validateObjectiveDefinition(value: unknown): string[] {
