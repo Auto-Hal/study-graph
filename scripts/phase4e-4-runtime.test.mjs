@@ -58,6 +58,20 @@ test("Phase 4E-4 leaves database migrations and non-pilot writer untouched", () 
   assert.match(docs, /rollback/i);
 });
 
+test("Review attention counts use the current durable outbox authority", () => {
+  const session = read("src/components/ReviewSession.tsx");
+  assert.match(session, /async function refreshOutboxCounts/);
+  assert.match(session, /const displayedPendingCount = outboxCounts\.pending/);
+  assert.match(session, /const displayedAuthRequiredCount = outboxCounts\.authRequired/);
+  assert.match(session, /const displayedBlockedCount = outboxCounts\.blocked/);
+  assert.doesNotMatch(session, /Math\.max\(outboxCounts\./);
+  assert.doesNotMatch(session, /setOutboxCounts\(\(counts\)/);
+  assert.doesNotMatch(session, /results\.filter\(\(result\) => result\.syncStatus === "pending"\)/);
+  assert.match(session, /端末保存済み・未同期/);
+  assert.match(session, /ログイン待ち/);
+  assert.match(session, /確認が必要/);
+});
+
 test("auth recovery and stored receipt identity checks fail closed", () => {
   const transport = read("src/lib/review/offline/pilot-transport.ts");
   const outbox = read("src/lib/review/offline/outbox-core.ts");

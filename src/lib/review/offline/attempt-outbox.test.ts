@@ -4,6 +4,7 @@ import {
   ATTEMPT_OUTBOX_INSTANCE_INDEX,
   ATTEMPT_OUTBOX_STORE_NAME,
   ATTEMPT_RECEIPTS_STORE_NAME,
+  countOfflineAttemptStatuses,
   commitOfflineAttempt,
   findOfflineAttemptByInstanceId,
   getOfflineAttempt,
@@ -11,7 +12,7 @@ import {
   recoverSendingOfflineAttempts,
   type PersistedOfflineAttempt,
 } from "./attempt-outbox.ts";
-import { createOfflineAttemptDraft, createOfflineReceiptRecord, createOfflineSubmission } from "./model-core.ts";
+import { createOfflineAttemptDraft, createOfflineReceiptRecord, createOfflineSubmission, type OfflineAttemptCommitted } from "./model-core.ts";
 import { transitionOfflineAttempt } from "./outbox.ts";
 
 class FakeRequest<T = unknown> {
@@ -143,13 +144,13 @@ const attemptId = "11111111-1111-4111-8111-111111111111";
 const instanceId = "22222222-2222-4222-8222-222222222222";
 const otherAttemptId = "33333333-3333-4333-8333-333333333333";
 
-function pending(id = attemptId, instance = instanceId) {
+function pending(id = attemptId, instance = instanceId): OfflineAttemptCommitted {
   const submission = createOfflineSubmission({ attemptId: id, instanceId: instance, rawAnswer: "あ", selfEvaluation: "good", responseMs: 100, usedHint: false });
   return transitionOfflineAttempt(createOfflineAttemptDraft(), {
     type: "confirm-submission",
     submission,
     requestHash: "a".repeat(64),
-  });
+  }) as OfflineAttemptCommitted;
 }
 
 function receipt(id = attemptId) {
@@ -214,6 +215,32 @@ test("accepted receipt and terminal outbox update are persisted together", async
 
 test("storage absence fails before any transport can be attempted", async () => {
   await assert.rejects(() => commitOfflineAttempt(pending(), { indexedDB: undefined }), /IndexedDB is unavailable/);
+});
+
+test("durable status counts exclude accepted records and separate attention states", () => {
+  const sending = transitionOfflineAttempt(pending(), { type: "begin-send" }) as OfflineAttemptCommitted;
+  const authRequired = transitionOfflineAttempt(sending, { type: "auth-required" }) as OfflineAttemptCommitted;
+  const blocked = transitionOfflineAttempt(sending, { type: "blocked", reason: "attempt-conflict" }) as OfflineAttemptCommitted;
+  const accepted = transitionOfflineAttempt(sending, { type: "accepted", receipt: receipt() }) as OfflineAttemptCommitted;
+  const persisted = (record: PersistedOfflineAttempt["record"]): PersistedOfflineAttempt => ({
+    attemptId,
+    instanceId,
+    record,
+    transport: {
+      createdAt: "2030-01-01T00:00:00.000Z",
+      updatedAt: "2030-01-01T00:00:00.000Z",
+      lastAttemptedAt: null,
+      retryCount: 0,
+      lastTransportError: null,
+    },
+  });
+  assert.deepEqual(countOfflineAttemptStatuses([
+    persisted(pending()),
+    persisted(sending),
+    persisted(authRequired),
+    persisted(blocked),
+    persisted(accepted),
+  ]), { pending: 2, authRequired: 1, blocked: 1 });
 });
 
 void ATTEMPT_RECEIPTS_STORE_NAME;

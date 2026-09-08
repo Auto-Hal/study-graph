@@ -54,6 +54,10 @@ terminal and are never rewound or deleted.
 
 Pilot results distinguish terminal server acceptance from
 `端末保存済み・未同期`, `ログイン待ち`, and records requiring confirmation.
+The current attention counts shown during a session and on the completion
+screen are read from the durable IndexedDB outbox; a result's historical
+`syncStatus` describes what happened at answer time and never keeps a resolved
+record counted after the outbox reaches a terminal state.
 Auth-required results link to `/login`; blocked records remain durable and are
 reported as requiring confirmation without automatic retry. Non-pilot Review
 continues to use the existing legacy endpoint. A pending answer is never
