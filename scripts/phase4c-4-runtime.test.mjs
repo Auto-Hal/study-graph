@@ -9,6 +9,7 @@ const migration = readFileSync(resolve(root, "supabase/migrations/20260907120000
 const reconciliation = readFileSync(resolve(root, "supabase/migrations/20260907130000_phase_4c_4_receipt_reconciliation.sql"), "utf8");
 const registry = readFileSync(resolve(root, "src/lib/review/registry.ts"), "utf8");
 const session = readFileSync(resolve(root, "src/components/ReviewSession.tsx"), "utf8");
+const pilotTransport = readFileSync(resolve(root, "src/lib/review/offline/pilot-transport.ts"), "utf8");
 const attemptRoute = readFileSync(resolve(root, "app/api/review/pilot/attempt/route.ts"), "utf8");
 const issueRoute = readFileSync(resolve(root, "app/api/review/pilot/issue/route.ts"), "utf8");
 const supabaseClient = readFileSync(resolve(root, "src/lib/supabase/pilot.ts"), "utf8");
@@ -59,7 +60,7 @@ test("pilot attempt route accepts only server-relevant submission fields", () =>
   assert.match(issueRoute, /issueKuzushijiPilotReview/);
   assert.match(registry, /isKuzushijiPilotDefinition/);
   assert.match(registry, /failed[\s\S]*issue never falls back/);
-  assert.match(session, /\/api\/review\/pilot\/attempt/);
+  assert.match(pilotTransport, /\/api\/review\/pilot\/attempt/);
   assert.match(session, /crypto\.randomUUID\(\)/);
 });
 
@@ -138,7 +139,7 @@ test("receipt restoration is receipt-first and fails closed when legacy fields a
   assert.match(receipt, /effectiveSrsGrade/);
   assert.match(receipt, /StoredReceiptIncompleteError/);
   assert.match(runtime, /const existing = await getKuzushijiPilotAttemptReceipt/);
-  assert.match(runtime, /return receiptResult\(existing\.receipt, request\.instanceId\)/);
+  assert.match(runtime, /return receiptResult\(existing\.receipt,\s*request\.instanceId,\s*instance\.srs_target\)/);
   assert.doesNotMatch(runtime, /receiptField/);
   assert.doesNotMatch(runtime, /gradingStatus: receipt/);
   assert.doesNotMatch(runtime, /srsApplied: receipt/);
@@ -154,7 +155,8 @@ test("service role and fixed learner identity remain server-only", () => {
 
 test("pilot path does not invoke the legacy writer", () => {
   const pilotBlock = session.split('if (isPilot) {')[1]?.split('if (persistence === "fallback")')[0] ?? "";
-  assert.match(pilotBlock, /\/api\/review\/pilot\/attempt/);
+  assert.match(pilotBlock, /commitPilotOfflineAttempt/);
+  assert.match(pilotBlock, /sendPilotOutboxAttempt/);
   assert.doesNotMatch(pilotBlock, /\/api\/review\/attempt/);
   assert.match(session, /\/api\/review\/attempt/);
 });

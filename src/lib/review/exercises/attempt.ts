@@ -1,5 +1,11 @@
 import { canonicalizeJson, sha256Hex, type ExerciseRevisionPayload, type JsonValue } from "./revision.ts";
+import { canonicalizeExerciseAttemptRequest as canonicalizeAttemptContent } from "./attempt-content.ts";
+import type { ExerciseAttemptHashInput } from "./attempt-content.ts";
 import type { ExerciseStatus } from "./types.ts";
+import { calculateLegacySchedule } from "./scheduler.ts";
+import type { LegacySchedule as SharedLegacySchedule } from "./scheduler.ts";
+
+export { canonicalizeExerciseAttemptRequest } from "./attempt-content.ts";
 
 export type PilotPresentation = {
   prompt: string;
@@ -153,57 +159,13 @@ export type ExerciseAttemptRequest = {
 };
 
 /** Hash only the immutable submission fields; timestamps are deliberately excluded. */
-export function canonicalizeExerciseAttemptRequest(request: ExerciseAttemptRequest) {
-  return canonicalizeJson({
-    attemptId: request.attemptId,
-    instanceId: request.instanceId,
-    rawAnswer: request.rawAnswer,
-    selfEvaluation: request.selfEvaluation,
-    responseMs: request.responseMs,
-    usedHint: request.usedHint,
-  });
-}
-
 export function hashExerciseAttemptRequest(request: ExerciseAttemptRequest) {
-  return sha256Hex(canonicalizeExerciseAttemptRequest(request));
+  return sha256Hex(canonicalizeAttemptContent(request as ExerciseAttemptHashInput));
 }
 
-export type LegacySchedule = {
-  intervalDays: number;
-  repetitions: number;
-  dueAt: string;
-};
-
+export type LegacySchedule = SharedLegacySchedule;
 /** Exact arithmetic contract mirrored by public.study_graph_record_review. */
-export function calculateLegacySchedule(
-  grade: ReviewGrade,
-  previousIntervalDays: number,
-  previousRepetitions: number,
-  now: Date,
-): LegacySchedule {
-  const interval = Math.max(0, Math.trunc(previousIntervalDays));
-  const repetitions = Math.max(0, Math.trunc(previousRepetitions));
-
-  if (grade === "again") {
-    return {
-      intervalDays: 0,
-      repetitions: 0,
-      dueAt: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
-    };
-  }
-
-  const intervalDays = grade === "hard"
-    ? interval === 0 ? 1 : Math.max(1, Math.ceil(interval * 1.2))
-    : grade === "good"
-      ? interval === 0 ? 2 : Math.max(2, Math.round(interval * 2.2))
-      : interval === 0 ? 5 : Math.max(5, Math.round(interval * 3.2));
-
-  return {
-    intervalDays,
-    repetitions: repetitions + 1,
-    dueAt: new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000).toISOString(),
-  };
-}
+export { calculateLegacySchedule };
 
 export type SrsPlanReason =
   | "applied"

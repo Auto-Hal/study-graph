@@ -297,6 +297,13 @@ test("outbox transitions support auth recovery, crash recovery, terminal accepta
   assert.equal(accepted.status, "accepted-applied");
   assert.throws(() => transitionOfflineAttempt(accepted, { type: "begin-send" }), /Terminal/);
 
+  const authRequiredWithReceipt = transitionOfflineAttempt(
+    transitionOfflineAttempt(pending, { type: "begin-send" }),
+    { type: "auth-required" },
+  );
+  const acceptedAfterAuthProbe = transitionOfflineAttempt(authRequiredWithReceipt, { type: "accepted", receipt });
+  assert.equal(acceptedAfterAuthProbe.status, "accepted-applied");
+
   const blocked = transitionOfflineAttempt(
     transitionOfflineAttempt(pending, { type: "begin-send" }),
     { type: "blocked", reason: "attempt-conflict" },
@@ -348,8 +355,10 @@ test("instance_already_answered requires receipt lookup before terminal classifi
 });
 
 test("stored receipt lookup accepts only a complete receipt for this attempt", () => {
-  const context = { attemptId, instanceId, receiptKind: "legacy" as const };
+  const context = { attemptId, instanceId, receiptKind: "legacy" as const, requestHash: "a".repeat(64) };
   const same = classifyStoredReceiptLookup({
+    attemptId,
+    requestHash: context.requestHash,
     receipt: completeLegacyReceipt({ isCorrect: false, effectiveSrsGrade: "again" }),
   }, context);
   assert.equal(same.kind, "accepted");
@@ -360,10 +369,35 @@ test("stored receipt lookup accepts only a complete receipt for this attempt", (
   }
 
   const differentAttempt = classifyStoredReceiptLookup({
+    attemptId: "33333333-3333-4333-8333-333333333333",
+    requestHash: context.requestHash,
     receipt: completeLegacyReceipt({ attemptId: "33333333-3333-4333-8333-333333333333" }),
   }, context);
   assert.deepEqual(differentAttempt, { kind: "blocked", reason: "instance-already-answered" });
   assert.deepEqual(classifyStoredReceiptLookup({}, context), {
+    kind: "blocked",
+    reason: "incomplete-authoritative-receipt",
+  });
+  assert.deepEqual(classifyStoredReceiptLookup({
+    attemptId,
+    requestHash: "b".repeat(64),
+    receipt: completeLegacyReceipt(),
+  }, context), {
+    kind: "blocked",
+    reason: "attempt-conflict",
+  });
+  assert.deepEqual(classifyStoredReceiptLookup({
+    attemptId,
+    receipt: completeLegacyReceipt(),
+  }, context), {
+    kind: "blocked",
+    reason: "incomplete-authoritative-receipt",
+  });
+  assert.deepEqual(classifyStoredReceiptLookup({
+    attemptId: "33333333-3333-4333-8333-333333333333",
+    requestHash: context.requestHash,
+    receipt: completeLegacyReceipt(),
+  }, context), {
     kind: "blocked",
     reason: "incomplete-authoritative-receipt",
   });
