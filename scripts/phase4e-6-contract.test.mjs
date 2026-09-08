@@ -20,6 +20,7 @@ const mirror = read("src/lib/review/offline/objective-state-mirror.ts");
 const mirrorComponent = read("src/components/ObjectiveStateMirrorSync.tsx");
 const objectiveRoute = read("app/api/review/pilot/objective-state/route.ts");
 const reviewSession = read("src/components/ReviewSession.tsx");
+const dashboard = read("src/components/KuzushijiSnapshotDashboard.tsx");
 const attemptRoute = read("app/api/review/pilot/attempt/route.ts");
 const validationRoute = read("app/api/review/pilot/attempt/validate/route.ts");
 const pilotTransport = read("src/lib/review/offline/pilot-transport.ts");
@@ -188,6 +189,18 @@ test("blocked diagnostics are a structural, non-mutating projection", () => {
   assert.match(diagnostics, /retryCount/);
   assert.match(diagnostics, /diagnosticValidationRequestBody/);
   assert.doesNotMatch(diagnostics, /put\(|delete\(|transaction\([^)]*,\s*["']readwrite["']/);
+});
+
+test("dashboard reaches blocked diagnostics without changing the offline authority", () => {
+  assert.match(dashboard, /import PilotBlockedAttemptDiagnostics from ["']\.\/PilotBlockedAttemptDiagnostics["'];/);
+  const prefetchIndex = dashboard.indexOf("<OfflinePrefetchControl />");
+  const diagnosticsIndex = dashboard.indexOf("<PilotBlockedAttemptDiagnostics />");
+  const historyIndex = dashboard.indexOf("progress-link-card");
+  assert.ok(prefetchIndex >= 0 && diagnosticsIndex > prefetchIndex && historyIndex > diagnosticsIndex);
+  assert.match(diagnosticsComponent, /if \(loadError \|\| records\.length === 0\) return null/);
+  assert.doesNotMatch(diagnosticsComponent, /prefetchPilotOfflineInstance|sendPilotOutboxAttempt|transitionOfflineAttempt|commitPilotOfflineAttempt|crypto\.randomUUID|markOfflineInstanceAnswered/);
+  assert.match(offlineReview, /findOfflineAttemptByInstanceId\(record\.instanceId\)/);
+  assert.match(offlineReview, /if \(existingAttempt\)[\s\S]*?continue;/);
 });
 
 test("phase 4E-6 test command is wired", () => {
