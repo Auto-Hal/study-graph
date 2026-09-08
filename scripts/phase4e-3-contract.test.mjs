@@ -48,6 +48,13 @@ test("normal dashboard page uses snapshot client and has no direct Notion fallba
   assert.doesNotMatch(cache, /from\s+["']node:crypto["']/);
 });
 
+test("dashboard keeps fresh-server provenance and catches manual sync rejection", () => {
+  assert.match(client, /selectSnapshotForDisplay/);
+  assert.match(client, /cached:\s*displayed\.source\s*===\s*["']cache["']/);
+  assert.match(client, /} catch \{[\s\S]*同期できませんでした。[\s\S]*} finally \{[\s\S]*setSyncing\(false\)/);
+  assert.doesNotMatch(client, /displayed\s*!==\s*result\.snapshot/);
+});
+
 test("IndexedDB cache uses immutable snapshot and pointer stores with one readwrite transaction", () => {
   assert.match(cache, /SNAPSHOT_STORE_NAME = "snapshots"/);
   assert.match(cache, /SNAPSHOT_META_STORE_NAME = "snapshot_meta"/);

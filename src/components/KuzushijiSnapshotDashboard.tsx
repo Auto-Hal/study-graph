@@ -13,6 +13,7 @@ import {
 import type { ScopeKnowledgeSnapshot } from "@/src/lib/review/offline/snapshot-content";
 import {
   dashboardFromScopeKnowledgeSnapshot,
+  selectSnapshotForDisplay,
   type KuzushijiSnapshotDashboard as SnapshotDashboard,
 } from "@/src/lib/review/snapshot-sync/dashboard";
 
@@ -102,8 +103,12 @@ export default function KuzushijiSnapshotDashboard() {
         }
         if (cacheResult.kind === "rejected") throw new Error("snapshot cache rejected candidate");
         const cached = await getCachedCurrentScopeKnowledgeSnapshot("kuzushiji").catch(() => null);
-        const displayed = cached && cached.generation >= result.snapshot.generation ? cached : result.snapshot;
-        setState({ kind: "ready", dashboard: dashboardFromScopeKnowledgeSnapshot(displayed), cached: displayed !== result.snapshot });
+        const displayed = selectSnapshotForDisplay(result.snapshot, cached);
+        setState({
+          kind: "ready",
+          dashboard: dashboardFromScopeKnowledgeSnapshot(displayed.snapshot),
+          cached: displayed.source === "cache",
+        });
         return;
       } catch {
         // A cache failure must not hide a valid server snapshot.
@@ -149,6 +154,12 @@ export default function KuzushijiSnapshotDashboard() {
         return;
       }
       await loadCurrent();
+    } catch {
+      // A network rejection must not escape the click handler. Preserve a
+      // usable snapshot and expose a controlled unavailable state otherwise.
+      setState((current) => current.kind === "ready"
+        ? current
+        : { kind: "unavailable", message: "同期できませんでした。" });
     } finally {
       setSyncing(false);
     }

@@ -9,6 +9,7 @@ import {
   assertValidScopeKnowledgeSnapshot,
   type ScopeKnowledgeSnapshot,
 } from "../offline/snapshot-content.ts";
+import { KUZUSHIJI_KNOWLEDGE_PROJECTION_VERSION } from "./model.ts";
 
 export type KuzushijiSnapshotDashboard = Omit<KuzushijiDashboard, "mode" | "sourceState"> & {
   mode: "snapshot";
@@ -18,6 +19,26 @@ export type KuzushijiSnapshotDashboard = Omit<KuzushijiDashboard, "mode" | "sour
   publishedAt: string;
   validUntil: string;
 };
+
+export type SnapshotDisplaySelection = Readonly<{
+  snapshot: ScopeKnowledgeSnapshot;
+  source: "server" | "cache";
+}>;
+
+/**
+ * A server response is the display source unless a verified local snapshot is
+ * strictly newer.  This keeps provenance independent from structured-clone
+ * object identity in IndexedDB.
+ */
+export function selectSnapshotForDisplay(
+  serverSnapshot: ScopeKnowledgeSnapshot,
+  cachedSnapshot: ScopeKnowledgeSnapshot | null,
+): SnapshotDisplaySelection {
+  if (cachedSnapshot && cachedSnapshot.generation > serverSnapshot.generation) {
+    return { snapshot: cachedSnapshot, source: "cache" };
+  }
+  return { snapshot: serverSnapshot, source: "server" };
+}
 
 function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -110,7 +131,11 @@ function readReviewItem(value: unknown, index: number): ReviewItem {
 /** Convert the immutable projection to the screen view model without Notion fallback. */
 export function dashboardFromScopeKnowledgeSnapshot(snapshot: ScopeKnowledgeSnapshot): KuzushijiSnapshotDashboard {
   assertValidScopeKnowledgeSnapshot(snapshot);
-  if (snapshot.projectId !== "kuzushiji" || !record(snapshot.knowledgeProjection)) {
+  if (
+    snapshot.projectId !== "kuzushiji" ||
+    snapshot.knowledgeProjectionVersion !== KUZUSHIJI_KNOWLEDGE_PROJECTION_VERSION ||
+    !record(snapshot.knowledgeProjection)
+  ) {
     throw new Error("Kuzushiji snapshot projection is invalid");
   }
   const projection = snapshot.knowledgeProjection;

@@ -3,7 +3,8 @@ import test from "node:test";
 import type { Character, Lecture, Mistake } from "../../notion/kuzushiji.ts";
 import type { KuzushijiSnapshotSource } from "../../notion/kuzushiji-snapshot-source.ts";
 import { createKuzushijiScopeKnowledgeSnapshot } from "./model.ts";
-import { dashboardFromScopeKnowledgeSnapshot } from "./dashboard.ts";
+import { dashboardFromScopeKnowledgeSnapshot, selectSnapshotForDisplay } from "./dashboard.ts";
+import { createScopeKnowledgeSnapshot } from "../offline/snapshot.ts";
 
 const lecture: Lecture = {
   id: "lecture-1", url: "#", title: "講義", sequence: 1, theme: "テーマ", status: "完了",
@@ -50,6 +51,37 @@ test("malformed dashboard projection fails closed", () => {
     knowledgeProjection: { ...(value.knowledgeProjection as Record<string, unknown>), characters: [{ id: "only-id" }] },
   };
   assert.throws(() => dashboardFromScopeKnowledgeSnapshot(malformed), /characters/);
+});
+
+test("only the supported Kuzushiji projection version is accepted", () => {
+  const value = snapshot();
+  const { contentHash: _contentHash, ...input } = value;
+  const supported = createScopeKnowledgeSnapshot(input);
+  assert.equal(dashboardFromScopeKnowledgeSnapshot(supported).mode, "snapshot");
+
+  const v2 = createScopeKnowledgeSnapshot({ ...input, knowledgeProjectionVersion: "kuzushiji-v2" });
+  assert.throws(() => dashboardFromScopeKnowledgeSnapshot(v2), /projection is invalid/);
+});
+
+test("a different project is rejected by the dashboard adapter", () => {
+  const value = snapshot();
+  const { contentHash: _contentHash, ...input } = value;
+  const otherProject = createScopeKnowledgeSnapshot({ ...input, projectId: "philosophy" });
+  assert.throws(() => dashboardFromScopeKnowledgeSnapshot(otherProject), /projection is invalid/);
+});
+
+test("display provenance uses the server source unless local generation is newer", () => {
+  const server = snapshot();
+  const { contentHash: _contentHash, ...input } = server;
+  const sameGenerationClone = createScopeKnowledgeSnapshot({ ...input });
+  const same = selectSnapshotForDisplay(server, sameGenerationClone);
+  assert.equal(same.source, "server");
+  assert.equal(same.snapshot.snapshotId, server.snapshotId);
+
+  const newer = createScopeKnowledgeSnapshot({ ...input, snapshotId: "22222222-2222-4222-8222-222222222222", generation: 2 });
+  const newerSelection = selectSnapshotForDisplay(server, newer);
+  assert.equal(newerSelection.source, "cache");
+  assert.equal(newerSelection.snapshot.generation, 2);
 });
 
 test("an expired validUntil remains displayable because freshness is not authority", () => {
