@@ -261,7 +261,14 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         // callback is optional so the existing Review runtime remains
         // unchanged for cards that do not use the offline instance cache.
         if (onPilotAttemptDurablyCommitted) {
-          await onPilotAttemptDurablyCommitted(submission.instanceId, submission.attemptId);
+          try {
+            await onPilotAttemptDurablyCommitted(submission.instanceId, submission.attemptId);
+          } catch (error) {
+            // The outbox transaction is the durable submission authority. The
+            // instance-cache answered marker is a secondary local hint; a
+            // marker failure must never suppress transport or lose the answer.
+            console.error("Study Graph: unable to mark offline instance answered", error);
+          }
         }
         const outcome = await sendPilotOutboxAttempt(committed.record.attemptId, { receiptKind: "objective" });
         if (!outcome) throw new Error("pilot_outbox_record_missing");

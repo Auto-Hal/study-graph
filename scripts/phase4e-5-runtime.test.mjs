@@ -55,6 +55,37 @@ test("offline review consumes only ready server-issued instances and durable out
   assert.match(session, /onPilotAttemptDurablyCommitted/);
   assert.match(session, /commitPilotOfflineAttempt/);
   assert.ok(session.indexOf("commitPilotOfflineAttempt") < session.indexOf("onPilotAttemptDurablyCommitted"));
+  assert.match(session, /try \{[\s\S]*await onPilotAttemptDurablyCommitted\([\s\S]*catch \(error\)/);
+  const callback = session.indexOf("await onPilotAttemptDurablyCommitted");
+  const callbackCatch = session.indexOf("catch (error)", callback);
+  const transport = session.indexOf("sendPilotOutboxAttempt", callback);
+  assert.ok(callbackCatch > callback && callbackCatch < transport, "marker failure must not block transport");
+});
+
+test("prefetch keeps the operational kill switch server-owned and uses the exact Scope anchor", () => {
+  const issuer = read("src/lib/review/offline/pilot-prefetch.ts");
+  const supabase = read("src/lib/supabase/pilot.ts");
+  const pilot = read("src/lib/review/exercises/kuzushiji-pilot.ts");
+  const route = read("app/api/review/pilot/prefetch/route.ts");
+  assert.match(pilot, /KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID\s*=\s*"3ccd2793-4134-815f-95f0-cc64dcdb86c7"/);
+  assert.match(issuer, /isPilotIssuanceEnabled/);
+  assert.match(issuer, /newIssuanceAllowed:\s*isPilotIssuanceEnabled\(\)/);
+  assert.match(supabase, /p_new_issuance_allowed:\s*input\.newIssuanceAllowed/);
+  assert.doesNotMatch(route, /learnerId|objectiveId|srsEpoch|revisionId|snapshotId|issuanceAllowed|newIssuanceAllowed/);
+  const scope = read("src/lib/review/offline/pilot-scope.ts");
+  assert.match(scope, /character\.id === KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID/);
+  assert.doesNotMatch(scope, /acceptedKuzushijiValues|includes\("あ"\)/);
+});
+
+test("offline review respects a newer explicit Scope exclusion without deleting attempts", () => {
+  const component = read("src/components/OfflineKuzushijiReview.tsx");
+  const helper = read("src/lib/review/offline/offline-card.ts");
+  assert.match(component, /getCachedCurrentScopeKnowledgeSnapshot/);
+  assert.match(component, /isOfflinePilotInstanceOfferable/);
+  assert.ok(component.indexOf("findOfflineAttemptByInstanceId") < component.indexOf("isOfflinePilotInstanceOfferable"));
+  assert.match(helper, /currentSnapshot\.generation <= instanceGeneration/);
+  assert.match(helper, /status !== "ineligible"/);
+  assert.doesNotMatch(component, /deleteDatabase|delete\(/);
 });
 
 test("v1 content remains and v2 is an additive checksum-pinned boundary", () => {

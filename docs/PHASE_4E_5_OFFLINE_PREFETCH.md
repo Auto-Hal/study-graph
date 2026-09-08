@@ -32,6 +32,13 @@ eligible for the pilot; first accepted submission still performs the existing
 fresh Notion Scope check. Prefetch does not apply SRS and does not change Review
 or Objective semantics.
 
+The pilot is tied to the verified Notion subject
+`3ccd2793-4134-815f-95f0-cc64dcdb86c7`. An eligible character with the reading
+`あ` is not a substitute for that exact anchor. The existing
+`STUDY_GRAPH_PILOT_ISSUANCE_ENABLED` server kill switch is evaluated after
+same-request recovery, current-anchor validation, and reuse of an existing
+unused instance; it blocks only a genuinely new instance.
+
 ## Local cache and asset verification
 
 Issued descriptors are stored in the independent
@@ -63,7 +70,15 @@ the immutable submission remains pending and is retried with the same attempt
 ID and request hash when connectivity returns. Server acceptance performs the
 normal fresh Scope/revision/epoch checks: offline transport itself is not a
 no-SRS reason. Accepted receipts are terminal and no longer offered as a ready
-card. A failed local commit does not advance the card.
+card. A failed local commit does not advance the card. If the secondary local
+`answered` marker fails after the outbox transaction, transport and session
+progress still continue; reload reconciliation discovers the durable outbox
+record and prevents the instance from being offered again.
+
+When a newer verified local Scope snapshot explicitly marks the exact pilot
+anchor `ineligible`, an unstarted issued card is not offered. Pending or
+answered instances are preserved, and missing/unknown snapshots or `validUntil`
+expiry alone never delete or invalidate an issued card.
 
 ## Rollback and scope limits
 
@@ -77,4 +92,3 @@ This phase does not add a service worker, PWA shell, cold-start offline mode,
 bulk prefetch, more than one card per device, Cache Storage for other assets,
 Background Sync, cron, multi-device merge, or local SRS authority. Those are
 future Phase 4E work after supervisor review.
-

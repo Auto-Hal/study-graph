@@ -5,6 +5,8 @@ import {
   type ServerIssuedOfflineInstance,
 } from "./model-core.ts";
 import type { ReviewAsset, ReviewCard } from "../types.ts";
+import { KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID } from "../exercises/kuzushiji-pilot.ts";
+import type { ScopeKnowledgeSnapshot } from "./snapshot-content.ts";
 
 type PilotPresentation = {
   prompt: string;
@@ -85,6 +87,22 @@ function readPresentation(value: unknown): PilotPresentation {
 
 function sourceString(source: Record<string, unknown>, key: string) {
   return typeof source[key] === "string" ? source[key] as string : "";
+}
+
+/**
+ * A newer verified local Scope snapshot may explicitly exclude an unstarted
+ * issued card. Unknown/no snapshot is intentionally not an exclusion;
+ * durable attempts are reconciled before this gate.
+ */
+export function isOfflinePilotInstanceOfferable(
+  instanceGeneration: number,
+  currentSnapshot: ScopeKnowledgeSnapshot | null,
+): boolean {
+  if (!currentSnapshot || currentSnapshot.generation <= instanceGeneration) return true;
+  const decision = currentSnapshot.scopeDecisions.find(
+    (entry) => entry.subjectId === KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID,
+  );
+  return decision?.status !== "ineligible";
 }
 
 /**

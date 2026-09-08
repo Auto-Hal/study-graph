@@ -217,6 +217,8 @@ export type OfflinePrefetchInstance = {
 export async function prefetchKuzushijiPilotInstance(input: {
   requestId: string;
   deviceId: string;
+  /** Server-owned operational kill-switch result; never supplied by browser. */
+  newIssuanceAllowed: boolean;
   releaseId: string;
   revisionId: string;
   snapshotId: string | null;
@@ -250,6 +252,7 @@ export async function prefetchKuzushijiPilotInstance(input: {
       p_assets: input.assets,
       p_feedback: input.feedback,
       p_srs_epoch: KUZUSHIJI_PILOT_SRS_EPOCH,
+      p_new_issuance_allowed: input.newIssuanceAllowed,
     },
   );
   return firstRow(rows, "study_graph_prefetch_kuzushiji_objective_instance");

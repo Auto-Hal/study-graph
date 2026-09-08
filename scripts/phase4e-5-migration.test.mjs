@@ -46,6 +46,11 @@ test("v2 archive registration and prefetch functions are server-only hardened bo
   assert.match(normalized, /v_request\.instance_id/);
   assert.match(normalized, /p_srs_epoch is distinct from 1/);
   assert.match(normalized, /p_scope_evidence ->> 'status'\) is distinct from 'eligible'/);
+  assert.doesNotMatch(normalized, /on conflict \(release_id, revision_id\) do nothing/);
+  assert.match(normalized, /on conflict on constraint content_release_entries_pkey do nothing/);
+  assert.match(normalized, /p_new_issuance_allowed boolean/);
+  assert.match(normalized, /p_legacy_item_id is distinct from '3ccd2793-4134-815f-95f0-cc64dcdb86c7'/);
+  assert.match(normalized, /decision ->> 'subjectId' = '3ccd2793-4134-815f-95f0-cc64dcdb86c7'/);
 });
 
 test("prefetch function preserves request idempotency and one-unused-instance semantics", () => {
@@ -57,4 +62,14 @@ test("prefetch function preserves request idempotency and one-unused-instance se
   assert.match(functionBody, /order by r\.created_at asc limit 1/);
   assert.match(functionBody, /insert into private\.exercise_instances/);
   assert.match(functionBody, /insert into private\.instance_objective_bindings/);
+  const requestRecovery = functionBody.indexOf("where r.request_id = p_request_id");
+  const scopeGate = functionBody.indexOf("message = 'pilot_scope_not_eligible'");
+  const reuse = functionBody.indexOf("order by r.created_at asc limit 1");
+  const killSwitch = functionBody.indexOf("message = 'pilot_issuance_disabled'");
+  const instanceInsert = functionBody.indexOf("insert into private.exercise_instances");
+  assert.ok(requestRecovery >= 0 && requestRecovery < scopeGate, "same request recovery must precede Scope gate");
+  assert.ok(scopeGate < reuse, "current Scope gate must precede same-device reuse");
+  assert.ok(reuse < killSwitch, "same-device reuse must precede kill-switch rejection");
+  assert.ok(killSwitch < instanceInsert, "kill-switch rejection must precede new instance insert");
+  assert.match(functionBody, /coalesce\(p_new_issuance_allowed, false\) is not true/);
 });

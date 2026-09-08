@@ -33,7 +33,6 @@ import {
   type OfflinePilotFeedbackBundleV1,
   type ServerIssuedOfflineInstance,
 } from "./model-core.ts";
-import { acceptedKuzushijiValues } from "../exercises/kuzushiji-adapter.ts";
 import {
   getCurrentScopeKnowledgeSnapshotModel,
 } from "../../supabase/snapshots.ts";
@@ -43,52 +42,24 @@ import {
   PilotRpcError,
   prefetchKuzushijiPilotInstance,
 } from "../../supabase/pilot.ts";
+import { isPilotIssuanceEnabled } from "../pilot-operations.ts";
 import type { ScopeKnowledgeSnapshot } from "./snapshot-content.ts";
 import { canonicalizeJson } from "../canonical-json.ts";
+import {
+  selectPilotCharacterFromSnapshot,
+  type SnapshotPilotCharacter,
+} from "./pilot-scope.ts";
 
 export const PILOT_PREFETCH_PROJECT_ID = "kuzushiji" as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type SnapshotCharacter = {
-  id: string;
-  glyph: string;
-  reading: string;
-  mastery: string;
-};
-
-type SnapshotProjection = {
-  characters?: unknown;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isCharacter(value: unknown): value is SnapshotCharacter {
-  return isRecord(value)
-    && typeof value.id === "string"
-    && typeof value.glyph === "string"
-    && typeof value.reading === "string"
-    && typeof value.mastery === "string";
-}
-
-function compareStrings(left: string, right: string) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-/** Select the fixed pilot reading from a verified server snapshot only. */
-export function selectEligiblePilotCharacter(snapshot: ScopeKnowledgeSnapshot): SnapshotCharacter {
-  const projection = snapshot.knowledgeProjection as SnapshotProjection;
-  const characters = Array.isArray(projection?.characters)
-    ? projection.characters.filter(isCharacter)
-    : [];
-  const candidates = characters
-    .filter((character) => acceptedKuzushijiValues(character.reading).includes("あ"))
-    .filter((character) => snapshot.scopeDecisions.find((decision) => decision.subjectId === character.id)?.status === "eligible")
-    .sort((left, right) => compareStrings(left.id, right.id));
-  const candidate = candidates[0];
-  if (!candidate) throw new PilotRpcError("pilot_scope_not_eligible", 409, "pilot_scope_not_eligible");
-  return candidate;
+/** Select the exact fixed pilot Scope anchor from a verified server snapshot. */
+export function selectEligiblePilotCharacter(snapshot: ScopeKnowledgeSnapshot): SnapshotPilotCharacter {
+  try {
+    return selectPilotCharacterFromSnapshot(snapshot);
+  } catch {
+    throw new PilotRpcError("pilot_scope_not_eligible", 409, "pilot_scope_not_eligible");
+  }
 }
 
 function buildIssuanceEvidence(snapshot: ScopeKnowledgeSnapshot, characterId: string): IssuanceScopeEvidence {
@@ -244,7 +215,7 @@ export async function prefetchKuzushijiOfflineInstance(input: {
   // instance still receives all snapshot evidence below and is rejected by
   // the RPC if the snapshot is absent/incomplete/ineligible.
   let snapshot: ScopeKnowledgeSnapshot | null = null;
-  let character: SnapshotCharacter | null = null;
+  let character: SnapshotPilotCharacter | null = null;
   try {
     const candidate = await getCurrentScopeKnowledgeSnapshotModel(PILOT_PREFETCH_PROJECT_ID);
     if (candidate?.sourceEvidence.paginationComplete && candidate.sourceEvidence.relationCompleteness) {
@@ -262,6 +233,7 @@ export async function prefetchKuzushijiOfflineInstance(input: {
   const row = await prefetchKuzushijiPilotInstance({
     requestId: input.issuanceRequestId,
     deviceId: input.deviceId,
+    newIssuanceAllowed: isPilotIssuanceEnabled(),
     releaseId: archive.releaseId,
     revisionId: archive.revisionId,
     snapshotId: snapshot?.snapshotId ?? null,

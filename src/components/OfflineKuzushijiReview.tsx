@@ -13,7 +13,9 @@ import {
   type OfflineIssuedInstanceRecord,
 } from "@/src/lib/review/offline/instance-cache";
 import { findOfflineAttemptByInstanceId } from "@/src/lib/review/offline/attempt-outbox";
-import { createOfflineKuzushijiReviewCard } from "@/src/lib/review/offline/offline-card";
+import { createOfflineKuzushijiReviewCard, isOfflinePilotInstanceOfferable } from "@/src/lib/review/offline/offline-card";
+import { getCachedCurrentScopeKnowledgeSnapshot } from "@/src/lib/review/offline/snapshot-cache";
+import type { ScopeKnowledgeSnapshot } from "@/src/lib/review/offline/snapshot-content";
 import type { ReviewCard } from "@/src/lib/review/types";
 
 type OfflineReviewState =
@@ -37,6 +39,15 @@ export default function OfflineKuzushijiReview() {
     setState({ kind: "loading" });
     try {
       const records = await listReadyOfflineIssuedInstances();
+      // A newer verified local snapshot can explicitly exclude an unstarted
+      // card. Absence/invalidity of this display cache never invalidates an
+      // already-issued instance; first-acceptance Scope remains server-only.
+      let currentSnapshot: ScopeKnowledgeSnapshot | null = null;
+      try {
+        currentSnapshot = await getCachedCurrentScopeKnowledgeSnapshot("kuzushiji");
+      } catch {
+        currentSnapshot = null;
+      }
       for (const record of records) {
         // A crash can occur after the durable attempt outbox commits but
         // before the separate instance-cache marker is written.  Reconcile
@@ -45,6 +56,9 @@ export default function OfflineKuzushijiReview() {
         const existingAttempt = await findOfflineAttemptByInstanceId(record.instanceId);
         if (existingAttempt) {
           await markOfflineInstanceAnswered(record.instanceId, existingAttempt.attemptId);
+          continue;
+        }
+        if (!isOfflinePilotInstanceOfferable(record.descriptor.scopeSnapshot.generation, currentSnapshot)) {
           continue;
         }
         let verified = true;

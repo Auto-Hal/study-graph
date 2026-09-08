@@ -39,7 +39,8 @@ test("v1 remains immutable while v2 pins the same semantic pilot", () => {
   assert.notEqual(kuzushijiPilotRevisionV2.contentHash, kuzushijiPilotRevision.contentHash);
   assert.equal(kuzushijiPilotRevision.contentHash, "675e22c5ea7f3288dceb4b0c89a6a10d9624b9dd1de59c835a46e3eb07799594");
   assert.equal(kuzushijiPilotContentRelease.manifestHash, "09eb84df83abede6be3a9164105bd8cdf7c48775fdb6c13bca50d4b71df71c60");
-  assert.notEqual(kuzushijiPilotContentReleaseV2.manifestHash, kuzushijiPilotContentRelease.manifestHash);
+  assert.equal(kuzushijiPilotRevisionV2.contentHash, "fca3edc54f17aa731c53cedd1130ff83d51a318ee07696c3310129f67a8db86d");
+  assert.equal(kuzushijiPilotContentReleaseV2.manifestHash, "a6346dcb6b1b7a6df890f032ec3974e0c95ac3e631367ab022707d09c6357446");
   assert.equal(kuzushijiPilotExerciseV2.prompt, kuzushijiPilotExercise.prompt);
   assert.equal(kuzushijiPilotExerciseV2.front, kuzushijiPilotExercise.front);
   assert.deepEqual(kuzushijiPilotExerciseV2.answerSpec, kuzushijiPilotExercise.answerSpec);

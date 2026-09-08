@@ -3,6 +3,13 @@ import type { ExerciseDefinition, VisualAsset } from "./types";
 export const KUZUSHIJI_PILOT_EXERCISE_ID = "kuzushiji.visual-reading.eitaigura-u3042-00032-1";
 export const KUZUSHIJI_PILOT_ASSET_ID = "kuzushiji.glyph.eitaigura-u3042-00032-1";
 /**
+ * Server-owned curriculum anchor for the single Eitaigura pilot character.
+ * This is a Notion Scope subject identifier, not a learner, Objective, or
+ * revision identity.  Prefetch must never substitute another character that
+ * happens to share the same reading.
+ */
+export const KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID = "3ccd2793-4134-815f-95f0-cc64dcdb86c7" as const;
+/**
  * Phase 4E-5 pins the bytes already tracked in Git.  The v1 asset keeps its
  * historical unknown checksum; this value is the measured SHA-256 of the
  * same repository file, used only by the new immutable v2 revision.

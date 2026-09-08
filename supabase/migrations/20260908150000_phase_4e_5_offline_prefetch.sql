@@ -157,7 +157,7 @@ begin
 
   insert into private.content_release_entries (release_id, revision_id)
   values (v_release.release_id, v_revision.revision_id)
-  on conflict (release_id, revision_id) do nothing;
+  on conflict on constraint content_release_entries_pkey do nothing;
 
   return query select v_release.release_id, v_revision.revision_id;
 end;
@@ -182,7 +182,8 @@ create or replace function public.study_graph_prefetch_kuzushiji_objective_insta
   p_legacy_exercise_id text,
   p_assets jsonb,
   p_feedback jsonb,
-  p_srs_epoch integer
+  p_srs_epoch integer,
+  p_new_issuance_allowed boolean
 )
 returns table(
   request_id uuid,
@@ -302,9 +303,86 @@ begin
     return;
   end if;
 
-  -- Reuse the oldest still-unaccepted prefetch for this device before
-  -- consulting the current snapshot.  The accepted attempt table is the
-  -- authority; local state and caller-provided flags are ignored.  The
+  -- A genuinely new request must carry the server-resolved v2 archive,
+  -- complete current snapshot evidence, and the exact pilot Scope anchor.
+  -- This validation is deliberately before same-device reuse: an old
+  -- unaccepted instance is not re-delivered after the current curriculum has
+  -- explicitly excluded the pilot subject.
+  if p_release_id is null or btrim(p_release_id) = ''
+    or p_revision_id is null
+    or p_snapshot_id is null or p_snapshot_generation is null or p_snapshot_generation <= 0
+    or p_presentation is null or jsonb_typeof(p_presentation) <> 'object'
+    or p_presentation_hash is null or p_presentation_hash !~ '^[0-9a-f]{64}$'
+    or p_scope_evidence is null or jsonb_typeof(p_scope_evidence) <> 'object'
+    or p_assets is null or jsonb_typeof(p_assets) <> 'array'
+    or p_feedback is null or jsonb_typeof(p_feedback) <> 'object'
+    or p_legacy_item_id is distinct from '3ccd2793-4134-815f-95f0-cc64dcdb86c7'
+    or p_legacy_exercise_id is null or length(btrim(p_legacy_exercise_id)) = 0 then
+    raise exception using errcode = '22023', message = 'invalid_offline_prefetch_request';
+  end if;
+
+  select er.*
+    into v_revision
+  from private.content_release_entries as cre
+  join private.exercise_revisions as er
+    on er.revision_id = cre.revision_id
+  where cre.release_id = p_release_id
+    and cre.revision_id = p_revision_id
+    and er.project_id = 'kuzushiji'
+    and er.exercise_id = 'kuzushiji.visual-reading.eitaigura-u3042-00032-1'
+    and er.exercise_version = 2
+  for update of er;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'pilot_archive_not_registered';
+  end if;
+  if v_revision.payload #>> '{status}' is distinct from 'approved' then
+    raise exception using errcode = 'P0001', message = 'revision_not_issuable';
+  end if;
+
+  select eob.*
+    into v_binding
+  from private.exercise_objective_bindings as eob
+  where eob.revision_id = p_revision_id
+    and eob.project_id = 'kuzushiji'
+    and eob.objective_id = 'kuzushiji.a.eitaigura-u3042-00032-1.read'
+    and eob.objective_version = 1
+    and eob.evidence_use = 'srs'
+  for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'pilot_objective_binding_not_registered';
+  end if;
+
+  -- A new prefetch uses only the server current snapshot. It is issuance
+  -- evidence, never the fresh Scope authority used by first attempt
+  -- acceptance. Same-request recovery above deliberately bypasses this gate.
+  select s.*
+    into v_snapshot
+  from private.project_snapshot_sync_state as st
+  join private.scope_knowledge_snapshots as s
+    on s.snapshot_id = st.current_snapshot_id
+  where st.project_id = p_project_id
+  for update of st;
+  if not found
+    or v_snapshot.snapshot_id <> p_snapshot_id
+    or v_snapshot.generation <> p_snapshot_generation
+    or (v_snapshot.source_evidence ->> 'paginationComplete') is distinct from 'true'
+    or (v_snapshot.source_evidence ->> 'relationCompleteness') is distinct from 'true'
+    or (p_scope_evidence ->> 'authority') is distinct from 'server-issuance'
+    or (p_scope_evidence ->> 'complete') is distinct from 'true'
+    or (p_scope_evidence ->> 'status') is distinct from 'eligible'
+    or (p_scope_evidence ->> 'snapshotId') is distinct from p_snapshot_id::text
+    or not exists (
+      select 1
+      from jsonb_array_elements(v_snapshot.scope_decisions) as decision
+      where decision ->> 'subjectId' = '3ccd2793-4134-815f-95f0-cc64dcdb86c7'
+        and decision ->> 'status' = 'eligible'
+    ) then
+    raise exception using errcode = 'P0001', message = 'pilot_scope_not_eligible';
+  end if;
+
+  -- Reuse the oldest still-unaccepted prefetch for this device only after the
+  -- current exact-anchor Scope gate above. The accepted attempt table is the
+  -- authority; local state and caller-provided flags are ignored. The
   -- instance is locked and rechecked after selection so an attempt committed
   -- concurrently cannot be mapped to by a second issuance request.
   loop
@@ -390,78 +468,10 @@ begin
     return;
   end loop;
 
-  -- A genuinely new prefetch must carry the server-resolved v2 archive,
-  -- complete current snapshot evidence, and fixed pilot presentation.
-  if p_release_id is null or btrim(p_release_id) = ''
-    or p_revision_id is null
-    or p_snapshot_id is null or p_snapshot_generation is null or p_snapshot_generation <= 0
-    or p_presentation is null or jsonb_typeof(p_presentation) <> 'object'
-    or p_presentation_hash is null or p_presentation_hash !~ '^[0-9a-f]{64}$'
-    or p_scope_evidence is null or jsonb_typeof(p_scope_evidence) <> 'object'
-    or p_assets is null or jsonb_typeof(p_assets) <> 'array'
-    or p_feedback is null or jsonb_typeof(p_feedback) <> 'object'
-    or p_legacy_item_id is null or length(btrim(p_legacy_item_id)) = 0
-    or p_legacy_exercise_id is null or length(btrim(p_legacy_exercise_id)) = 0 then
-    raise exception using errcode = '22023', message = 'invalid_offline_prefetch_request';
-  end if;
-
-  select er.*
-    into v_revision
-  from private.content_release_entries as cre
-  join private.exercise_revisions as er
-    on er.revision_id = cre.revision_id
-  where cre.release_id = p_release_id
-    and cre.revision_id = p_revision_id
-    and er.project_id = 'kuzushiji'
-    and er.exercise_id = 'kuzushiji.visual-reading.eitaigura-u3042-00032-1'
-    and er.exercise_version = 2
-  for update of er;
-  if not found then
-    raise exception using errcode = 'P0001', message = 'pilot_archive_not_registered';
-  end if;
-  if v_revision.payload #>> '{status}' is distinct from 'approved' then
-    raise exception using errcode = 'P0001', message = 'revision_not_issuable';
-  end if;
-
-  select eob.*
-    into v_binding
-  from private.exercise_objective_bindings as eob
-  where eob.revision_id = p_revision_id
-    and eob.project_id = 'kuzushiji'
-    and eob.objective_id = 'kuzushiji.a.eitaigura-u3042-00032-1.read'
-    and eob.objective_version = 1
-    and eob.evidence_use = 'srs'
-  for update;
-  if not found then
-    raise exception using errcode = 'P0001', message = 'pilot_objective_binding_not_registered';
-  end if;
-
-  -- A new prefetch uses only the server current snapshot. It is issuance
-  -- evidence, never the fresh Scope authority used by first attempt
-  -- acceptance. Reuse/retry branches above never consult this pointer.
-  select s.*
-    into v_snapshot
-  from private.project_snapshot_sync_state as st
-  join private.scope_knowledge_snapshots as s
-    on s.snapshot_id = st.current_snapshot_id
-  where st.project_id = p_project_id
-  for update of st;
-  if not found
-    or v_snapshot.snapshot_id <> p_snapshot_id
-    or v_snapshot.generation <> p_snapshot_generation
-    or (v_snapshot.source_evidence ->> 'paginationComplete') is distinct from 'true'
-    or (v_snapshot.source_evidence ->> 'relationCompleteness') is distinct from 'true'
-    or (p_scope_evidence ->> 'authority') is distinct from 'server-issuance'
-    or (p_scope_evidence ->> 'complete') is distinct from 'true'
-    or (p_scope_evidence ->> 'status') is distinct from 'eligible'
-    or (p_scope_evidence ->> 'snapshotId') is distinct from p_snapshot_id::text
-    or not exists (
-      select 1
-      from jsonb_array_elements(v_snapshot.scope_decisions) as decision
-      where decision ->> 'subjectId' = p_legacy_item_id
-        and decision ->> 'status' = 'eligible'
-    ) then
-    raise exception using errcode = 'P0001', message = 'pilot_scope_not_eligible';
+  -- A disabled kill switch stops only a genuinely new instance. Historical
+  -- request recovery and same-device reuse above remain available.
+  if coalesce(p_new_issuance_allowed, false) is not true then
+    raise exception using errcode = 'P0001', message = 'pilot_issuance_disabled';
   end if;
 
   v_instance_id := extensions.gen_random_uuid();
@@ -530,10 +540,10 @@ grant execute on function public.study_graph_register_kuzushiji_pilot_v2_archive
 ) to service_role;
 
 revoke all on function public.study_graph_prefetch_kuzushiji_objective_instance(
-  uuid, uuid, text, uuid, text, uuid, uuid, bigint, jsonb, text, jsonb, text, text, jsonb, jsonb, integer
+  uuid, uuid, text, uuid, text, uuid, uuid, bigint, jsonb, text, jsonb, text, text, jsonb, jsonb, integer, boolean
 ) from public, anon, authenticated, service_role;
 grant execute on function public.study_graph_prefetch_kuzushiji_objective_instance(
-  uuid, uuid, text, uuid, text, uuid, uuid, bigint, jsonb, text, jsonb, text, text, jsonb, jsonb, integer
+  uuid, uuid, text, uuid, text, uuid, uuid, bigint, jsonb, text, jsonb, text, text, jsonb, jsonb, integer, boolean
 ) to service_role;
 
 commit;
