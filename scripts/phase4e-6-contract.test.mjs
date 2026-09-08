@@ -119,8 +119,23 @@ test("cold-start shell has no server data dependency and keeps prepared instance
   assert.match(offlineReview, /findOfflineAttemptByInstanceId/);
   assert.match(offlineReview, /recoverSendingOfflineAttempts/);
   assert.match(offlineReview, /PilotOutboxForegroundSync/);
+  assert.match(offlineReview, /PilotBlockedAttemptDiagnostics/);
   assert.doesNotMatch(offlineReview, /prefetchPilotOfflineInstance|api\/snapshots|api\/review\/pilot\/prefetch/);
   assert.doesNotMatch(offlineReview, /deleteDatabase/);
+});
+
+test("blocked cold-start records expose read-only diagnostics without reoffering or retrying", () => {
+  assert.match(offlineReview, /findOfflineAttemptByInstanceId\(record\.instanceId\)/);
+  assert.match(offlineReview, /if \(existingAttempt\)[\s\S]*?continue;/);
+  const unavailableStart = offlineReview.indexOf('if (state.kind === "unavailable")');
+  const returnStart = offlineReview.indexOf("\n  return (", unavailableStart);
+  assert.ok(unavailableStart >= 0 && returnStart > unavailableStart);
+  const unavailableBranch = offlineReview.slice(unavailableStart, returnStart);
+  assert.match(unavailableBranch, /PilotBlockedAttemptDiagnostics/);
+  assert.doesNotMatch(unavailableBranch, /commitPilotOfflineAttempt|sendPilotOutboxAttempt|crypto\.randomUUID/);
+  assert.match(diagnosticsComponent, /listOfflineAttempts\(\)/);
+  assert.match(diagnosticsComponent, /onClick/);
+  assert.doesNotMatch(diagnosticsComponent, /markOfflineInstanceAnswered|deleteDatabase|transitionOfflineAttempt/);
 });
 
 test("mirror never becomes attempt or SRS authority", () => {
