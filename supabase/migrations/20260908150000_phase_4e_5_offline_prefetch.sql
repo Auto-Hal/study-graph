@@ -260,7 +260,6 @@ begin
       for update;
     if not found
       or v_instance.learner_id <> p_learner_id
-      or v_instance.project_id is distinct from p_project_id
       or v_instance.legacy_exercise_id is distinct from 'kuzushiji.visual-reading.eitaigura-u3042-00032-1' then
       raise exception using errcode = 'P0001', message = 'offline_prefetch_request_conflict';
     end if;
@@ -446,7 +445,7 @@ begin
       p_request_id,
       v_instance.instance_id,
       v_instance.learner_id,
-      v_instance.project_id,
+      v_request.project_id,
       v_instance.release_id,
       v_instance.revision_id,
       v_instance.presentation,

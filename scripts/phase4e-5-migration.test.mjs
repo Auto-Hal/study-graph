@@ -51,6 +51,21 @@ test("v2 archive registration and prefetch functions are server-only hardened bo
   assert.match(normalized, /p_new_issuance_allowed boolean/);
   assert.match(normalized, /p_legacy_item_id is distinct from '3ccd2793-4134-815f-95f0-cc64dcdb86c7'/);
   assert.match(normalized, /decision ->> 'subjectId' = '3ccd2793-4134-815f-95f0-cc64dcdb86c7'/);
+  assert.doesNotMatch(normalized, /v_instance\.project_id/);
+  for (const field of [
+    "instance_id",
+    "learner_id",
+    "release_id",
+    "revision_id",
+    "presentation",
+    "presentation_hash",
+    "issued_at",
+    "scope_evidence",
+    "legacy_item_id",
+    "legacy_exercise_id",
+  ]) {
+    assert.match(normalized, new RegExp(`v_instance\\.${field}`));
+  }
 });
 
 test("prefetch function preserves request idempotency and one-unused-instance semantics", () => {
