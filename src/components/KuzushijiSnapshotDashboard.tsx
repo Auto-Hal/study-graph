@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PrimaryNav from "./PrimaryNav";
 import OfflinePrefetchControl from "./OfflinePrefetchControl";
+import ObjectiveStateMirrorSync from "./ObjectiveStateMirrorSync";
 import {
   cacheScopeKnowledgeSnapshot,
   getCachedCurrentScopeKnowledgeSnapshot,
@@ -216,6 +217,7 @@ function DashboardView({ dashboard, cached, syncing, onSync }: { dashboard: Snap
 
   return (
     <main className="learn-shell">
+      <ObjectiveStateMirrorSync />
       <header className="learn-header">
         <Link className="learn-brand" href="/"><span className="learn-brand-mark" aria-hidden="true">SG</span><span><strong>Study Graph</strong><small>くずし字</small></span></Link>
         <div className={`sync-pill ${cached ? "demo" : "online"}`}><span className="dot" />{cached ? "Snapshot cache" : "Snapshot"}</div>

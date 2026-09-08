@@ -10,6 +10,7 @@ import "./graph-depth.css";
 import "./graph-western-art.css";
 import "./graph-philosophy.css";
 import "./graph-learning.css";
+import OfflineShellRegistration from "@/src/components/OfflineShellRegistration";
 
 export const metadata: Metadata = {
   title: {
@@ -34,7 +35,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body><OfflineShellRegistration />{children}</body>
     </html>
   );
 }

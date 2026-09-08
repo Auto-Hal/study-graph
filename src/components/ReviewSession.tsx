@@ -15,6 +15,7 @@ import {
   flushPilotAttemptOutbox,
   sendPilotOutboxAttempt,
 } from "@/src/lib/review/offline/pilot-transport";
+import { syncObjectiveStateMirror } from "@/src/lib/review/offline/objective-state-mirror";
 
 export type { ReviewCard } from "@/src/lib/review/types";
 
@@ -272,6 +273,11 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         }
         const outcome = await sendPilotOutboxAttempt(committed.record.attemptId, { receiptKind: "objective" });
         if (!outcome) throw new Error("pilot_outbox_record_missing");
+        // Objective state is a server-derived display/reconciliation mirror.
+        // It is never used to grade, schedule, or authorize this attempt.
+        void syncObjectiveStateMirror().catch((error) => {
+          console.error("Study Graph: Objective state mirror refresh failed", error);
+        });
         await refreshOutboxCounts();
         if (outcome.kind === "accepted") {
           advance({
