@@ -253,6 +253,29 @@ button:focus-visible {
   margin-top: 8px;
 }
 
+.offline-shell-ready {
+  margin: 6px 0 0;
+  color: #47624e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.offline-technical-details {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.offline-technical-details summary {
+  cursor: pointer;
+}
+
+.offline-technical-details code {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
 .snapshot-bootstrap,
 .snapshot-loading {
   margin: 48px auto;

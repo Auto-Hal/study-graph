@@ -116,6 +116,7 @@ function mirror(overrides: Partial<ObjectiveStateMirror> = {}): ObjectiveStateMi
     intervalDays: 1,
     repetitions: 1,
     lastGrade: "good",
+    lastReviewedAt: "2030-01-01T00:00:00.000Z",
     schedulerVersion: "legacy-v1",
     ...overrides,
   };

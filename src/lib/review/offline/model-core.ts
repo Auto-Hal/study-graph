@@ -100,6 +100,8 @@ export type ObjectiveStateMirror = Readonly<{
   intervalDays: number;
   repetitions: number;
   lastGrade: ReviewGrade;
+  /** Server state timestamp retained for display/reconciliation only. */
+  lastReviewedAt: string;
   schedulerVersion: string;
 }>;
 
@@ -389,7 +391,7 @@ export function confirmOfflineSubmissionWithHash(
 export function validateObjectiveStateMirror(value: unknown): string[] {
   const errors: string[] = [];
   if (!isRecord(value)) return ["Objective state mirror must be an object"];
-  for (const field of ["learnerId", "projectId", "objectiveId", "dueAt", "schedulerVersion"]) {
+  for (const field of ["learnerId", "projectId", "objectiveId", "dueAt", "lastReviewedAt", "schedulerVersion"]) {
     if (!isNonEmptyString(value[field])) errors.push(`${field} is required`);
   }
   try {

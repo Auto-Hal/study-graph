@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReviewSession from "./ReviewSession";
+import PilotOutboxForegroundSync from "./PilotOutboxForegroundSync";
 import {
   isOfflineAssetRenderable,
   readVerifiedOfflineAssetBytes,
@@ -12,7 +13,7 @@ import {
   markOfflineInstanceAnswered,
   type OfflineIssuedInstanceRecord,
 } from "@/src/lib/review/offline/instance-cache";
-import { findOfflineAttemptByInstanceId } from "@/src/lib/review/offline/attempt-outbox";
+import { findOfflineAttemptByInstanceId, recoverSendingOfflineAttempts } from "@/src/lib/review/offline/attempt-outbox";
 import { createOfflineKuzushijiReviewCard, isOfflinePilotInstanceOfferable } from "@/src/lib/review/offline/offline-card";
 import { getCachedCurrentScopeKnowledgeSnapshot } from "@/src/lib/review/offline/snapshot-cache";
 import type { ScopeKnowledgeSnapshot } from "@/src/lib/review/offline/snapshot-content";
@@ -38,6 +39,10 @@ export default function OfflineKuzushijiReview() {
     }
     setState({ kind: "loading" });
     try {
+      // Recover an interrupted page transport before checking whether an
+      // issued instance is offerable. This path also runs when no card is
+      // rendered, so a cold-start shell cannot strand a "sending" record.
+      await recoverSendingOfflineAttempts();
       const records = await listReadyOfflineIssuedInstances();
       // A newer verified local snapshot can explicitly exclude an unstarted
       // card. Absence/invalidity of this display cache never invalidates an
@@ -55,7 +60,14 @@ export default function OfflineKuzushijiReview() {
         // never mint a second attempt for one server-issued instance.
         const existingAttempt = await findOfflineAttemptByInstanceId(record.instanceId);
         if (existingAttempt) {
-          await markOfflineInstanceAnswered(record.instanceId, existingAttempt.attemptId);
+          try {
+            await markOfflineInstanceAnswered(record.instanceId, existingAttempt.attemptId);
+          } catch (error) {
+            // The outbox is the durable authority. A secondary marker failure
+            // must not delete or mutate the submission; the next load can
+            // reconcile the marker from the same outbox identity.
+            console.error("Study Graph: unable to reconcile offline instance marker", error);
+          }
           continue;
         }
         if (!isOfflinePilotInstanceOfferable(record.descriptor.scopeSnapshot.generation, currentSnapshot)) {
@@ -98,15 +110,16 @@ export default function OfflineKuzushijiReview() {
   }, []);
 
   if (state.kind === "loading") {
-    return <main className="review-page-shell"><section className="review-stage empty-stage" aria-live="polite"><p className="eyebrow">OFFLINE REVIEW</p><h1>準備済みの復習を読み込んでいます…</h1></section></main>;
+    return <main className="review-page-shell"><PilotOutboxForegroundSync /><section className="review-stage empty-stage" aria-live="polite"><p className="eyebrow">OFFLINE REVIEW</p><h1>準備済みの復習を読み込んでいます…</h1></section></main>;
   }
 
   if (state.kind === "unavailable") {
-    return <main className="review-page-shell"><section className="review-stage empty-stage"><p className="eyebrow">OFFLINE REVIEW</p><h1>オフライン復習を開始できません。</h1><p>{state.message}</p><div className="result-actions single-action-row"><Link className="secondary-action" href="/projects/kuzushiji">ダッシュボードへ戻る</Link></div></section></main>;
+    return <main className="review-page-shell"><PilotOutboxForegroundSync /><section className="review-stage empty-stage"><p className="eyebrow">OFFLINE REVIEW</p><h1>オフライン復習を開始できません。</h1><p>{state.message}</p><div className="result-actions single-action-row"><Link className="secondary-action" href="/projects/kuzushiji">ダッシュボードへ戻る</Link></div></section></main>;
   }
 
   return (
     <main className="review-page-shell review-project-shell">
+      <PilotOutboxForegroundSync />
       <header className="review-page-header">
         <Link className="brand-link" href="/projects/kuzushiji"><span className="brand-mark">SG</span><span><strong>Study Graph</strong><small>くずし字・オフライン復習</small></span></Link>
         <div className="sync-pill demo"><span className="dot" />端末に準備済み</div>
