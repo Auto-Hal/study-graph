@@ -218,6 +218,29 @@ test("receipt lookup resolves instance_already_answered without regrading", asyn
   }
 });
 
+test("an embedded answered receipt also requires its top-level attempt and request hash", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = opts(indexedDB, "transport-embedded-receipt");
+  await seeded(indexedDB, "transport-embedded-receipt");
+  let calls = 0;
+  const result = await sendPilotOutboxAttempt(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response(JSON.stringify({
+        error: "instance_already_answered",
+        attemptId,
+        requestHash: "a".repeat(64),
+        receiptKind: "legacy",
+        receipt: receipt(),
+      }), { status: 409 });
+    },
+  });
+  assert.equal(result?.kind, "accepted");
+  assert.equal(calls, 1);
+});
+
 test("401 becomes auth-required and malformed receipt is blocked", async () => {
   const indexedDB = new FakeIndexedDb();
   const options = opts(indexedDB, "transport-auth");

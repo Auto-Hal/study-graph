@@ -223,6 +223,8 @@ export async function sendPilotOutboxAttempt(
       type: "http",
       status: response.status,
       code: typeof payload.error === "string" ? payload.error : undefined,
+      attemptId: payload.attemptId,
+      requestHash: payload.requestHash,
       receipt: payload.receipt,
       receiptKind: options.receiptKind,
     }, {
