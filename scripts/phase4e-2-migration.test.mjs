@@ -70,6 +70,18 @@ test("RPCs are server-only and use project serialization and stale-run guards", 
   assert.match(normalized, /last_error_code = p_error_code/);
 });
 
+test("PL/pgSQL sync-state updates qualify columns that collide with OUT parameters", () => {
+  assert.equal(
+    (
+      normalized.match(
+        /update private\.project_snapshot_sync_state as st[\s\S]*?where st\.project_id = p_project_id/g,
+      ) ?? []
+    ).length,
+    4,
+  );
+  assert.doesNotMatch(normalized, /\bwhere\s+project_id\s*=\s*p_project_id\b/);
+});
+
 test("publish requires complete evidence and moves the current pointer transactionally", () => {
   assert.match(normalized, /\(?p_source_evidence ->> 'paginationComplete'\)? is distinct from 'true'/);
   assert.match(normalized, /\(?p_source_evidence ->> 'relationCompleteness'\)? is distinct from 'true'/);

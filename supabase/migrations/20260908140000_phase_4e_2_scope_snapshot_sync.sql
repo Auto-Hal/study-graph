@@ -120,7 +120,7 @@ begin
   end if;
 
   if v_state.active_run_id is not null then
-    update private.project_snapshot_sync_state
+    update private.project_snapshot_sync_state as st
     set active_run_id = null,
         active_generation = null,
         active_started_at = null,
@@ -129,12 +129,12 @@ begin
         last_error_code = 'snapshot_sync_lease_expired',
         last_error_detail = 'previous sync lease expired before completion',
         updated_at = v_now
-    where project_id = p_project_id;
+    where st.project_id = p_project_id;
   end if;
 
   v_generation := greatest(v_state.next_generation, v_state.current_generation + 1, 1);
   v_lease_until := v_now + interval '15 minutes';
-  update private.project_snapshot_sync_state
+  update private.project_snapshot_sync_state as st
   set next_generation = v_generation + 1,
       active_run_id = p_run_id,
       active_generation = v_generation,
@@ -144,7 +144,7 @@ begin
       last_error_code = null,
       last_error_detail = null,
       updated_at = v_now
-  where project_id = p_project_id;
+  where st.project_id = p_project_id;
 
   return query select p_project_id, p_run_id, v_generation, v_lease_until;
 end;
@@ -281,7 +281,7 @@ begin
     p_content_hash
   );
 
-  update private.project_snapshot_sync_state
+  update private.project_snapshot_sync_state as st
   set current_snapshot_id = p_snapshot_id,
       current_generation = p_generation,
       active_run_id = null,
@@ -292,7 +292,7 @@ begin
       last_error_code = null,
       last_error_detail = null,
       updated_at = v_now
-  where project_id = p_project_id;
+  where st.project_id = p_project_id;
 
   return query select p_snapshot_id, p_project_id, p_generation, p_content_hash;
 end;
@@ -332,7 +332,7 @@ begin
     return query select p_project_id, p_run_id, false;
     return;
   end if;
-  update private.project_snapshot_sync_state
+  update private.project_snapshot_sync_state as st
   set active_run_id = null,
       active_generation = null,
       active_started_at = null,
@@ -341,7 +341,7 @@ begin
       last_error_code = p_error_code,
       last_error_detail = p_error_detail,
       updated_at = v_now
-  where project_id = p_project_id;
+  where st.project_id = p_project_id;
   return query select p_project_id, p_run_id, true;
 end;
 $$;
