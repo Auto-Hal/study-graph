@@ -88,7 +88,7 @@ function formatNextDue(value: string | null) {
   return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-export default function ReviewSession({ cards, persistence: requestedPersistence, session }: { cards: ReviewCard[]; persistence: ReviewPersistenceMode; session: ReviewSessionContext }) {
+export default function ReviewSession({ cards, persistence: requestedPersistence, session, onPilotAttemptDurablyCommitted }: { cards: ReviewCard[]; persistence: ReviewPersistenceMode; session: ReviewSessionContext; onPilotAttemptDurablyCommitted?: (instanceId: string, attemptId: string) => Promise<void> | void }) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [answerValue, setAnswerValue] = useState("");
@@ -256,6 +256,20 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         const committed = existing
           ? { record: existing, reused: true }
           : await commitPilotOfflineAttempt(submission);
+        // Phase 4E-5 marks a server-issued offline instance answered only
+        // after the durable attempt outbox transaction has completed.  The
+        // callback is optional so the existing Review runtime remains
+        // unchanged for cards that do not use the offline instance cache.
+        if (onPilotAttemptDurablyCommitted) {
+          try {
+            await onPilotAttemptDurablyCommitted(submission.instanceId, submission.attemptId);
+          } catch (error) {
+            // The outbox transaction is the durable submission authority. The
+            // instance-cache answered marker is a secondary local hint; a
+            // marker failure must never suppress transport or lose the answer.
+            console.error("Study Graph: unable to mark offline instance answered", error);
+          }
+        }
         const outcome = await sendPilotOutboxAttempt(committed.record.attemptId, { receiptKind: "objective" });
         if (!outcome) throw new Error("pilot_outbox_record_missing");
         await refreshOutboxCounts();

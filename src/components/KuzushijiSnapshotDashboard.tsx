@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PrimaryNav from "./PrimaryNav";
+import OfflinePrefetchControl from "./OfflinePrefetchControl";
 import {
   cacheScopeKnowledgeSnapshot,
   getCachedCurrentScopeKnowledgeSnapshot,
@@ -240,7 +241,7 @@ function DashboardView({ dashboard, cached, syncing, onSync }: { dashboard: Snap
 
       <section className="project-overview-grid">
         <article className="learn-panel"><div className="learn-panel-header"><h2>現在地</h2><span>Snapshot</span></div><div className="learn-stats"><div><strong>{completedLectures}</strong><span>完了講義</span></div><div><strong>{weakCharacters}</strong><span>要定着文字</span></div><div><strong>{openMistakes}</strong><span>未克服誤読</span></div></div>{latestLecture ? <div className="entity-list"><Link className="entity-row" href={`/projects/kuzushiji/lectures/${latestLecture.id}`}><span className="entity-row-leading">{String(latestLecture.sequence).padStart(2, "0")}</span><div><strong>{latestLecture.title}</strong><p>{latestLecture.theme || "学習テーマ未設定"}</p></div><span className="entity-row-status">{latestLecture.status || "未設定"}</span></Link></div> : <p className="empty empty-panel">講義がまだ登録されていません。</p>}</article>
-        <aside className="learn-panel"><div className="learn-panel-header"><h2>復習候補</h2><span>{dashboard.reviewQueue.length}問</span></div>{dashboard.reviewQueue.length > 0 ? <Link className="quick-action" href="/review">復習を開始する</Link> : <Link className="quick-action is-muted" href="/projects/kuzushiji/progress">次の復習予定を見る</Link>}<Link className="progress-link-card" href="/projects/kuzushiji/progress"><strong>学習記録を見る →</strong><span>保存済みのSRS履歴はProgressで確認</span></Link></aside>
+        <aside className="learn-panel"><div className="learn-panel-header"><h2>復習候補</h2><span>{dashboard.reviewQueue.length}問</span></div>{dashboard.reviewQueue.length > 0 ? <Link className="quick-action" href="/review">復習を開始する</Link> : <Link className="quick-action is-muted" href="/projects/kuzushiji/progress">次の復習予定を見る</Link>}<OfflinePrefetchControl /><Link className="progress-link-card" href="/projects/kuzushiji/progress"><strong>学習記録を見る →</strong><span>保存済みのSRS履歴はProgressで確認</span></Link></aside>
       </section>
       <PrimaryNav active="learn" />
     </main>

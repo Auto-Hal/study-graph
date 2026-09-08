@@ -8,6 +8,10 @@ import { canonicalizeJson, type JsonValue } from "../canonical-json.ts";
 import { assertValidObjectiveSrsEpoch, objectiveSrsKey, type ObjectiveSrsKey } from "../objective-srs.ts";
 import type { SrsEpoch } from "../objectives.ts";
 
+// Browser-safe consumers (instance/cache descriptors) share the exact
+// canonical JSON implementation without importing any server-only module.
+export { canonicalizeJson } from "../canonical-json.ts";
+
 /** The first local contract versions. Unsupported versions must fail closed. */
 export const OFFLINE_SUBMISSION_SCHEMA_VERSION = 1 as const;
 /** Labels the unchanged Phase 4C request tuple; the hash implementation is not changed. */
@@ -15,6 +19,7 @@ export const REQUEST_HASH_VERSION = 1 as const;
 export const OFFLINE_CACHE_DESCRIPTOR_VERSION = 1 as const;
 export const OFFLINE_INSTANCE_DESCRIPTOR_VERSION = 1 as const;
 export const OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1 as const;
+export const OFFLINE_FEEDBACK_BUNDLE_SCHEMA_VERSION = 1 as const;
 
 export type OfflineSubmission = Readonly<{
   submissionSchemaVersion: typeof OFFLINE_SUBMISSION_SCHEMA_VERSION;
@@ -113,6 +118,8 @@ export type OfflineAssetDescriptor = Readonly<{
   descriptorVersion: typeof OFFLINE_CACHE_DESCRIPTOR_VERSION;
   assetId: string;
   assetVersion: number;
+  /** Immutable asset URL; optional for old descriptors created before 4E-5. */
+  src?: string;
   checksum: string | null;
   revisionContentHash: string;
   mediaType: string;
@@ -148,6 +155,21 @@ export type ServerIssuedOfflineInstance = Readonly<{
   evidenceUse: "srs" | "practice-only";
   assets: readonly OfflineAssetDescriptor[];
   delivery?: OfflineInstanceDeliveryMetadata;
+}>;
+
+/**
+ * Answer-bearing data is deliberately separate from the answer-free
+ * presentation. It can only provide provisional client feedback; the server
+ * grader and receipt remain authoritative for persistence and SRS.
+ */
+export type OfflinePilotFeedbackBundleV1 = Readonly<{
+  schemaVersion: typeof OFFLINE_FEEDBACK_BUNDLE_SCHEMA_VERSION;
+  revisionContentHash: string;
+  gradingStrategyId: "legacy-text-v1";
+  gradingStrategyVersion: 1;
+  normalizerVersion: "review-session-ja-v1";
+  acceptedAnswers: readonly string[];
+  answerRows: readonly { label: string; value: string }[];
 }>;
 
 export type ScopeEvidenceStatus = "eligible" | "ineligible" | "unknown";
@@ -416,6 +438,7 @@ export function adoptObjectiveStateMirror(
 export function createOfflineAssetDescriptor(input: {
   assetId: string;
   assetVersion: number;
+  src?: string;
   checksum: string | null;
   verifiedChecksum?: string | null;
   revisionContentHash: string;
@@ -436,6 +459,7 @@ export function createOfflineAssetDescriptor(input: {
     descriptorVersion: OFFLINE_CACHE_DESCRIPTOR_VERSION,
     assetId: input.assetId,
     assetVersion: input.assetVersion,
+    ...(input.src === undefined ? {} : { src: input.src }),
     checksum: input.checksum,
     revisionContentHash: input.revisionContentHash,
     mediaType: input.mediaType,
@@ -451,6 +475,7 @@ export function assertValidOfflineAssetDescriptor(value: unknown): asserts value
   if (value.descriptorVersion !== OFFLINE_CACHE_DESCRIPTOR_VERSION) throw new Error("unsupported offline asset descriptor version");
   if (!isNonEmptyString(value.assetId)) throw new Error("assetId is required");
   if (!isPositiveInteger(value.assetVersion)) throw new Error("assetVersion must be a positive integer");
+  if (value.src !== undefined && !isNonEmptyString(value.src)) throw new Error("src is invalid");
   if (value.checksum !== null && !isSha256(value.checksum)) throw new Error("checksum is invalid");
   if (!isSha256(value.revisionContentHash)) throw new Error("revisionContentHash must be a SHA-256 hash");
   if (!isNonEmptyString(value.mediaType)) throw new Error("mediaType is required");
@@ -458,6 +483,41 @@ export function assertValidOfflineAssetDescriptor(value: unknown): asserts value
   if (!Object.prototype.hasOwnProperty.call(value, "source")) throw new Error("source is required");
   if (typeof value.offlineReady !== "boolean") throw new Error("offlineReady is required");
   if (value.offlineReady && !isSha256(value.checksum)) throw new Error("offlineReady requires a verified checksum");
+}
+
+export function assertValidOfflinePilotFeedbackBundle(value: unknown): asserts value is OfflinePilotFeedbackBundleV1 {
+  if (!isRecord(value)) throw new Error("offline feedback bundle must be an object");
+  if (value.schemaVersion !== OFFLINE_FEEDBACK_BUNDLE_SCHEMA_VERSION) throw new Error("unsupported feedback bundle version");
+  if (!isSha256(value.revisionContentHash)) throw new Error("feedback revisionContentHash is invalid");
+  if (value.gradingStrategyId !== "legacy-text-v1" || value.gradingStrategyVersion !== 1) {
+    throw new Error("unsupported feedback grading strategy");
+  }
+  if (value.normalizerVersion !== "review-session-ja-v1") throw new Error("unsupported feedback normalizer");
+  if (!Array.isArray(value.acceptedAnswers) || value.acceptedAnswers.length === 0 || value.acceptedAnswers.some((answer) => !isNonEmptyString(answer))) {
+    throw new Error("feedback acceptedAnswers is invalid");
+  }
+  if (!Array.isArray(value.answerRows) || value.answerRows.some((row) => !isRecord(row) || !isNonEmptyString(row.label) || typeof row.value !== "string")) {
+    throw new Error("feedback answerRows is invalid");
+  }
+}
+
+export function createOfflinePilotFeedbackBundle(input: {
+  revisionContentHash: string;
+  acceptedAnswers: readonly string[];
+  answerRows: readonly { label: string; value: string }[];
+}): OfflinePilotFeedbackBundleV1 {
+  if (!isSha256(input.revisionContentHash)) throw new Error("feedback revisionContentHash is invalid");
+  const bundle = {
+    schemaVersion: OFFLINE_FEEDBACK_BUNDLE_SCHEMA_VERSION,
+    revisionContentHash: input.revisionContentHash,
+    gradingStrategyId: "legacy-text-v1" as const,
+    gradingStrategyVersion: 1 as const,
+    normalizerVersion: "review-session-ja-v1" as const,
+    acceptedAnswers: [...input.acceptedAnswers],
+    answerRows: input.answerRows.map((row) => ({ label: row.label, value: row.value })),
+  } satisfies OfflinePilotFeedbackBundleV1;
+  assertValidOfflinePilotFeedbackBundle(bundle);
+  return deepFreeze(bundle);
 }
 
 export function isOfflineAssetReady(descriptor: OfflineAssetDescriptor, observedChecksum?: string | null): boolean {

@@ -8,7 +8,7 @@ import {
   type ObjectiveDefinition,
   type ObjectiveSrsTarget,
 } from "../objectives.ts";
-import { kuzushijiPilotRevision } from "./kuzushiji-revision.ts";
+import { kuzushijiPilotRevision, kuzushijiPilotRevisionV2 } from "./kuzushiji-revision.ts";
 
 export const KUZUSHIJI_PILOT_OBJECTIVE_ID = "kuzushiji.a.eitaigura-u3042-00032-1.read";
 export const KUZUSHIJI_PILOT_OBJECTIVE_VERSION = 1;
@@ -63,6 +63,20 @@ export const kuzushijiPilotObjectiveBindings: readonly ExerciseObjectiveBinding[
   kuzushijiPilotObjectiveBinding,
 ]);
 
+/** The v2 archive resolves this Git content hash to its database revision UUID. */
+export const kuzushijiPilotV2ObjectiveBinding: ExerciseObjectiveBinding = Object.freeze({
+  revisionContentHash: kuzushijiPilotRevisionV2.contentHash,
+  objectiveId: kuzushijiPilotObjectiveDefinition.objectiveId,
+  objectiveVersion: kuzushijiPilotObjectiveDefinition.objectiveVersion,
+  evidenceUse: "srs",
+});
+
+/** Existing v1 binding collection stays unchanged; v2 is additive content. */
+export const kuzushijiPilotV2ObjectiveBindings: readonly ExerciseObjectiveBinding[] = Object.freeze([
+  kuzushijiPilotV2ObjectiveBinding,
+]);
+
 export const kuzushijiPilotObjectiveContentHash = hashObjectiveDefinition(kuzushijiPilotObjectiveDefinition);
 
 assertValidExerciseObjectiveBinding(kuzushijiPilotObjectiveBinding);
+assertValidExerciseObjectiveBinding(kuzushijiPilotV2ObjectiveBinding);

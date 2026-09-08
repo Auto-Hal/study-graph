@@ -2,6 +2,20 @@ import type { ExerciseDefinition, VisualAsset } from "./types";
 
 export const KUZUSHIJI_PILOT_EXERCISE_ID = "kuzushiji.visual-reading.eitaigura-u3042-00032-1";
 export const KUZUSHIJI_PILOT_ASSET_ID = "kuzushiji.glyph.eitaigura-u3042-00032-1";
+/**
+ * Server-owned curriculum anchor for the single Eitaigura pilot character.
+ * This is a Notion Scope subject identifier, not a learner, Objective, or
+ * revision identity.  Prefetch must never substitute another character that
+ * happens to share the same reading.
+ */
+export const KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID = "3ccd2793-4134-815f-95f0-cc64dcdb86c7" as const;
+/**
+ * Phase 4E-5 pins the bytes already tracked in Git.  The v1 asset keeps its
+ * historical unknown checksum; this value is the measured SHA-256 of the
+ * same repository file, used only by the new immutable v2 revision.
+ */
+export const KUZUSHIJI_PILOT_ASSET_V2_CHECKSUM =
+  "3cc8847155bddd0611da36ad4d972c3c7af7512bd62cfce72e460027ef84ad06" as const;
 
 export type KuzushijiPilotMetadata = {
   motherCharacter: {
@@ -83,4 +97,31 @@ export const kuzushijiPilotRecord = {
 
 export const kuzushijiPilotAssets = new Map<string, VisualAsset>([
   [kuzushijiPilotAsset.assetId, kuzushijiPilotAsset],
+]);
+
+/**
+ * Immutable v2 content boundary.  Only the asset checksum/version and the
+ * revision version differ from v1; prompt, answer and objective semantics are
+ * intentionally copied unchanged.
+ */
+export const kuzushijiPilotAssetV2: VisualAsset = {
+  ...kuzushijiPilotAsset,
+  assetVersion: 2,
+  checksum: KUZUSHIJI_PILOT_ASSET_V2_CHECKSUM,
+};
+
+export const kuzushijiPilotExerciseV2: ExerciseDefinition = {
+  ...kuzushijiPilotExercise,
+  exerciseVersion: 2,
+  stimuli: [{ ...kuzushijiPilotExercise.stimuli[0], assetVersion: 2 }],
+};
+
+export const kuzushijiPilotV2Record = {
+  exercise: kuzushijiPilotExerciseV2,
+  asset: kuzushijiPilotAssetV2,
+  metadata: kuzushijiPilotMetadata,
+};
+
+export const kuzushijiPilotV2Assets = new Map<string, VisualAsset>([
+  [kuzushijiPilotAssetV2.assetId, kuzushijiPilotAssetV2],
 ]);

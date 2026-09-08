@@ -37,5 +37,8 @@ jobs:
       - name: Phase 4E-4 durable attempt outbox tests
         run: npm run test:phase4e-4
 
+      - name: Phase 4E-5 offline prefetch and asset tests
+        run: npm run test:phase4e-5
+
       - name: Build
         run: npm run build

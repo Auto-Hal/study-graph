@@ -1,10 +1,18 @@
 import "server-only";
 
 import { canonicalizeExerciseRevision } from "@/src/lib/review/exercises/revision";
-import { kuzushijiPilotContentRelease, kuzushijiPilotRevision, kuzushijiPilotRevisionPayload } from "@/src/lib/review/exercises/kuzushiji-revision";
+import {
+  kuzushijiPilotContentRelease,
+  kuzushijiPilotContentReleaseV2,
+  kuzushijiPilotRevision,
+  kuzushijiPilotRevisionPayload,
+  kuzushijiPilotRevisionV2,
+  kuzushijiPilotRevisionV2Payload,
+} from "@/src/lib/review/exercises/kuzushiji-revision";
 import {
   KUZUSHIJI_PILOT_SRS_EPOCH,
   kuzushijiPilotObjectiveBinding,
+  kuzushijiPilotV2ObjectiveBinding,
   kuzushijiPilotObjectiveContentHash,
   kuzushijiPilotObjectiveDefinition,
 } from "@/src/lib/review/exercises/kuzushiji-objective";
@@ -93,7 +101,9 @@ export type PilotArchiveRegistration = {
   revisionId: string;
 };
 
-async function ensureKuzushijiPilotObjectiveRegistration() {
+async function ensureKuzushijiPilotObjectiveRegistration(
+  binding = kuzushijiPilotObjectiveBinding,
+) {
   const definitionRows = await callPilotRpc<Array<{ objective_id: string }>>(
     "study_graph_register_objective_definition",
     {
@@ -111,11 +121,11 @@ async function ensureKuzushijiPilotObjectiveRegistration() {
   const bindingRows = await callPilotRpc<Array<{ binding_id: string }>>(
     "study_graph_register_exercise_objective_binding",
     {
-      p_revision_content_hash: kuzushijiPilotObjectiveBinding.revisionContentHash,
+      p_revision_content_hash: binding.revisionContentHash,
       p_project_id: kuzushijiPilotObjectiveDefinition.projectId,
-      p_objective_id: kuzushijiPilotObjectiveBinding.objectiveId,
-      p_objective_version: kuzushijiPilotObjectiveBinding.objectiveVersion,
-      p_evidence_use: kuzushijiPilotObjectiveBinding.evidenceUse,
+      p_objective_id: binding.objectiveId,
+      p_objective_version: binding.objectiveVersion,
+      p_evidence_use: binding.evidenceUse,
     },
   );
   firstRow(bindingRows, "study_graph_register_exercise_objective_binding");
@@ -145,6 +155,107 @@ export async function ensureKuzushijiPilotArchive(): Promise<PilotArchiveRegistr
   const row = firstRow(rows, "study_graph_register_kuzushiji_pilot_archive");
   await ensureKuzushijiPilotObjectiveRegistration();
   return { releaseId: row.release_id, revisionId: row.revision_id };
+}
+
+/**
+ * Register the checksum-pinned v2 pilot archive idempotently.  This is a
+ * server-only boundary used by the offline prefetch issuer; the existing v1
+ * archive registration remains the authority for the normal Review path.
+ */
+export async function ensureKuzushijiPilotOfflineArchive(): Promise<PilotArchiveRegistration> {
+  const config = getPilotRuntimeConfig();
+  if (!config) throw new PilotRpcError("pilot_runtime_not_configured", 503, "pilot_runtime_not_configured");
+  const rows = await callPilotRpc<Array<{ release_id: string; revision_id: string }>>(
+    "study_graph_register_kuzushiji_pilot_v2_archive",
+    {
+      p_release_id: kuzushijiPilotContentReleaseV2.manifestHash,
+      p_manifest_schema_version: kuzushijiPilotContentReleaseV2.manifest.manifestSchemaVersion,
+      p_manifest_hash: kuzushijiPilotContentReleaseV2.manifestHash,
+      p_manifest: kuzushijiPilotContentReleaseV2.manifest,
+      p_source_git_sha: kuzushijiPilotContentReleaseV2.provenance?.sourceGitSha ?? config.sourceGitSha,
+      p_project_id: kuzushijiPilotRevisionV2.projectId,
+      p_exercise_id: kuzushijiPilotRevisionV2.exerciseId,
+      p_exercise_version: kuzushijiPilotRevisionV2.exerciseVersion,
+      p_content_hash: kuzushijiPilotRevisionV2.contentHash,
+      p_canonicalization_version: kuzushijiPilotRevisionV2Payload.canonicalizationVersion,
+      p_canonical_payload: canonicalizeExerciseRevision(kuzushijiPilotRevisionV2Payload),
+      p_payload: kuzushijiPilotRevisionV2Payload,
+      p_objective_id: kuzushijiPilotRevisionV2.objectiveId,
+    },
+  );
+  const row = firstRow(rows, "study_graph_register_kuzushiji_pilot_v2_archive");
+  await ensureKuzushijiPilotObjectiveRegistration(kuzushijiPilotV2ObjectiveBinding);
+  return { releaseId: row.release_id, revisionId: row.revision_id };
+}
+
+export type OfflinePrefetchInstance = {
+  request_id: string;
+  instance_id: string;
+  learner_id: string;
+  project_id: string;
+  release_id: string;
+  revision_id: string;
+  presentation: Record<string, unknown>;
+  presentation_hash: string;
+  issued_at: string;
+  scope_evidence: Record<string, unknown>;
+  snapshot_id: string | null;
+  snapshot_generation: number | null;
+  objective_id: string;
+  objective_version: number;
+  srs_epoch: number;
+  evidence_use: "srs" | "practice-only";
+  legacy_item_id: string;
+  legacy_exercise_id: string;
+  assets: unknown[];
+  feedback: Record<string, unknown>;
+  device_id: string;
+  prefetched_at: string;
+};
+
+/** Call the v2 server-issued prefetch function with no client-controlled facts. */
+export async function prefetchKuzushijiPilotInstance(input: {
+  requestId: string;
+  deviceId: string;
+  /** Server-owned operational kill-switch result; never supplied by browser. */
+  newIssuanceAllowed: boolean;
+  releaseId: string;
+  revisionId: string;
+  snapshotId: string | null;
+  snapshotGeneration: number | null;
+  presentation: Record<string, unknown>;
+  presentationHash: string;
+  scopeEvidence: Record<string, unknown> | null;
+  legacyItemId: string | null;
+  legacyExerciseId: string | null;
+  assets: unknown[];
+  feedback: Record<string, unknown>;
+}): Promise<OfflinePrefetchInstance> {
+  const config = getPilotRuntimeConfig();
+  if (!config) throw new PilotRpcError("pilot_runtime_not_configured", 503, "pilot_runtime_not_configured");
+  const rows = await callPilotRpc<OfflinePrefetchInstance[]>(
+    "study_graph_prefetch_kuzushiji_objective_instance",
+    {
+      p_request_id: input.requestId,
+      p_learner_id: config.learnerId,
+      p_project_id: "kuzushiji",
+      p_device_id: input.deviceId,
+      p_release_id: input.releaseId,
+      p_revision_id: input.revisionId,
+      p_snapshot_id: input.snapshotId,
+      p_snapshot_generation: input.snapshotGeneration,
+      p_presentation: input.presentation,
+      p_presentation_hash: input.presentationHash,
+      p_scope_evidence: input.scopeEvidence,
+      p_legacy_item_id: input.legacyItemId,
+      p_legacy_exercise_id: input.legacyExerciseId,
+      p_assets: input.assets,
+      p_feedback: input.feedback,
+      p_srs_epoch: KUZUSHIJI_PILOT_SRS_EPOCH,
+      p_new_issuance_allowed: input.newIssuanceAllowed,
+    },
+  );
+  return firstRow(rows, "study_graph_prefetch_kuzushiji_objective_instance");
 }
 
 export type PilotInstanceIssue = {
