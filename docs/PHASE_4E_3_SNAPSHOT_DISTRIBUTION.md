@@ -46,6 +46,8 @@ The snapshot content hash reuses the Phase 4E-1 canonical JSON contract. It
 includes semantic projection/scope content and structural source evidence,
 while excluding `snapshotId`, `generation`, and observation timestamps. The
 server row mapper and the browser verify the stored hash before use.
+The dashboard adapter accepts only the explicitly supported
+`kuzushiji-v1` projection and fails closed for unknown projection versions.
 
 ## Failure and rollback
 
@@ -54,7 +56,11 @@ No current snapshot yields an explicit bootstrap message and a manual “今す�
 an authentication failure directs the user to login and never promotes cache
 to authority. An invalid candidate is not cached and cannot overwrite a
 verified pointer. An expired `validUntil` remains viewable with a freshness
-notice.
+notice. When the server current request succeeds, that response remains the
+display source even if IndexedDB returns a structured-clone copy; only a
+strictly newer verified local generation is labelled `Snapshot cache`. Manual
+sync network rejections are caught, preserve a ready dashboard, and otherwise
+produce a controlled unavailable state.
 
 To roll back, stop invoking manual sync and leave existing snapshot rows and
 the current pointer intact. The normal Review, Scope recheck, attempt, and
