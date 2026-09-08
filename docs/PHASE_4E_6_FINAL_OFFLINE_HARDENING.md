@@ -40,10 +40,11 @@ cached. Activation removes only older `study-graph-app-shell-*` caches; it
 does not delete the Phase 4E asset cache or any IndexedDB database.
 
 The explicit “オフライン復習を準備” action warms the shell after the instance
-and asset are ready. “オフライン起動準備済み” is shown only after the shell
-HTML and its static dependencies are in Cache Storage. A shell warm failure
-leaves existing instance and asset data intact and reports that preparation
-can be retried.
+and asset are ready. “オフライン起動準備済み” is shown only after the
+service worker is active/activated and the shell HTML and all required static
+dependencies are in Cache Storage. Activation waiting is bounded; a timeout
+leaves readiness false. A shell warm failure leaves existing instance and
+asset data intact and reports that preparation can be retried.
 
 The public switch
 `NEXT_PUBLIC_STUDY_GRAPH_OFFLINE_SHELL_ENABLED=false` disables new worker
@@ -55,6 +56,29 @@ outbox records, or receipts. The switch is independent of
 The manifest uses standalone display metadata and the existing icon. No
 install prompt, service worker background sync, or cold-start server call is
 required.
+
+## Foreground outbox recovery and session results
+
+The page owns recovery of `sending` records and flushes pending pilot
+submissions on mount, when the page becomes visible, and on the `online`
+event. The same recovery helper is mounted by the dedicated cold-start shell,
+including when no card can be rendered. The worker never sends attempts.
+
+Review results keep the attempt ID and the state observed at answer time, but
+the current status comes from the durable outbox. After a flush, the stored
+authoritative receipt is parsed again; its `isCorrect`, `dueAt`, and
+`srsApplied` values replace provisional result fields. A malformed terminal
+receipt fails closed. `accepted-applied` and `accepted-no-srs` are server-saved
+terminal states, while pending, auth-required, and blocked remain visible as
+separate attention states. The Objective state mirror is refreshed only after
+the flush settles.
+
+The completed screen does not offer “もう一度取り組む” for the one-card
+versioned pilot, because that would re-present an answered server-issued
+instance. Regular legacy Review sessions retain their repeat action. A marker
+write in the separate issued-instance cache is a secondary hint; if it fails
+after outbox commit, transport and session progress continue, and a later
+foreground load reconciles the marker from the durable attempt.
 
 ## Objective state mirror
 

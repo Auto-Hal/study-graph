@@ -19,9 +19,11 @@ and local offline replicas at separate authority boundaries.
   transport; server receipts determine terminal acceptance.
 - **4E-5:** Only server-issued pilot instances and checksum-verified assets can
   be prepared for limited offline review.
-- **4E-6:** A dedicated shell supports cold-start offline review and a
+- **4E-6:** A dedicated shell waits for an activated service worker, supports
+  cold-start offline review, durably recovers foreground attempts, and keeps a
   server-derived Objective state mirror without moving authority into the
-  browser.
+  browser. Versioned pilot results reconcile from the outbox/receipt and do
+  not offer an answered instance again.
 
 ## Operational containment
 

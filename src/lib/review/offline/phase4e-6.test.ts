@@ -5,9 +5,13 @@ import { isOfflinePilotInstanceOfferable } from "./offline-card.ts";
 import {
   extractOfflineShellDependencyUrls,
   OFFLINE_APP_SHELL_CACHE_NAME,
+  OFFLINE_SHELL_ACTIVATION_TIMEOUT_MS,
   OFFLINE_SERVICE_WORKER_PATH,
+  waitForOfflineServiceWorkerActivation,
 } from "./service-worker.ts";
 import type { ScopeKnowledgeSnapshot } from "./snapshot-content.ts";
+import { reconcilePilotResult } from "./result-reconciliation.ts";
+import type { PersistedOfflineAttempt } from "./attempt-outbox.ts";
 
 function mirror(overrides: Partial<ObjectiveStateMirror> = {}): ObjectiveStateMirror {
   return {
@@ -89,4 +93,127 @@ test("offline shell dependency extraction excludes APIs and login", () => {
 test("offline shell uses a dedicated owned cache namespace", () => {
   assert.equal(OFFLINE_APP_SHELL_CACHE_NAME, "study-graph-app-shell-v1");
   assert.equal(OFFLINE_SERVICE_WORKER_PATH, "/study-graph-sw.js");
+  assert.equal(OFFLINE_SHELL_ACTIVATION_TIMEOUT_MS, 15_000);
+});
+
+class TestWorker extends EventTarget {
+  state: ServiceWorkerState;
+  readonly scriptURL = "https://study-graph.test/study-graph-sw.js";
+
+  constructor(state: ServiceWorkerState) {
+    super();
+    this.state = state;
+  }
+
+  setState(state: ServiceWorkerState) {
+    this.state = state;
+    this.dispatchEvent(new Event("statechange"));
+  }
+}
+
+function registrationFor(worker: TestWorker): ServiceWorkerRegistration {
+  return {
+    active: worker.state === "activated" ? worker : null,
+    installing: worker.state === "activated" ? null : worker,
+    waiting: null,
+  } as unknown as ServiceWorkerRegistration;
+}
+
+test("shell readiness waits for activation rather than registration resolution", async () => {
+  const worker = new TestWorker("installing");
+  const registration = registrationFor(worker);
+  const readiness = waitForOfflineServiceWorkerActivation(registration, undefined, 100);
+  assert.equal(await Promise.race([readiness, Promise.resolve(false)]), false);
+  worker.state = "activated";
+  (registration as unknown as { active: TestWorker | null; installing: TestWorker | null }).active = worker;
+  (registration as unknown as { active: TestWorker | null; installing: TestWorker | null }).installing = null;
+  worker.dispatchEvent(new Event("statechange"));
+  assert.equal(await readiness, true);
+});
+
+test("activation timeout fails closed", async () => {
+  const worker = new TestWorker("installing");
+  assert.equal(await waitForOfflineServiceWorkerActivation(registrationFor(worker), undefined, 1), false);
+});
+
+const result = {
+  id: "offline-instance",
+  attemptId: "11111111-1111-4111-8111-111111111111",
+  grade: "good" as const,
+  saved: false,
+  dueAt: null,
+  correct: true,
+  syncStatus: "pending" as const,
+};
+
+function persisted(status: "accepted-applied" | "accepted-no-srs" | "pending", receipt: Record<string, unknown> | null): PersistedOfflineAttempt {
+  return {
+    attemptId: result.attemptId!,
+    instanceId: "22222222-2222-4222-8222-222222222222",
+    record: {
+      status,
+      submission: {
+        submissionSchemaVersion: 1,
+        requestHashVersion: 1,
+        attemptId: result.attemptId!,
+        instanceId: "22222222-2222-4222-8222-222222222222",
+        rawAnswer: "あ",
+        selfEvaluation: "good",
+        responseMs: 100,
+        usedHint: false,
+      },
+      requestHash: "a".repeat(64),
+      localMetadata: {},
+      receipt: receipt ? { descriptorVersion: 1, kind: "legacy", receipt } : null,
+      blockedReason: null,
+    },
+    transport: { createdAt: "2030-01-01T00:00:00.000Z", updatedAt: "2030-01-01T00:00:00.000Z", lastAttemptedAt: null, retryCount: 0, lastTransportError: null },
+  } as PersistedOfflineAttempt;
+}
+
+function storedReceipt(overrides: Record<string, unknown> = {}) {
+  return {
+    receiptVersion: 1,
+    attemptId: result.attemptId,
+    instanceId: "22222222-2222-4222-8222-222222222222",
+    acceptedAt: "2030-01-01T00:00:00.000Z",
+    gradingStatus: "graded",
+    isCorrect: false,
+    effectiveSrsGrade: "again",
+    srsApplied: true,
+    srsReason: "applied",
+    legacyReviewAttemptId: 1,
+    reviewStateBefore: null,
+    reviewStateAfter: { due_at: "2030-01-03T00:00:00.000Z" },
+    ...overrides,
+  };
+}
+
+test("background reconciliation uses the authoritative stored receipt", () => {
+  const reconciled = reconcilePilotResult(result, persisted("accepted-applied", storedReceipt()));
+  assert.equal(reconciled.saved, true);
+  assert.equal(reconciled.syncStatus, "accepted");
+  assert.equal(reconciled.correct, false);
+  assert.equal(reconciled.dueAt, "2030-01-03T00:00:00.000Z");
+  assert.equal(reconciled.srsApplied, true);
+});
+
+test("accepted-no-srs remains accepted without a schedule update", () => {
+  const reconciled = reconcilePilotResult(result, persisted("accepted-no-srs", storedReceipt({
+    isCorrect: true,
+    effectiveSrsGrade: null,
+    srsApplied: false,
+    srsReason: "scope-not-eligible",
+    reviewStateAfter: null,
+  })));
+  assert.equal(reconciled.saved, true);
+  assert.equal(reconciled.syncStatus, "accepted");
+  assert.equal(reconciled.srsApplied, false);
+  assert.equal(reconciled.dueAt, null);
+});
+
+test("malformed terminal receipt never becomes accepted", () => {
+  const reconciled = reconcilePilotResult(result, persisted("accepted-applied", null));
+  assert.equal(reconciled.saved, false);
+  assert.equal(reconciled.syncStatus, "blocked");
 });

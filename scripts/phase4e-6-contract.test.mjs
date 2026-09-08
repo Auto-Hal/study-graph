@@ -9,6 +9,8 @@ const read = (relativePath) => readFileSync(resolve(root, relativePath), "utf8")
 
 const worker = read("public/study-graph-sw.js");
 const serviceWorker = read("src/lib/review/offline/service-worker.ts");
+const foregroundSync = read("src/lib/review/offline/foreground-sync.ts");
+const resultReconciliation = read("src/lib/review/offline/result-reconciliation.ts");
 const shellRegistration = read("src/components/OfflineShellRegistration.tsx");
 const layout = read("app/layout.tsx");
 const manifest = read("app/manifest.ts");
@@ -59,6 +61,14 @@ test("registration and emergency disable are client-only and preserve durable st
   assert.doesNotMatch(serviceWorker, /study-graph-attempt-outbox|study-graph-offline-instance-cache|study-graph-offline-assets-v1/);
 });
 
+test("shell readiness requires an activated worker with a bounded wait", () => {
+  assert.match(serviceWorker, /waitForOfflineServiceWorkerActivation/);
+  assert.match(serviceWorker, /state === ["']activated["']/);
+  assert.match(serviceWorker, /OFFLINE_SHELL_ACTIVATION_TIMEOUT_MS/);
+  assert.match(serviceWorker, /setTimeout/);
+  assert.match(serviceWorker, /warmOfflineReviewShell[\s\S]*waitForOfflineServiceWorkerActivation/);
+});
+
 test("manifest and dedicated cold-start route are present", () => {
   assert.match(manifest, /display: "standalone"/);
   assert.match(manifest, /start_url: "\/"/);
@@ -84,11 +94,25 @@ test("objective state feed is authenticated read-only and server-fixed", () => {
   assert.doesNotMatch(mirror, /ReviewSession|sendPilotOutboxAttempt|recordKuzushiji/);
 });
 
+test("foreground recovery is shared by cold-start and ReviewSession", () => {
+  assert.match(foregroundSync, /recoverSendingOfflineAttempts/);
+  assert.match(foregroundSync, /flushPilotAttemptOutbox/);
+  assert.match(offlineReview, /PilotOutboxForegroundSync/);
+  assert.match(reviewSession, /recoverAndFlushPilotOutbox/);
+  assert.match(reviewSession, /reconcilePilotResults/);
+  assert.match(resultReconciliation, /authoritativeReceiptResult/);
+  assert.match(resultReconciliation, /stored_receipt_incomplete/);
+  assert.ok(reviewSession.indexOf("await recoverAndFlushPilotOutbox()") < reviewSession.indexOf("await refreshOutboxCounts"));
+  assert.ok(reviewSession.indexOf("await refreshOutboxCounts") < reviewSession.indexOf("await syncObjectiveStateMirror()"));
+});
+
 test("cold-start shell has no server data dependency and keeps prepared instances immutable", () => {
   assert.match(shellPage, /dynamic = "force-dynamic"/);
   assert.match(offlineReview, /listReadyOfflineIssuedInstances/);
   assert.match(offlineReview, /readVerifiedOfflineAssetBytes/);
   assert.match(offlineReview, /findOfflineAttemptByInstanceId/);
+  assert.match(offlineReview, /recoverSendingOfflineAttempts/);
+  assert.match(offlineReview, /PilotOutboxForegroundSync/);
   assert.doesNotMatch(offlineReview, /prefetchPilotOfflineInstance|api\/snapshots|api\/review\/pilot\/prefetch/);
   assert.doesNotMatch(offlineReview, /deleteDatabase/);
 });
@@ -97,6 +121,14 @@ test("mirror never becomes attempt or SRS authority", () => {
   assert.match(reviewSession, /syncObjectiveStateMirror/);
   assert.doesNotMatch(reviewSession, /objectiveStateMirror.*requestBody|mirror.*selfEvaluation|mirror.*isCorrect/);
   assert.match(offlineReview, /outbox|findOfflineAttemptByInstanceId/);
+});
+
+test("pilot completion suppresses repeat while regular Review keeps it", () => {
+  assert.match(reviewSession, /versionedPilotSession/);
+  assert.match(reviewSession, /!versionedPilotSession/);
+  assert.match(resultReconciliation, /attemptId\?:/);
+  assert.match(reviewSession, /attemptId: submission\.attemptId/);
+  assert.match(reviewSession, /syncStatus: ["']accepted["']/);
 });
 
 test("phase 4E-6 test command is wired", () => {

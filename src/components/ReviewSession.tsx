@@ -8,27 +8,19 @@ import {
   countOfflineAttemptStatuses,
   findOfflineAttemptByInstanceId,
   listOfflineAttempts,
-  recoverSendingOfflineAttempts,
 } from "@/src/lib/review/offline/attempt-outbox";
 import {
   commitPilotOfflineAttempt,
-  flushPilotAttemptOutbox,
   sendPilotOutboxAttempt,
 } from "@/src/lib/review/offline/pilot-transport";
 import { syncObjectiveStateMirror } from "@/src/lib/review/offline/objective-state-mirror";
+import { recoverAndFlushPilotOutbox } from "@/src/lib/review/offline/foreground-sync";
+import { reconcilePilotResults, type PilotSessionResult } from "@/src/lib/review/offline/result-reconciliation";
 
 export type { ReviewCard } from "@/src/lib/review/types";
 
 type Grade = "again" | "hard" | "good" | "easy";
-type Result = {
-  id: string;
-  grade: Grade;
-  saved: boolean;
-  dueAt: string | null;
-  correct: boolean | null;
-  srsApplied?: boolean;
-  syncStatus?: "accepted" | "pending" | "auth-required" | "blocked";
-};
+type Result = PilotSessionResult;
 type SaveResponse = {
   saved?: boolean;
   dueAt?: string | null;
@@ -114,7 +106,13 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
     try {
       const records = await listOfflineAttempts();
       const counts = countOfflineAttemptStatuses(records);
-      if (isActive() && sequence === outboxRefreshSequence.current) setOutboxCounts(counts);
+      if (isActive() && sequence === outboxRefreshSequence.current) {
+        setOutboxCounts(counts);
+        // Result.syncStatus is historical. Re-read the durable outbox after
+        // every refresh so background acceptance/auth recovery is reflected
+        // in the session summary and authoritative receipt fields.
+        setResults((current) => reconcilePilotResults(current, records));
+      }
       return counts;
     } catch (error) {
       console.error("Study Graph: unable to refresh pilot outbox counts", error);
@@ -130,12 +128,18 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
     let cancelled = false;
     const refreshOutbox = async () => {
       try {
-        await recoverSendingOfflineAttempts();
-        await flushPilotAttemptOutbox({ receiptKind: "objective" });
+        await recoverAndFlushPilotOutbox();
       } catch (error) {
         console.error("Study Graph: pilot outbox sync failed", error);
       }
       await refreshOutboxCounts(() => !cancelled);
+      try {
+        // The mirror may only observe state after the attempt flush has
+        // settled; it is never an authorization or scheduling source.
+        await syncObjectiveStateMirror();
+      } catch (error) {
+        console.error("Study Graph: Objective state mirror refresh failed", error);
+      }
     };
     void refreshOutbox();
     const onOnline = () => { void refreshOutbox(); };
@@ -173,6 +177,7 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
   }
 
   if (finished) {
+    const versionedPilotSession = cards.some((entry) => entry.persistenceKind === "versioned-pilot");
     const noSrsCount = results.filter((result) => result.syncStatus === "accepted" && result.srsApplied === false).length;
     const displayedPendingCount = outboxCounts.pending;
     const displayedAuthRequiredCount = outboxCounts.authRequired;
@@ -191,7 +196,7 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
             : "セッションは完了しました。現在は永続保存を使わないfallbackモードです。";
     const accuracyLabel = accuracy === null ? "—" : String(accuracy) + "%";
     const nextDueLabel = nextDue ?? "—";
-    return <section className="review-stage result-stage" aria-live="polite"><p className="eyebrow">SESSION COMPLETE</p><h1>{session.projectTitle}の{session.mode === "practice" ? "Practice" : "復習"}は完了です。</h1><p className="result-lead">{resultLead}</p>{displayedPendingCount > 0 && <p className="persistence-note" role="status">端末保存済み・未同期 {displayedPendingCount}件</p>}{displayedAuthRequiredCount > 0 && <p className="persistence-note" role="status">ログイン待ち {displayedAuthRequiredCount}件。<Link href="/login">ログインして再送</Link></p>}{displayedBlockedCount > 0 && <p className="persistence-note" role="status">確認が必要 {displayedBlockedCount}件。自動再送は停止しています。</p>}<div className="result-grid"><div><strong>{accuracyLabel}</strong><span>正答率</span></div><div><strong>{summary.again + summary.hard}</strong><span>要再確認</span></div><div><strong>{nextDueLabel}</strong><span>最短の次回復習</span></div></div><div className="grade-summary">{gradeOptions.map((option) => <div key={option.grade}><span>{option.label}</span><strong>{summary[option.grade]}</strong></div>)}</div><div className="result-actions"><button className="primary-action" type="button" onClick={() => { setIndex(0); setRevealed(false); setAnswerValue(""); setAnswerCorrect(null); setRecommended(null); setResults([]); setFinished(false); setSaveError(null); startedAt.current = Date.now(); }}>もう一度取り組む</button><Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.historyHref ? "学習記録を見る" : "Knowledge Graphを見る"}</Link></div></section>;
+    return <section className="review-stage result-stage" aria-live="polite"><p className="eyebrow">SESSION COMPLETE</p><h1>{session.projectTitle}の{session.mode === "practice" ? "Practice" : "復習"}は完了です。</h1><p className="result-lead">{resultLead}</p>{displayedPendingCount > 0 && <p className="persistence-note" role="status">端末保存済み・未同期 {displayedPendingCount}件</p>}{displayedAuthRequiredCount > 0 && <p className="persistence-note" role="status">ログイン待ち {displayedAuthRequiredCount}件。<Link href="/login">ログインして再送</Link></p>}{displayedBlockedCount > 0 && <p className="persistence-note" role="status">確認が必要 {displayedBlockedCount}件。自動再送は停止しています。</p>}<div className="result-grid"><div><strong>{accuracyLabel}</strong><span>正答率</span></div><div><strong>{summary.again + summary.hard}</strong><span>要再確認</span></div><div><strong>{nextDueLabel}</strong><span>最短の次回復習</span></div></div><div className="grade-summary">{gradeOptions.map((option) => <div key={option.grade}><span>{option.label}</span><strong>{summary[option.grade]}</strong></div>)}</div><div className="result-actions">{!versionedPilotSession && <button className="primary-action" type="button" onClick={() => { setIndex(0); setRevealed(false); setAnswerValue(""); setAnswerCorrect(null); setRecommended(null); setResults([]); setFinished(false); setSaveError(null); startedAt.current = Date.now(); }}>もう一度取り組む</button>}<Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.historyHref ? "学習記録を見る" : "Knowledge Graphを見る"}</Link></div></section>;
   }
 
   const card = cards[index];
@@ -273,15 +278,18 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         }
         const outcome = await sendPilotOutboxAttempt(committed.record.attemptId, { receiptKind: "objective" });
         if (!outcome) throw new Error("pilot_outbox_record_missing");
-        // Objective state is a server-derived display/reconciliation mirror.
-        // It is never used to grade, schedule, or authorize this attempt.
-        void syncObjectiveStateMirror().catch((error) => {
-          console.error("Study Graph: Objective state mirror refresh failed", error);
-        });
         await refreshOutboxCounts();
+        try {
+          // The attempt transaction and receipt are complete before this
+          // display-only Objective mirror is refreshed.
+          await syncObjectiveStateMirror();
+        } catch (error) {
+          console.error("Study Graph: Objective state mirror refresh failed", error);
+        }
         if (outcome.kind === "accepted") {
           advance({
             id: card.id,
+            attemptId: submission.attemptId,
             grade: submission.selfEvaluation,
             saved: true,
             syncStatus: "accepted",
@@ -292,19 +300,19 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         } else if (outcome.kind === "pending") {
           // Durable local commit succeeded, so the session may continue while
           // server acceptance remains pending.
-          advance({ id: card.id, grade: submission.selfEvaluation, saved: false, syncStatus: "pending", dueAt: null, correct: answerCorrect });
+          advance({ id: card.id, attemptId: submission.attemptId, grade: submission.selfEvaluation, saved: false, syncStatus: "pending", dueAt: null, correct: answerCorrect });
         } else if (outcome.kind === "auth-required") {
-          advance({ id: card.id, grade: submission.selfEvaluation, saved: false, syncStatus: "auth-required", dueAt: null, correct: answerCorrect });
+          advance({ id: card.id, attemptId: submission.attemptId, grade: submission.selfEvaluation, saved: false, syncStatus: "auth-required", dueAt: null, correct: answerCorrect });
         } else if (outcome.kind === "blocked") {
-          advance({ id: card.id, grade: submission.selfEvaluation, saved: false, syncStatus: "blocked", dueAt: null, correct: answerCorrect });
+          advance({ id: card.id, attemptId: submission.attemptId, grade: submission.selfEvaluation, saved: false, syncStatus: "blocked", dueAt: null, correct: answerCorrect });
         } else if (outcome.record.record.status === "accepted-applied" || outcome.record.record.status === "accepted-no-srs") {
           const result = outcome.result ?? null;
           if (!result) throw new Error("stored_receipt_incomplete");
-          advance({ id: card.id, grade: submission.selfEvaluation, saved: true, syncStatus: "accepted", dueAt: result.dueAt, correct: result.isCorrect, srsApplied: result.srsApplied });
+          advance({ id: card.id, attemptId: submission.attemptId, grade: submission.selfEvaluation, saved: true, syncStatus: "accepted", dueAt: result.dueAt, correct: result.isCorrect, srsApplied: result.srsApplied });
         } else if (outcome.record.record.status === "blocked") {
-          advance({ id: card.id, grade: submission.selfEvaluation, saved: false, syncStatus: "blocked", dueAt: null, correct: answerCorrect });
+          advance({ id: card.id, attemptId: submission.attemptId, grade: submission.selfEvaluation, saved: false, syncStatus: "blocked", dueAt: null, correct: answerCorrect });
         } else if (outcome.record.record.status === "auth-required") {
-          advance({ id: card.id, grade: submission.selfEvaluation, saved: false, syncStatus: "auth-required", dueAt: null, correct: answerCorrect });
+          advance({ id: card.id, attemptId: submission.attemptId, grade: submission.selfEvaluation, saved: false, syncStatus: "auth-required", dueAt: null, correct: answerCorrect });
         } else {
           setSaveError("この回答を同期できませんでした。端末保存は維持されています。");
         }

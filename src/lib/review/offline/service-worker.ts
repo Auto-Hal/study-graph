@@ -17,7 +17,11 @@ export type OfflineShellRegistrationOptions = Readonly<{
 export type OfflineShellWarmOptions = OfflineShellRegistrationOptions & Readonly<{
   fetchImpl?: typeof fetch;
   cacheName?: string;
+  /** Maximum time to wait for install/activation before readiness fails closed. */
+  activationTimeoutMs?: number;
 }>;
+
+export const OFFLINE_SHELL_ACTIVATION_TIMEOUT_MS: number = 15_000;
 
 /** Emergency switch. Only the app-shell registration/cache is affected. */
 export function isOfflineShellEnabled() {
@@ -78,6 +82,77 @@ export async function registerOfflineServiceWorker(
   }
 }
 
+function activated(registration: ServiceWorkerRegistration | null | undefined) {
+  return registration?.active?.state === "activated";
+}
+
+/**
+ * Registration resolving is not an activation guarantee. Wait for an active
+ * worker (or navigator.serviceWorker.ready) and fail closed on a bounded
+ * timeout so Safari cannot leave preparation pending forever.
+ */
+export function waitForOfflineServiceWorkerActivation(
+  registration: ServiceWorkerRegistration,
+  serviceWorker: ServiceWorkerContainer | undefined = globalThis.navigator?.serviceWorker,
+  timeoutMs = OFFLINE_SHELL_ACTIVATION_TIMEOUT_MS,
+): Promise<boolean> {
+  if (activated(registration)) return Promise.resolve(true);
+  const boundedTimeout = Number.isFinite(timeoutMs) && timeoutMs >= 0
+    ? timeoutMs
+    : OFFLINE_SHELL_ACTIVATION_TIMEOUT_MS;
+  return new Promise((resolve) => {
+    let settled = false;
+    const observed = new Set<ServiceWorker>();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const finish = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      for (const worker of observed) worker.removeEventListener?.("statechange", onStateChange);
+      resolve(value);
+    };
+
+    const observe = (worker: ServiceWorker | null | undefined) => {
+      if (settled || !worker || observed.has(worker)) return;
+      observed.add(worker);
+      worker.addEventListener?.("statechange", onStateChange);
+    };
+
+    const check = (candidate?: ServiceWorkerRegistration | null) => {
+      if (settled) return;
+      if (activated(registration) || activated(candidate)) {
+        finish(true);
+        return;
+      }
+      const workers = [
+        registration.installing,
+        registration.waiting,
+        registration.active,
+        candidate?.installing,
+        candidate?.waiting,
+        candidate?.active,
+      ];
+      workers.forEach(observe);
+      // A redundant worker cannot become the active worker for this
+      // registration. A different worker may still be observed via ready.
+      if (workers.some((worker) => worker?.state === "redundant") && !registration.installing && !registration.waiting) {
+        finish(false);
+      }
+    };
+
+    function onStateChange() {
+      check();
+    }
+
+    timer = setTimeout(() => finish(activated(registration)), boundedTimeout);
+    check();
+    // `ready` resolves only after a registration has an active worker, but we
+    // still verify its state instead of treating the promise alone as proof.
+    serviceWorker?.ready?.then((ready) => check(ready), () => undefined);
+  });
+}
+
 function sameOriginPath(value: string): string | null {
   try {
     const url = new URL(value, globalThis.location?.origin ?? "https://study-graph.invalid");
@@ -116,6 +191,8 @@ export async function warmOfflineReviewShell(
   if (!isOfflineShellEnabled()) return false;
   const registration = await registerOfflineServiceWorker(options);
   if (!registration) return false;
+  const serviceWorker = options.serviceWorker ?? globalThis.navigator?.serviceWorker;
+  if (!(await waitForOfflineServiceWorkerActivation(registration, serviceWorker, options.activationTimeoutMs))) return false;
   const storage = options.caches ?? globalThis.caches;
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   if (!storage || !fetchImpl) return false;
