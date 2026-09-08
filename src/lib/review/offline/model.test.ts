@@ -33,6 +33,7 @@ import {
 } from "./snapshot.ts";
 import {
   classifyOfflineServerOutcome,
+  classifyStoredReceiptLookup,
   transitionFromDelivery,
   transitionOfflineAttempt,
 } from "./outbox.ts";
@@ -145,6 +146,46 @@ test("snapshot hash is deterministic and excludes observation metadata", () => {
   assert.equal(hashScopeKnowledgeSnapshotContent(base), hashScopeKnowledgeSnapshotContent(changedObservation));
   assert.equal(base.contentHash, changedObservation.contentHash);
   assert.equal(hashScopeKnowledgeSnapshotContent(base), hashScopeKnowledgeSnapshotContent({ ...base, contentHash: "f".repeat(64) }));
+});
+
+test("snapshot set-like collections are sorted while projection array order remains semantic", () => {
+  const first = {
+    subjectId: "い",
+    status: "eligible" as const,
+    reasonCodes: ["reason-b", "reason-a"],
+    anchorReferences: ["lecture:2", "lecture:1"],
+  };
+  const second = {
+    subjectId: "あ",
+    status: "ineligible" as const,
+    reasonCodes: ["reason-d", "reason-c"],
+    anchorReferences: ["lecture:4", "lecture:3"],
+  };
+  const ordered = snapshot({
+    sourceEvidence: {
+      sourceIdentifiers: ["notion:characters", "notion:lectures"],
+      paginationComplete: true,
+      relationCompleteness: true,
+    },
+    scopeDecisions: [first, second],
+  });
+  const shuffled = snapshot({
+    sourceEvidence: {
+      sourceIdentifiers: ["notion:lectures", "notion:characters"],
+      paginationComplete: true,
+      relationCompleteness: true,
+    },
+    scopeDecisions: [
+      { ...second, reasonCodes: [...second.reasonCodes].reverse(), anchorReferences: [...second.anchorReferences].reverse() },
+      { ...first, reasonCodes: [...first.reasonCodes].reverse(), anchorReferences: [...first.anchorReferences].reverse() },
+    ],
+  });
+  assert.equal(hashScopeKnowledgeSnapshotContent(ordered), hashScopeKnowledgeSnapshotContent(shuffled));
+  assert.throws(() => snapshot({ scopeDecisions: [first, { ...first }] }), /unique/);
+  assert.notEqual(
+    hashScopeKnowledgeSnapshotContent(snapshot({ knowledgeProjection: { rows: ["a", "b"] } })),
+    hashScopeKnowledgeSnapshotContent(snapshot({ knowledgeProjection: { rows: ["b", "a"] } })),
+  );
 });
 
 test("snapshot semantic changes alter the hash", () => {
@@ -276,7 +317,7 @@ test("delivery classification retries transient failures and fails closed for re
     reason: "attempt-conflict",
   });
   assert.deepEqual(classifyOfflineServerOutcome({ type: "http", status: 409, code: "instance_already_answered" }, context), {
-    kind: "blocked",
+    kind: "receipt-lookup-required",
     reason: "instance-already-answered",
   });
   assert.deepEqual(classifyOfflineServerOutcome({
@@ -292,12 +333,23 @@ test("delivery classification retries transient failures and fails closed for re
   }, context), { kind: "blocked", reason: "incomplete-authoritative-receipt" });
 });
 
-test("instance_already_answered accepts only a complete receipt for this attempt", () => {
+test("instance_already_answered requires receipt lookup before terminal classification", () => {
   const context = { attemptId, instanceId, receiptKind: "legacy" as const };
-  const same = classifyOfflineServerOutcome({
+  const pending = confirmOfflineSubmission(createOfflineAttemptDraft(), submission());
+  const sending = transitionOfflineAttempt(pending, { type: "begin-send" }) as OfflineAttemptCommitted;
+  const lookupRequired = classifyOfflineServerOutcome({
     type: "http",
     status: 409,
     code: "instance_already_answered",
+  }, context);
+  assert.deepEqual(lookupRequired, { kind: "receipt-lookup-required", reason: "instance-already-answered" });
+  const unchanged = transitionFromDelivery(sending, lookupRequired);
+  assert.equal(unchanged.status, "sending");
+});
+
+test("stored receipt lookup accepts only a complete receipt for this attempt", () => {
+  const context = { attemptId, instanceId, receiptKind: "legacy" as const };
+  const same = classifyStoredReceiptLookup({
     receipt: completeLegacyReceipt({ isCorrect: false, effectiveSrsGrade: "again" }),
   }, context);
   assert.equal(same.kind, "accepted");
@@ -307,13 +359,35 @@ test("instance_already_answered accepts only a complete receipt for this attempt
     assert.equal(restored.effectiveSrsGrade, "again");
   }
 
-  const differentAttempt = classifyOfflineServerOutcome({
-    type: "http",
-    status: 409,
-    code: "instance_already_answered",
+  const differentAttempt = classifyStoredReceiptLookup({
     receipt: completeLegacyReceipt({ attemptId: "33333333-3333-4333-8333-333333333333" }),
   }, context);
   assert.deepEqual(differentAttempt, { kind: "blocked", reason: "instance-already-answered" });
+  assert.deepEqual(classifyStoredReceiptLookup({}, context), {
+    kind: "blocked",
+    reason: "incomplete-authoritative-receipt",
+  });
+});
+
+test("accepted transition checks receipt attemptId independently of delivery classification", () => {
+  const pending = confirmOfflineSubmission(createOfflineAttemptDraft(), submission());
+  const sending = transitionOfflineAttempt(pending, { type: "begin-send" }) as OfflineAttemptCommitted;
+  const sameReceipt = createOfflineReceiptRecord("legacy", completeLegacyReceipt(), instanceId);
+  const accepted = transitionOfflineAttempt(sending, { type: "accepted", receipt: sameReceipt });
+  assert.equal(accepted.status, "accepted-applied");
+
+  const sendingAgain = transitionOfflineAttempt(
+    confirmOfflineSubmission(createOfflineAttemptDraft(), submission({ attemptId: "44444444-4444-4444-8444-444444444444" })),
+    { type: "begin-send" },
+  ) as OfflineAttemptCommitted;
+  const differentReceipt = createOfflineReceiptRecord("legacy", completeLegacyReceipt({
+    attemptId: "55555555-5555-4555-8555-555555555555",
+  }), instanceId);
+  assert.throws(
+    () => transitionOfflineAttempt(sendingAgain, { type: "accepted", receipt: differentReceipt }),
+    /attemptId/,
+  );
+  assert.equal(sendingAgain.status, "sending");
 });
 
 test("Objective state mirror adopts only newer revisions and never rolls back", () => {
@@ -363,6 +437,14 @@ test("asset descriptor requires a verified checksum before offline readiness", (
   const changedVersion = createOfflineAssetDescriptor({ ...ready, assetVersion: 2, verifiedChecksum: checksum });
   assert.notEqual(changedVersion.assetVersion, ready.assetVersion);
   assert.notEqual(changedVersion.assetVersion + ":" + changedVersion.checksum, ready.assetVersion + ":" + ready.checksum);
+  assert.throws(() => createOfflineAssetDescriptor({
+    ...missing,
+    revisionContentHash: "not-a-sha256",
+  }), /SHA-256/);
+  assert.throws(() => assertValidOfflineAssetDescriptor({
+    ...missing,
+    revisionContentHash: "not-a-sha256",
+  }), /SHA-256/);
 });
 
 test("server-issued instance descriptor keeps server facts immutable and has no provisional form", () => {
@@ -397,6 +479,11 @@ test("server-issued instance descriptor keeps server facts immutable and has no 
   assert.equal(Object.isFrozen(frozen), true);
   assert.equal(frozen.learnerId, instance.learnerId);
   assert.throws(() => { (frozen as { objectiveId: string }).objectiveId = "other"; }, /read only|Cannot assign|object is not extensible/i);
+  assert.throws(() => freezeServerIssuedOfflineInstance({ ...instance, presentationHash: "not-a-sha256" }), /presentationHash/);
+  assert.throws(() => freezeServerIssuedOfflineInstance({
+    ...instance,
+    revision: { ...instance.revision, revisionContentHash: "not-a-sha256" },
+  }), /revision/);
 });
 
 test("Scope evidence separates issuance/client context from first-acceptance authority", () => {

@@ -84,7 +84,9 @@ function validStatus(value: unknown): value is ScopeDecisionStatus {
 function validateStringArray(value: unknown, field: string, errors: string[]) {
   if (!Array.isArray(value) || value.some((entry) => !isNonEmptyString(entry))) {
     errors.push(`${field} must be an array of non-empty strings`);
+    return;
   }
+  if (new Set(value).size !== value.length) errors.push(`${field} must not contain duplicates`);
 }
 
 export function validateScopeKnowledgeSnapshot(value: unknown, options: { requireContentHash?: boolean } = {}): string[] {
@@ -119,12 +121,15 @@ export function validateScopeKnowledgeSnapshot(value: unknown, options: { requir
   if (!Array.isArray(value.scopeDecisions)) {
     errors.push("scopeDecisions is required");
   } else {
+    const subjects = new Set<string>();
     for (const [index, decision] of value.scopeDecisions.entries()) {
       if (!isRecord(decision)) {
         errors.push(`scopeDecisions[${index}] must be an object`);
         continue;
       }
       if (!isNonEmptyString(decision.subjectId)) errors.push(`scopeDecisions[${index}].subjectId is required`);
+      else if (subjects.has(decision.subjectId)) errors.push(`scopeDecisions[${index}].subjectId must be unique`);
+      else subjects.add(decision.subjectId);
       if (!validStatus(decision.status)) errors.push(`scopeDecisions[${index}].status is invalid`);
       validateStringArray(decision.reasonCodes, `scopeDecisions[${index}].reasonCodes`, errors);
       validateStringArray(decision.anchorReferences, `scopeDecisions[${index}].anchorReferences`, errors);
@@ -146,13 +151,29 @@ export function assertValidScopeKnowledgeSnapshot(value: unknown): asserts value
 function snapshotContentOf(value: ScopeKnowledgeSnapshot | ScopeKnowledgeSnapshotInput): SnapshotContent {
   const errors = validateScopeKnowledgeSnapshot(value, { requireContentHash: false });
   if (errors.length > 0) throw new Error("Invalid ScopeKnowledgeSnapshot content: " + errors.join("; "));
+  const sourceEvidence = value.sourceEvidence as ScopeKnowledgeSnapshotSourceEvidence;
+  const decisions = value.scopeDecisions as readonly ScopeKnowledgeSnapshotDecision[];
+  const compareStrings = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
+  const sortStrings = (items: readonly string[]) => [...items].sort(compareStrings);
+  const sortedDecisions = decisions
+    .map((decision) => ({
+      subjectId: decision.subjectId,
+      status: decision.status,
+      reasonCodes: sortStrings(decision.reasonCodes),
+      anchorReferences: sortStrings(decision.anchorReferences),
+    }))
+    .sort((left, right) => compareStrings(left.subjectId, right.subjectId));
   return {
     schemaVersion: value.schemaVersion ?? SNAPSHOT_SCHEMA_VERSION,
     projectId: value.projectId,
     scopePolicyVersion: value.scopePolicyVersion,
     knowledgeProjectionVersion: value.knowledgeProjectionVersion,
-    sourceEvidence: value.sourceEvidence,
-    scopeDecisions: value.scopeDecisions,
+    sourceEvidence: {
+      sourceIdentifiers: sortStrings(sourceEvidence.sourceIdentifiers),
+      paginationComplete: sourceEvidence.paginationComplete,
+      relationCompleteness: sourceEvidence.relationCompleteness,
+    },
+    scopeDecisions: sortedDecisions,
     knowledgeProjection: value.knowledgeProjection,
   };
 }

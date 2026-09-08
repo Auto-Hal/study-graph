@@ -414,7 +414,7 @@ export function createOfflineAssetDescriptor(input: {
 }): OfflineAssetDescriptor {
   if (!isNonEmptyString(input.assetId)) throw new Error("assetId is required");
   if (!isPositiveInteger(input.assetVersion)) throw new Error("assetVersion must be a positive integer");
-  if (!isNonEmptyString(input.revisionContentHash)) throw new Error("revisionContentHash is required");
+  if (!isSha256(input.revisionContentHash)) throw new Error("revisionContentHash must be a SHA-256 hash");
   if (!isNonEmptyString(input.mediaType)) throw new Error("mediaType is required");
   if (!isPositiveInteger(input.width) || !isPositiveInteger(input.height)) throw new Error("asset dimensions are invalid");
   const verified = isSha256(input.checksum)
@@ -439,7 +439,7 @@ export function assertValidOfflineAssetDescriptor(value: unknown): asserts value
   if (!isNonEmptyString(value.assetId)) throw new Error("assetId is required");
   if (!isPositiveInteger(value.assetVersion)) throw new Error("assetVersion must be a positive integer");
   if (value.checksum !== null && !isSha256(value.checksum)) throw new Error("checksum is invalid");
-  if (!isNonEmptyString(value.revisionContentHash)) throw new Error("revisionContentHash is required");
+  if (!isSha256(value.revisionContentHash)) throw new Error("revisionContentHash must be a SHA-256 hash");
   if (!isNonEmptyString(value.mediaType)) throw new Error("mediaType is required");
   if (!isPositiveInteger(value.width) || !isPositiveInteger(value.height)) throw new Error("asset dimensions are invalid");
   if (!Object.prototype.hasOwnProperty.call(value, "source")) throw new Error("source is required");
@@ -460,10 +460,11 @@ export function isOfflineAssetReady(descriptor: OfflineAssetDescriptor, observed
 export function assertValidServerIssuedOfflineInstance(value: unknown): asserts value is ServerIssuedOfflineInstance {
   if (!isRecord(value)) throw new Error("offline instance descriptor must be an object");
   if (value.descriptorVersion !== OFFLINE_INSTANCE_DESCRIPTOR_VERSION) throw new Error("unsupported offline instance descriptor version");
-  for (const field of ["instanceId", "learnerId", "projectId", "presentationHash", "issuedAt", "objectiveId"]) {
+  for (const field of ["instanceId", "learnerId", "projectId", "issuedAt", "objectiveId"]) {
     if (!isNonEmptyString(value[field])) throw new Error(`${field} is required`);
   }
-  if (!isRecord(value.revision) || !isNonEmptyString(value.revision.revisionId) || !isNonEmptyString(value.revision.revisionContentHash)) {
+  if (!isSha256(value.presentationHash)) throw new Error("presentationHash must be a SHA-256 hash");
+  if (!isRecord(value.revision) || !isNonEmptyString(value.revision.revisionId) || !isSha256(value.revision.revisionContentHash)) {
     throw new Error("revision reference is invalid");
   }
   if (!Object.prototype.hasOwnProperty.call(value, "presentation")) throw new Error("presentation is required");

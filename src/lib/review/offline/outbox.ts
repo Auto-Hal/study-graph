@@ -26,6 +26,8 @@ export type OfflineAttemptEvent =
 export type OfflineDeliveryClassification =
   | { kind: "retryable"; reason: "network" | "server" | "rate-limit" }
   | { kind: "auth-required" }
+  /** The transport must perform an authenticated stored-receipt lookup first. */
+  | { kind: "receipt-lookup-required"; reason: "instance-already-answered" }
   | { kind: "accepted"; receipt: OfflineReceiptRecord }
   | { kind: "blocked"; reason: OfflineBlockedReason };
 
@@ -35,6 +37,30 @@ export type OfflineServerOutcome =
 
 function isReceiptKind(value: unknown): value is OfflineReceiptKind {
   return value === "legacy" || value === "objective";
+}
+
+/**
+ * Classify the result of the authenticated receipt lookup requested by an
+ * instance_already_answered response. A lookup result is terminal only after
+ * its own complete receipt has been validated and its attemptId compared.
+ */
+export function classifyStoredReceiptLookup(
+  lookup: { receipt?: unknown; receiptKind?: OfflineReceiptKind },
+  context: { attemptId: string; instanceId: string; receiptKind: OfflineReceiptKind },
+): Extract<OfflineDeliveryClassification, { kind: "accepted" | "blocked" }> {
+  if (lookup.receipt === undefined) return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
+  const kind = lookup.receiptKind ?? context.receiptKind;
+  if (!isReceiptKind(kind)) return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
+  try {
+    const receipt = createOfflineReceiptRecord(kind, lookup.receipt, context.instanceId);
+    const restored = authoritativeReceiptResult(receipt, context.instanceId);
+    if (restored.attemptId !== context.attemptId) {
+      return { kind: "blocked", reason: "instance-already-answered" };
+    }
+    return { kind: "accepted", receipt };
+  } catch {
+    return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
+  }
 }
 
 /**
@@ -56,22 +82,10 @@ export function classifyOfflineServerOutcome(
   if (code === "unsupported_submission_version") return { kind: "blocked", reason: "unsupported-submission-version" };
 
   if (code === "instance_already_answered") {
-    if (outcome.receipt === undefined) return { kind: "blocked", reason: "instance-already-answered" };
-    const kind = outcome.receiptKind ?? context.receiptKind;
-    if (!isReceiptKind(kind)) return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
-    try {
-      // First validate the stored receipt independently of the current
-      // submission, then compare its own attemptId. A different stored
-      // attempt is a conflict, never a result for this request.
-      const receipt = createOfflineReceiptRecord(kind, outcome.receipt, context.instanceId);
-      const restored = authoritativeReceiptResult(receipt, context.instanceId);
-      if (restored.attemptId !== context.attemptId) {
-        return { kind: "blocked", reason: "instance-already-answered" };
-      }
-      return { kind: "accepted", receipt };
-    } catch {
-      return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
-    }
+    // A 409 without a receipt is not enough to decide whether this request is
+    // a retry. The authenticated transport must look up the stored receipt.
+    if (outcome.receipt === undefined) return { kind: "receipt-lookup-required", reason: "instance-already-answered" };
+    return classifyStoredReceiptLookup(outcome, context);
   }
 
   if (outcome.status >= 200 && outcome.status <= 299) {
@@ -115,6 +129,9 @@ export function transitionOfflineAttempt(
       if (event.type === "auth-required") return deepFreeze({ ...record, status: "auth-required" as const });
       if (event.type === "accepted") {
         const restored = authoritativeReceiptResult(event.receipt, record.submission.instanceId);
+        if (restored.attemptId !== record.submission.attemptId) {
+          throw new Error("stored receipt attemptId does not match the outbox submission");
+        }
         return deepFreeze({
           ...record,
           status: restored.srsApplied ? "accepted-applied" as const : "accepted-no-srs" as const,
@@ -147,6 +164,10 @@ export function transitionFromDelivery(
       return transitionOfflineAttempt(record, { type: "retryable-failure", reason: classification.reason }) as OfflineAttemptCommitted;
     case "auth-required":
       return transitionOfflineAttempt(record, { type: "auth-required" }) as OfflineAttemptCommitted;
+    case "receipt-lookup-required":
+      // Lookup is a transport follow-up, not an outbox state. Keep the
+      // in-flight submission non-terminal until that lookup classifies it.
+      return record;
     case "accepted": {
       return transitionOfflineAttempt(record, {
         type: "accepted",

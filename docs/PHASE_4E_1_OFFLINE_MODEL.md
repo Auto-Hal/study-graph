@@ -33,6 +33,11 @@ same semantic content produces the same hash. A current pointer advances only
 to a valid candidate with a greater generation; an expiry date never moves the
 pointer backwards.
 
+Set-like source identifiers, decision subjects, reason codes, and anchor
+references are deterministically sorted for hashing; duplicate subjects or
+duplicate set members are rejected. Arrays inside `knowledgeProjection` retain
+their supplied order because that order may be semantic.
+
 The initial operational guidance is a one-hour sync target and a two-hour
 validity window after the completed source read. These values are freshness
 guidance only; generation remains the pointer authority and neither value
@@ -53,8 +58,13 @@ new UUID.
 Receipt adoption is receipt-first. A local accepted state requires a complete
 authoritative server receipt; an incomplete receipt is blocked and is never
 repaired with the current request's grading result. An
-`instance_already_answered` response is accepted only when a complete stored
-receipt proves it is the same attempt; otherwise it remains blocked.
+`instance_already_answered` response without a receipt first produces the
+non-terminal `receipt-lookup-required` classification. Only the authenticated
+lookup result can then be terminal: a complete receipt for the same attempt is
+accepted, a different attempt is blocked, and an incomplete receipt is blocked.
+The transition function independently checks that an accepted receipt's
+`attemptId` matches the outbox submission, even when the delivery classifier is
+not used.
 
 ## Objective mirror and offline facts
 
@@ -72,6 +82,9 @@ grading and the server receipt remain authoritative.
 An asset cannot be marked offline-ready without a verified SHA-256 checksum.
 The current Kuzushiji pilot has no checksum, so the model correctly reports it
 as not offline-ready until a later content change supplies one.
+Immutable revision references and presentation hashes in offline descriptors
+also require lowercase 64-character SHA-256 values; a missing checksum remains
+valid metadata but never makes an asset offline-ready.
 
 ## Deliberately deferred to Phase 4E-2+
 
