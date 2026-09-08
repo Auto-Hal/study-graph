@@ -2,19 +2,21 @@ import Link from "next/link";
 import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import {
+  getKuzushijiPilotObjectiveState,
+  getPilotRuntimeConfig,
+  type PilotObjectiveReviewState,
+} from "@/src/lib/supabase/pilot";
+import {
   getReviewHistory,
-  getReviewStates,
   isReviewPersistenceConfigured,
   type ReviewAttempt,
   type ReviewGrade,
-  type ReviewState,
 } from "@/src/lib/supabase/review";
 
 export const dynamic = "force-dynamic";
 
 type KuzushijiReviewKind = "character" | "mistake";
 type KuzushijiReviewAttempt = ReviewAttempt & { item_kind: KuzushijiReviewKind };
-type KuzushijiReviewState = ReviewState & { item_kind: KuzushijiReviewKind };
 
 const gradeLabels: Record<ReviewGrade, string> = {
   again: "もう一度",
@@ -35,10 +37,6 @@ function formatDateTime(value: string) {
 
 function isKuzushijiAttempt(attempt: ReviewAttempt): attempt is KuzushijiReviewAttempt {
   return attempt.item_kind === "character" || attempt.item_kind === "mistake";
-}
-
-function isKuzushijiState(state: ReviewState): state is KuzushijiReviewState {
-  return state.item_kind === "character" || state.item_kind === "mistake";
 }
 
 function itemMeta(
@@ -63,45 +61,47 @@ function itemMeta(
   };
 }
 
-async function reviewData() {
+async function legacyReviewData() {
   if (!isReviewPersistenceConfigured()) {
-    return {
-      history: [] as KuzushijiReviewAttempt[],
-      states: [] as KuzushijiReviewState[],
-      connected: false,
-    };
+    return { history: [] as KuzushijiReviewAttempt[], connected: false };
   }
 
   try {
-    const [history, states] = await Promise.all([getReviewHistory(100), getReviewStates()]);
-    return {
-      history: history.filter(isKuzushijiAttempt),
-      states: states.filter(isKuzushijiState),
-      connected: true,
-    };
+    const history = await getReviewHistory(100);
+    return { history: history.filter(isKuzushijiAttempt), connected: true };
   } catch (error) {
-    console.error("Study Graph: progress data fetch failed", error);
-    return {
-      history: [] as KuzushijiReviewAttempt[],
-      states: [] as KuzushijiReviewState[],
-      connected: false,
-    };
+    console.error("Study Graph: legacy progress history fetch failed", error);
+    return { history: [] as KuzushijiReviewAttempt[], connected: false };
+  }
+}
+
+async function objectiveReviewData(): Promise<{ state: PilotObjectiveReviewState | null; connected: boolean }> {
+  if (!getPilotRuntimeConfig()) return { state: null, connected: false };
+  try {
+    return { state: await getKuzushijiPilotObjectiveState(), connected: true };
+  } catch (error) {
+    console.error("Study Graph: Objective progress state fetch failed", error);
+    return { state: null, connected: false };
   }
 }
 
 export default async function KuzushijiProgressPage() {
-  const [data, review] = await Promise.all([getKuzushijiDashboard(), reviewData()]);
+  const [data, review, objective] = await Promise.all([
+    getKuzushijiDashboard(),
+    legacyReviewData(),
+    objectiveReviewData(),
+  ]);
   const counts: Record<ReviewGrade, number> = { again: 0, hard: 0, good: 0, easy: 0 };
   for (const attempt of review.history) counts[attempt.grade] += 1;
 
   const confident = counts.good + counts.easy;
   const confidentRate = review.history.length > 0 ? Math.round((confident / review.history.length) * 100) : 0;
-  const now = Date.now();
-  const upcoming = [...review.states]
-    .filter((state) => new Date(state.due_at).getTime() > now)
-    .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
-  const dueNow = review.states.filter((state) => new Date(state.due_at).getTime() <= now).length;
-  const nextDue = upcoming[0]?.due_at ?? null;
+  const objectiveState = objective.state;
+  const objectiveDueNow = objective.connected && (
+    !objectiveState || new Date(objectiveState.due_at).getTime() <= Date.now()
+  );
+  const objectiveStateLabel = objectiveState ? `R${objectiveState.state_revision}` : objective.connected ? "NEW" : "—";
+  const objectiveNextLabel = objectiveState ? formatDateTime(objectiveState.due_at) : objective.connected ? "初回待ち" : "—";
 
   return (
     <main className="learn-shell">
@@ -113,9 +113,9 @@ export default async function KuzushijiProgressPage() {
             <small>くずし字・学習記録</small>
           </span>
         </Link>
-        <div className={`sync-pill ${review.connected ? "online" : "demo"}`}>
+        <div className={`sync-pill ${objective.connected ? "online" : "demo"}`}>
           <span className="dot" />
-          {review.connected ? "履歴 接続中" : "履歴 未接続"}
+          {objective.connected ? "Objective SRS 接続中" : "Objective SRS 未接続"}
         </div>
       </header>
 
@@ -129,37 +129,44 @@ export default async function KuzushijiProgressPage() {
         <p className="eyebrow">PROGRESS</p>
         <h1>復習した事実を、次の学習につなげる。</h1>
         <p className="learn-hero-copy">
-          Supabaseに残した自己評価を、履歴・評価傾向・次回予定として見返します。Notionの知識データには書き戻しません。
+          現在のObjective SRSによる次回予定と、移行前を含むLegacy履歴を分けて表示します。Notionの知識データには書き戻しません。
         </p>
       </section>
 
+      {!objective.connected && (
+        <section className="settings-warning" role="status">
+          <strong>現行Objective SRSへ接続できていません。</strong>
+          <p>次回復習日は表示できません。Reviewの保存系設定とSupabase接続を確認してください。</p>
+        </section>
+      )}
+
       {!review.connected && (
         <section className="settings-warning" role="status">
-          <strong>復習履歴へ接続できていません。</strong>
-          <p>Review自体はNotion由来のキューへフォールバックできます。Settingsで保存系の接続状態を確認してください。</p>
+          <strong>Legacy履歴へ接続できていません。</strong>
+          <p>現行Objective SRSとは別の、移行前を含む過去履歴だけが表示できない状態です。</p>
         </section>
       )}
 
       <section className="progress-summary-grid" aria-label="復習サマリー">
         <article className="progress-summary-card">
-          <span>REVIEW ATTEMPTS</span>
+          <span>LEGACY ATTEMPTS</span>
           <strong>{review.history.length}</strong>
-          <small>保存済みの復習回数</small>
+          <small>移行前を含む保存履歴</small>
         </article>
         <article className="progress-summary-card">
-          <span>CONFIDENT</span>
+          <span>LEGACY CONFIDENT</span>
           <strong>{confidentRate}%</strong>
-          <small>「できた」「即答」の割合</small>
+          <small>過去履歴の「できた」「即答」</small>
         </article>
         <article className="progress-summary-card">
-          <span>TRACKED ITEMS</span>
-          <strong>{review.states.length}</strong>
-          <small>復習スケジュール管理中</small>
+          <span>OBJECTIVE STATE</span>
+          <strong>{objectiveStateLabel}</strong>
+          <small>{objectiveState ? `前回 ${gradeLabels[objectiveState.last_grade]}` : objective.connected ? "epoch 1・未初期化" : "状態を取得できません"}</small>
         </article>
         <article className="progress-summary-card">
           <span>NEXT REVIEW</span>
-          <strong>{nextDue ? formatDateTime(nextDue) : "—"}</strong>
-          <small>{dueNow > 0 ? `現在 ${dueNow}件が期限到来` : "次に期限が来る時刻"}</small>
+          <strong>{objectiveNextLabel}</strong>
+          <small>{objectiveDueNow ? "現在Review対象" : objectiveState ? "Objective SRSの次回予定" : "Objective SRS未接続"}</small>
         </article>
       </section>
 
@@ -167,7 +174,7 @@ export default async function KuzushijiProgressPage() {
         <div>
           <article className="progress-panel">
             <div className="progress-panel-header">
-              <h2>最近の復習</h2>
+              <h2>Legacy復習履歴</h2>
               <span>{review.history.length} attempts</span>
             </div>
             {review.history.length > 0 ? (
@@ -179,7 +186,7 @@ export default async function KuzushijiProgressPage() {
                       <span className="activity-time">{formatDateTime(attempt.reviewed_at)}</span>
                       <div className="activity-copy">
                         <strong>{meta.label}</strong>
-                        <p>{meta.detail}・次回 {formatDateTime(attempt.due_at)}</p>
+                        <p>{meta.detail}・当時の次回 {formatDateTime(attempt.due_at)}</p>
                       </div>
                       <span className="activity-grade">{gradeLabels[attempt.grade]}</span>
                     </Link>
@@ -187,7 +194,7 @@ export default async function KuzushijiProgressPage() {
                 })}
               </div>
             ) : (
-              <p className="progress-empty">まだ保存された復習履歴がありません。最初の復習を完了すると、ここに時系列で表示されます。</p>
+              <p className="progress-empty">表示できるLegacy復習履歴はありません。</p>
             )}
           </article>
         </div>
@@ -195,7 +202,7 @@ export default async function KuzushijiProgressPage() {
         <div>
           <article className="progress-panel">
             <div className="progress-panel-header">
-              <h2>自己評価の内訳</h2>
+              <h2>Legacy自己評価の内訳</h2>
               <span>{review.history.length} answers</span>
             </div>
             <div className="grade-distribution">
@@ -216,27 +223,24 @@ export default async function KuzushijiProgressPage() {
 
           <article className="progress-panel">
             <div className="progress-panel-header">
-              <h2>次回の復習予定</h2>
-              <span>{upcoming.length} scheduled</span>
+              <h2>現行Objective SRS</h2>
+              <span>epoch 1</span>
             </div>
-            {upcoming.length > 0 ? (
+            {objectiveState ? (
               <div className="upcoming-list">
-                {upcoming.slice(0, 12).map((state) => {
-                  const meta = itemMeta(state.item_id, state.item_kind, data);
-                  return (
-                    <Link className="upcoming-row" href={meta.href} key={state.item_id}>
-                      <span className="upcoming-time">{formatDateTime(state.due_at)}</span>
-                      <div className="upcoming-copy">
-                        <strong>{meta.label}</strong>
-                        <p>{meta.detail}・前回 {gradeLabels[state.last_grade]}</p>
-                      </div>
-                      <span className="activity-grade">{state.interval_days === 0 ? "10分" : `${state.interval_days}日`}</span>
-                    </Link>
-                  );
-                })}
+                <Link className="upcoming-row" href="/review?project=kuzushiji">
+                  <span className="upcoming-time">{formatDateTime(objectiveState.due_at)}</span>
+                  <div className="upcoming-copy">
+                    <strong>日本永代蔵「あ」字形の単字読解</strong>
+                    <p>前回 {gradeLabels[objectiveState.last_grade]}・state revision {objectiveState.state_revision}</p>
+                  </div>
+                  <span className="activity-grade">{objectiveState.interval_days === 0 ? "10分" : `${objectiveState.interval_days}日`}</span>
+                </Link>
               </div>
+            ) : objective.connected ? (
+              <p className="progress-empty">Objective epoch 1はまだ未初期化です。次の対象Reviewを保存すると、ここに初回の次回予定が作成されます。</p>
             ) : (
-              <p className="progress-empty">現在、未来に予約された復習はありません。</p>
+              <p className="progress-empty">Objective SRSへ接続できないため、現行の次回予定を表示できません。</p>
             )}
           </article>
         </div>
