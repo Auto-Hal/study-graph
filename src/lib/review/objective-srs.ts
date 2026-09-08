@@ -1,9 +1,6 @@
-import {
-  calculateLegacySchedule,
-  type LegacySchedule,
-  type ReviewGrade,
-} from "./exercises/attempt.ts";
-import { canonicalizeJson } from "./exercises/revision.ts";
+import { calculateLegacySchedule, type LegacySchedule } from "./exercises/scheduler.ts";
+import type { ReviewGrade } from "./exercises/attempt.ts";
+import { canonicalizeJson } from "./canonical-json.ts";
 import {
   assertValidSrsEpoch,
   isPositiveInteger,
