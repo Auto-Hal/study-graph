@@ -12,6 +12,7 @@ import {
 import type { ScopeKnowledgeSnapshot } from "./snapshot-content.ts";
 import { reconcilePilotResult } from "./result-reconciliation.ts";
 import type { PersistedOfflineAttempt } from "./attempt-outbox.ts";
+import { syncObjectiveStateMirror } from "./objective-state-mirror.ts";
 
 function mirror(overrides: Partial<ObjectiveStateMirror> = {}): ObjectiveStateMirror {
   return {
@@ -216,4 +217,11 @@ test("malformed terminal receipt never becomes accepted", () => {
   const reconciled = reconcilePilotResult(result, persisted("accepted-applied", null));
   assert.equal(reconciled.saved, false);
   assert.equal(reconciled.syncStatus, "blocked");
+});
+
+test("Objective state 404 is a normal absent state and preserves the local mirror", async () => {
+  const result = await syncObjectiveStateMirror({
+    fetchImpl: async () => new Response(JSON.stringify({ error: "objective_state_not_found" }), { status: 404 }),
+  });
+  assert.deepEqual(result, { kind: "absent" });
 });

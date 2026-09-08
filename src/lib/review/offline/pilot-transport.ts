@@ -16,6 +16,7 @@ import {
 import {
   classifyOfflineServerOutcome,
   classifyStoredReceiptLookup,
+  safeTransportErrorCode,
   type OfflineDeliveryClassification,
 } from "./outbox-core.ts";
 import type { StoredPilotReceiptResult } from "../exercises/receipt.ts";
@@ -31,6 +32,21 @@ export type PilotOutboxSyncResult =
   | { kind: "terminal"; record: PersistedOfflineAttempt; result?: StoredPilotReceiptResult };
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+function transportDiagnostics(status: number | null, payload?: Record<string, unknown>) {
+  return {
+    httpStatus: status,
+    serverErrorCode: safeTransportErrorCode(payload?.error),
+    observedAt: new Date().toISOString(),
+  } as const;
+}
+
+function withTransportDiagnostics(
+  classification: OfflineDeliveryClassification,
+  diagnostics: ReturnType<typeof transportDiagnostics>,
+): OfflineDeliveryClassification {
+  return { ...classification, diagnostics };
+}
 
 /** Build and durably commit one immutable submission before transport starts. */
 export async function commitPilotOfflineAttempt(
@@ -84,23 +100,25 @@ async function lookupStoredReceipt(
   fetchImpl: FetchLike,
 ): Promise<OfflineDeliveryClassification> {
   try {
-    const response = await fetchImpl(`/api/review/pilot/receipt?instanceId=${encodeURIComponent(record.instanceId)}`, {
+    let response: Response;
+    response = await fetchImpl(`/api/review/pilot/receipt?instanceId=${encodeURIComponent(record.instanceId)}`, {
       method: "GET",
       cache: "no-store",
     });
-    if (response.status === 401) return { kind: "auth-required" };
-    if (response.status === 404) return { kind: "blocked", reason: "incomplete-authoritative-receipt" };
-    if (response.status === 429) return { kind: "retryable", reason: "rate-limit" };
-    if (response.status >= 500 && response.status <= 599) return { kind: "retryable", reason: "server" };
-    if (!response.ok) return { kind: "blocked", reason: "malformed-response" };
-    return classifyReceiptLookupResponse(await parseJson(response), {
+    if (response.status === 401) return withTransportDiagnostics({ kind: "auth-required" }, transportDiagnostics(response.status));
+    if (response.status === 404) return withTransportDiagnostics({ kind: "blocked", reason: "incomplete-authoritative-receipt" }, transportDiagnostics(response.status));
+    if (response.status === 429) return withTransportDiagnostics({ kind: "retryable", reason: "rate-limit" }, transportDiagnostics(response.status));
+    if (response.status >= 500 && response.status <= 599) return withTransportDiagnostics({ kind: "retryable", reason: "server" }, transportDiagnostics(response.status));
+    if (!response.ok) return withTransportDiagnostics({ kind: "blocked", reason: "malformed-response" }, transportDiagnostics(response.status));
+    const payload = await parseJson(response);
+    return withTransportDiagnostics(classifyReceiptLookupResponse(payload, {
       attemptId: record.record.submission.attemptId,
       instanceId: record.instanceId,
       requestHash: record.record.requestHash,
       receiptKind,
-    });
+    }), transportDiagnostics(response.status, payload));
   } catch {
-    return { kind: "retryable", reason: "network" };
+    return withTransportDiagnostics({ kind: "retryable", reason: "network" }, transportDiagnostics(null));
   }
 }
 
@@ -144,7 +162,8 @@ async function probeAuthentication(
   }
 }
 
-function requestBody(record: PersistedOfflineAttempt) {
+/** Exact six-field wire tuple sent to the existing server validator. */
+export function requestBody(record: PersistedOfflineAttempt) {
   const submission = record.record.submission;
   return {
     attemptId: submission.attemptId,
@@ -219,7 +238,7 @@ export async function sendPilotOutboxAttempt(
       body: JSON.stringify(requestBody(current)),
     });
     const payload = await parseJson(response);
-    classification = classifyOfflineServerOutcome({
+    classification = withTransportDiagnostics(classifyOfflineServerOutcome({
       type: "http",
       status: response.status,
       code: typeof payload.error === "string" ? payload.error : undefined,
@@ -232,9 +251,9 @@ export async function sendPilotOutboxAttempt(
       instanceId: current.instanceId,
       receiptKind: options.receiptKind ?? "objective",
       requestHash: current.record.requestHash,
-    });
+    }), transportDiagnostics(response.status, payload));
   } catch {
-    classification = { kind: "retryable", reason: "network" };
+    classification = withTransportDiagnostics({ kind: "retryable", reason: "network" }, transportDiagnostics(null));
   }
 
   if (classification.kind === "receipt-lookup-required") {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReviewSession from "./ReviewSession";
+import PilotBlockedAttemptDiagnostics from "./PilotBlockedAttemptDiagnostics";
 import PilotOutboxForegroundSync from "./PilotOutboxForegroundSync";
 import {
   isOfflineAssetRenderable,
@@ -114,7 +115,7 @@ export default function OfflineKuzushijiReview() {
   }
 
   if (state.kind === "unavailable") {
-    return <main className="review-page-shell"><PilotOutboxForegroundSync /><section className="review-stage empty-stage"><p className="eyebrow">OFFLINE REVIEW</p><h1>オフライン復習を開始できません。</h1><p>{state.message}</p><div className="result-actions single-action-row"><Link className="secondary-action" href="/projects/kuzushiji">ダッシュボードへ戻る</Link></div></section></main>;
+    return <main className="review-page-shell"><PilotOutboxForegroundSync /><section className="review-stage empty-stage"><p className="eyebrow">OFFLINE REVIEW</p><h1>オフライン復習を開始できません。</h1><p>{state.message}</p><PilotBlockedAttemptDiagnostics /><div className="result-actions single-action-row"><Link className="secondary-action" href="/projects/kuzushiji">ダッシュボードへ戻る</Link></div></section></main>;
   }
 
   return (

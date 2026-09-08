@@ -20,6 +20,12 @@ const mirror = read("src/lib/review/offline/objective-state-mirror.ts");
 const mirrorComponent = read("src/components/ObjectiveStateMirrorSync.tsx");
 const objectiveRoute = read("app/api/review/pilot/objective-state/route.ts");
 const reviewSession = read("src/components/ReviewSession.tsx");
+const attemptRoute = read("app/api/review/pilot/attempt/route.ts");
+const validationRoute = read("app/api/review/pilot/attempt/validate/route.ts");
+const pilotTransport = read("src/lib/review/offline/pilot-transport.ts");
+const attemptOutbox = read("src/lib/review/offline/attempt-outbox.ts");
+const diagnostics = read("src/lib/review/offline/attempt-diagnostics.ts");
+const diagnosticsComponent = read("src/components/PilotBlockedAttemptDiagnostics.tsx");
 const packageJson = JSON.parse(read("package.json"));
 
 test("service worker keeps APIs, login, and writes network-only", () => {
@@ -113,8 +119,23 @@ test("cold-start shell has no server data dependency and keeps prepared instance
   assert.match(offlineReview, /findOfflineAttemptByInstanceId/);
   assert.match(offlineReview, /recoverSendingOfflineAttempts/);
   assert.match(offlineReview, /PilotOutboxForegroundSync/);
+  assert.match(offlineReview, /PilotBlockedAttemptDiagnostics/);
   assert.doesNotMatch(offlineReview, /prefetchPilotOfflineInstance|api\/snapshots|api\/review\/pilot\/prefetch/);
   assert.doesNotMatch(offlineReview, /deleteDatabase/);
+});
+
+test("blocked cold-start records expose read-only diagnostics without reoffering or retrying", () => {
+  assert.match(offlineReview, /findOfflineAttemptByInstanceId\(record\.instanceId\)/);
+  assert.match(offlineReview, /if \(existingAttempt\)[\s\S]*?continue;/);
+  const unavailableStart = offlineReview.indexOf('if (state.kind === "unavailable")');
+  const returnStart = offlineReview.indexOf("\n  return (", unavailableStart);
+  assert.ok(unavailableStart >= 0 && returnStart > unavailableStart);
+  const unavailableBranch = offlineReview.slice(unavailableStart, returnStart);
+  assert.match(unavailableBranch, /PilotBlockedAttemptDiagnostics/);
+  assert.doesNotMatch(unavailableBranch, /commitPilotOfflineAttempt|sendPilotOutboxAttempt|crypto\.randomUUID/);
+  assert.match(diagnosticsComponent, /listOfflineAttempts\(\)/);
+  assert.match(diagnosticsComponent, /onClick/);
+  assert.doesNotMatch(diagnosticsComponent, /markOfflineInstanceAnswered|deleteDatabase|transitionOfflineAttempt/);
 });
 
 test("mirror never becomes attempt or SRS authority", () => {
@@ -129,6 +150,44 @@ test("pilot completion suppresses repeat while regular Review keeps it", () => {
   assert.match(resultReconciliation, /attemptId\?:/);
   assert.match(reviewSession, /attemptId: submission\.attemptId/);
   assert.match(reviewSession, /syncStatus: ["']accepted["']/);
+});
+
+test("pilot validation diagnostics are safe and read-only", () => {
+  assert.match(attemptRoute, /pilot_attempt_validation_failed/);
+  assert.match(attemptRoute, /parsed\.error/);
+  assert.doesNotMatch(attemptRoute, /console\.(warn|error)[\s\S]*(rawAnswer|request\.body|authorization|cookie)/i);
+  assert.match(validationRoute, /validatePilotAttemptInput/);
+  assert.match(validationRoute, /private, no-store/);
+  assert.doesNotMatch(validationRoute, /submitKuzushijiPilotAttempt|from ["'][^"']*(pilot-runtime|supabase)["']|gradeExerciseRevision|recordKuzushiji/i);
+  assert.doesNotMatch(validationRoute, /\b(?:insert|update)\s*\(/i);
+});
+
+test("transport diagnostics remain outside the immutable request tuple", () => {
+  assert.match(attemptOutbox, /lastHttpStatus/);
+  assert.match(attemptOutbox, /lastServerErrorCode/);
+  assert.match(attemptOutbox, /lastTransportObservedAt/);
+  const bodyStart = pilotTransport.indexOf("export function requestBody");
+  const bodyEnd = pilotTransport.indexOf("\n}", bodyStart);
+  assert.ok(bodyStart >= 0 && bodyEnd > bodyStart);
+  const body = pilotTransport.slice(bodyStart, bodyEnd);
+  for (const field of ["attemptId", "instanceId", "rawAnswer", "selfEvaluation", "responseMs", "usedHint"]) {
+    assert.match(body, new RegExp(`\\b${field}\\b`));
+  }
+  assert.doesNotMatch(body, /clientAnsweredAt|clientSnapshotId|clientSnapshotGeneration|lastHttpStatus|lastServerErrorCode|retryCount/);
+  assert.match(diagnostics, /listOfflineAttempts/);
+  assert.match(diagnosticsComponent, /listOfflineAttempts/);
+  assert.match(diagnosticsComponent, /attempt\/validate/);
+  assert.match(diagnosticsComponent, /onClick/);
+  assert.doesNotMatch(diagnosticsComponent, /setRawAnswer|rawAnswer\s*\}/);
+});
+
+test("blocked diagnostics are a structural, non-mutating projection", () => {
+  assert.match(diagnostics, /describeOfflineAttempt/);
+  assert.match(diagnostics, /rawAnswerType/);
+  assert.match(diagnostics, /rawAnswerStringLength/);
+  assert.match(diagnostics, /retryCount/);
+  assert.match(diagnostics, /diagnosticValidationRequestBody/);
+  assert.doesNotMatch(diagnostics, /put\(|delete\(|transaction\([^)]*,\s*["']readwrite["']/);
 });
 
 test("phase 4E-6 test command is wired", () => {

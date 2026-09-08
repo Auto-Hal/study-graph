@@ -22,7 +22,7 @@
     "test:phase4e-3": "node --experimental-strip-types --test src/lib/review/offline/snapshot-browser.test.ts src/lib/review/offline/snapshot-cache.test.ts src/lib/review/snapshot-sync/dashboard.test.ts && node --test scripts/phase4e-3-contract.test.mjs",
     "test:phase4e-4": "node --experimental-strip-types --test src/lib/review/exercises/attempt-browser.test.ts src/lib/review/offline/attempt-outbox.test.ts src/lib/review/offline/model.test.ts src/lib/review/offline/pilot-transport.test.ts && node --test scripts/phase4e-4-runtime.test.mjs",
     "test:phase4e-5": "node --experimental-strip-types --test src/lib/review/exercises/kuzushiji-revision-v2.test.ts src/lib/review/offline/pilot-scope.test.ts && node --test scripts/phase4e-5-migration.test.mjs scripts/phase4e-5-runtime.test.mjs",
-    "test:phase4e-6": "node --experimental-strip-types --test src/lib/review/offline/phase4e-6.test.ts && node --test scripts/phase4e-6-contract.test.mjs"
+    "test:phase4e-6": "node --experimental-strip-types --test src/lib/review/offline/phase4e-6.test.ts src/lib/review/offline/pilot-validation-contract.test.ts src/lib/review/offline/attempt-diagnostics.test.ts src/lib/review/offline/pilot-transport.test.ts && node --test scripts/phase4e-6-contract.test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",

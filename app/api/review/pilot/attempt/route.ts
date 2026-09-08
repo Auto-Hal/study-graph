@@ -18,7 +18,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
   const parsed = validatePilotAttemptInput(body);
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  if (!parsed.ok) {
+    // Keep production diagnostics to the safe validator code only. Never log
+    // the answer, identity, cookies, authorization headers, or request body.
+    console.warn("pilot_attempt_validation_failed", { error: parsed.error });
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
   try {
     return NextResponse.json(await submitKuzushijiPilotAttempt(parsed.request));
   } catch (error) {

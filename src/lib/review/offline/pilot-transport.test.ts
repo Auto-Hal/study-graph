@@ -11,7 +11,7 @@ import {
 } from "./attempt-outbox.ts";
 import { createOfflineAttemptDraft } from "./model-core.ts";
 import { transitionOfflineAttempt } from "./outbox.ts";
-import { commitPilotOfflineAttempt, sendPilotOutboxAttempt } from "./pilot-transport.ts";
+import { commitPilotOfflineAttempt, flushPilotAttemptOutbox, sendPilotOutboxAttempt } from "./pilot-transport.ts";
 
 class FakeRequest<T = unknown> {
   result!: T;
@@ -378,4 +378,36 @@ test("auth-required malformed receipt fails closed without discarding the submis
   const persisted = await getOfflineAttempt(attemptId, options);
   assert.equal(persisted?.record.status, "blocked");
   assert.equal(persisted?.record.submission.rawAnswer, "あ");
+});
+
+test("a validation 400 keeps safe diagnostics separate and blocked records are never auto-retried", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = opts(indexedDB, "transport-diagnostics-400");
+  await seeded(indexedDB, "transport-diagnostics-400");
+  const before = await getOfflineAttempt(attemptId, options);
+  const result = await sendPilotOutboxAttempt(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    fetchImpl: async () => new Response(JSON.stringify({ error: "invalid_response_ms" }), { status: 400 }),
+  });
+  assert.equal(result?.kind, "blocked");
+  const blocked = await getOfflineAttempt(attemptId, options);
+  assert.equal(blocked?.record.status, "blocked");
+  assert.deepEqual(blocked?.record.submission, before?.record.submission);
+  assert.equal(blocked?.record.requestHash, before?.record.requestHash);
+  assert.equal(blocked?.transport.lastHttpStatus, 400);
+  assert.equal(blocked?.transport.lastServerErrorCode, "invalid_response_ms");
+
+  let automaticRetryCount = 0;
+  const flushed = await flushPilotAttemptOutbox({
+    ...options,
+    receiptKind: "legacy",
+    fetchImpl: async () => {
+      automaticRetryCount += 1;
+      return new Response("", { status: 500 });
+    },
+  });
+  assert.equal(flushed.length, 0);
+  assert.equal(automaticRetryCount, 0);
+  assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "blocked");
 });

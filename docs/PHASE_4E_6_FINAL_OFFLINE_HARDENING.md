@@ -80,6 +80,26 @@ write in the separate issued-instance cache is a secondary hint; if it fails
 after outbox commit, transport and session progress continue, and a later
 foreground load reconciles the marker from the durable attempt.
 
+## Pilot attempt 400 diagnostics
+
+The pilot attempt endpoint keeps the existing six-field request validator and
+logs only its bounded validation error code when that validator rejects a
+request. The exact production 400 cannot be proven from source alone without
+the iPhone's blocked IndexedDB payload. A blocked versioned-pilot completion
+screen therefore exposes a read-only structural diagnostic view: field types,
+string lengths, versions, UUID validity, transport status/code metadata, and
+retry count are shown without answer text or credentials. The optional
+“保存済み入力を検証” action sends the exact immutable six-field tuple to
+`/api/review/pilot/attempt/validate`; that authenticated, same-origin route
+only calls the shared validator and never submits, grades, reads/writes
+Supabase, or changes the blocked record. Validation results are diagnostic
+metadata only and never enter the request hash, receipt, or SRS state.
+
+The blocked record remains terminal for automatic retry. Supervisors should
+open the existing blocked completion screen on the iPhone, capture the
+structural values, and use the explicit validation action if needed. They
+should not clear storage or press any action that creates a new attempt.
+
 ## Objective state mirror
 
 `GET /api/review/pilot/objective-state` is an authenticated, server-only read
