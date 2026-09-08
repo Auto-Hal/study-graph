@@ -1,6 +1,10 @@
 import "server-only";
 
-import type { ScopeKnowledgeSnapshot } from "@/src/lib/review/offline/snapshot";
+import {
+  assertValidScopeKnowledgeSnapshot,
+  isScopeKnowledgeSnapshotHashValid,
+  type ScopeKnowledgeSnapshot,
+} from "@/src/lib/review/offline/snapshot";
 
 const DEFAULT_SUPABASE_URL = "https://uhckdhdkywhsqjcquvyj.supabase.co";
 
@@ -172,4 +176,45 @@ export async function getCurrentScopeKnowledgeSnapshot(projectId: string): Promi
     p_project_id: projectId,
   });
   return rows[0] ?? null;
+}
+
+/**
+ * Convert the private archive's snake_case row into the runtime-neutral
+ * snapshot model. The server never repairs an incomplete row from Notion or
+ * from the current request; an invalid archive is a fail-closed error.
+ */
+export function mapCurrentScopeKnowledgeSnapshotRow(value: unknown): ScopeKnowledgeSnapshot {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new SnapshotRpcError("snapshot_invalid", 502, "snapshot_invalid");
+  }
+  const row = value as Record<string, unknown>;
+  const snapshot = {
+    snapshotId: row.snapshot_id,
+    projectId: row.project_id,
+    generation: row.generation,
+    schemaVersion: row.schema_version,
+    sourceReadStartedAt: row.source_read_started_at,
+    sourceReadCompletedAt: row.source_read_completed_at,
+    publishedAt: row.published_at,
+    validUntil: row.valid_until,
+    scopePolicyVersion: row.scope_policy_version,
+    knowledgeProjectionVersion: row.knowledge_projection_version,
+    sourceEvidence: row.source_evidence,
+    scopeDecisions: row.scope_decisions,
+    knowledgeProjection: row.knowledge_projection,
+    contentHash: row.content_hash,
+  } as unknown;
+  try {
+    assertValidScopeKnowledgeSnapshot(snapshot);
+    if (!isScopeKnowledgeSnapshotHashValid(snapshot)) throw new Error("snapshot content hash mismatch");
+    return snapshot;
+  } catch {
+    throw new SnapshotRpcError("snapshot_invalid", 502, "snapshot_invalid");
+  }
+}
+
+/** Server-only model boundary used by the authenticated distribution route. */
+export async function getCurrentScopeKnowledgeSnapshotModel(projectId: string): Promise<ScopeKnowledgeSnapshot | null> {
+  const row = await getCurrentScopeKnowledgeSnapshot(projectId);
+  return row ? mapCurrentScopeKnowledgeSnapshotRow(row) : null;
 }

@@ -31,5 +31,8 @@ jobs:
       - name: Phase 4E-2 snapshot sync tests
         run: npm run test:phase4e-2
 
+      - name: Phase 4E-3 snapshot distribution tests
+        run: npm run test:phase4e-3
+
       - name: Build
         run: npm run build

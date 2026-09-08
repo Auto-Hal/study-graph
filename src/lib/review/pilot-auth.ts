@@ -26,6 +26,11 @@ function cookieValue(request: Request) {
   }
 }
 
+/** Server-side session check for authenticated read APIs. */
+export async function isPilotSessionRequestAuthenticated(request: Request) {
+  return isPilotSessionCookieValid(cookieValue(request));
+}
+
 export async function isPilotSessionCookieValid(value: string | null | undefined) {
   const password = accessPassword();
   const secret = password ? derivePilotSessionSecret(password) : null;
