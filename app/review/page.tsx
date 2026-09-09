@@ -20,7 +20,7 @@ export default async function ReviewLandingPage() {
     ? "復習データを取得できません"
     : !scheduleAvailable
       ? "復習予定を確認できません"
-      : count > 0
+      : count !== null && count > 0
         ? "期限の来た項目があります"
         : "今日は予定がありません";
 
@@ -28,7 +28,7 @@ export default async function ReviewLandingPage() {
     ? "通信が戻ったら、もう一度確認してください。"
     : !scheduleAvailable
       ? "学習候補はありますが、期限はサーバーで確認できていません。"
-      : count > 0
+      : count !== null && count > 0
         ? "短いセッションで、ひとつずつ思い出します。"
         : "学習を続けるか、別のプロジェクトを選べます。";
 
