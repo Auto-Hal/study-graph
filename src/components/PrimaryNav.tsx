@@ -1,32 +1,36 @@
-import Link from "next/link";
+"use client";
 
-type ActiveItem = "home" | "learn" | "review" | "graph" | "settings";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+type ActiveItem = "today" | "learn" | "review" | "home" | "graph" | "settings" | null;
 
 export default function PrimaryNav({
   active,
-  variant = "learn",
 }: {
-  active: ActiveItem;
-  variant?: "home" | "learn";
+  active?: ActiveItem;
 }) {
-  const className = variant === "home" ? "bottom-nav" : "learn-bottom-nav";
+  const pathname = usePathname();
+  const current: "today" | "learn" | "review" | null = pathname === "/"
+    ? "today"
+    : pathname.startsWith("/review")
+      ? "review"
+      : pathname.startsWith("/projects") || pathname.startsWith("/graph")
+        ? "learn"
+        : pathname.startsWith("/settings")
+          ? null
+          : (active === "home" ? "today" : active === "graph" ? "learn" : active === "settings" ? null : active ?? "today");
 
   return (
-    <footer className={className} aria-label="メインナビゲーション">
-      <Link className={active === "home" ? "active" : undefined} href="/" aria-current={active === "home" ? "page" : undefined}>
-        Home
+    <footer className="phase5-bottom-nav" aria-label="メインナビゲーション">
+      <Link className={current === "today" ? "active" : undefined} href="/" aria-current={current === "today" ? "page" : undefined}>
+        <span aria-hidden="true">⌂</span>今日
       </Link>
-      <Link className={active === "learn" ? "active" : undefined} href="/projects" aria-current={active === "learn" ? "page" : undefined}>
-        Learn
+      <Link className={current === "learn" ? "active" : undefined} href="/projects" aria-current={current === "learn" ? "page" : undefined}>
+        <span aria-hidden="true">◌</span>学ぶ
       </Link>
-      <Link className={active === "review" ? "active" : undefined} href="/review" aria-current={active === "review" ? "page" : undefined}>
-        Review
-      </Link>
-      <Link className={active === "graph" ? "active" : undefined} href="/graph" aria-current={active === "graph" ? "page" : undefined}>
-        Graph
-      </Link>
-      <Link className={active === "settings" ? "active" : undefined} href="/settings" aria-current={active === "settings" ? "page" : undefined}>
-        Settings
+      <Link className={current === "review" ? "active" : undefined} href="/review" aria-current={current === "review" ? "page" : undefined}>
+        <span aria-hidden="true">↺</span>復習
       </Link>
     </footer>
   );

@@ -1,0 +1,123 @@
+/* Phase 5 bridge for the existing ReviewSession markup. Persistence and grading semantics are unchanged. */
+.phase5-shell h1,
+.phase5-shell h2,
+.phase5-session-shell h1,
+.phase5-session-shell h2 {
+  font-family: inherit;
+}
+
+.phase5-session-shell {
+  --bg: var(--p5-base);
+  --surface: var(--p5-surface);
+  --ink: var(--p5-text);
+  --muted: var(--p5-muted);
+  --line: var(--p5-line);
+  --accent: var(--p5-accent);
+  --accent-soft: var(--p5-accent-soft);
+  --warm: var(--p5-surface-soft);
+}
+
+.phase5-session-shell .review-project-intro {
+  margin-bottom: 22px;
+  padding: 0 0 20px;
+  border: 0;
+  border-bottom: 1px solid var(--p5-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.phase5-session-shell .review-project-intro h1 {
+  margin: 0;
+  font-size: clamp(25px, 6vw, 36px);
+}
+
+.phase5-session-shell .review-session-badge {
+  border-radius: 12px;
+  background: var(--p5-accent-soft);
+  color: var(--p5-accent);
+}
+
+.phase5-session-shell .review-session-badge strong {
+  color: var(--p5-accent);
+  font-family: inherit;
+}
+
+.phase5-session-shell .review-session-badge span,
+.phase5-session-shell .eyebrow,
+.phase5-session-shell .study-reason,
+.phase5-session-shell .your-answer {
+  color: var(--p5-muted);
+}
+
+.phase5-session-shell .review-stage {
+  border-color: var(--p5-line);
+  border-radius: 16px;
+  background: var(--p5-surface);
+  box-shadow: none;
+}
+
+.phase5-session-shell .study-card,
+.phase5-session-shell .choice-list label,
+.phase5-session-shell .grade-buttons button {
+  border-color: var(--p5-line);
+  background: var(--p5-surface);
+}
+
+.phase5-session-shell .review-kind {
+  background: var(--p5-accent-soft);
+  color: var(--p5-accent);
+}
+
+.phase5-session-shell .progress-track {
+  background: var(--p5-surface-soft);
+}
+
+.phase5-session-shell .progress-track span,
+.phase5-session-shell .reveal-button {
+  background: var(--p5-accent);
+}
+
+.phase5-session-shell .answer-panel {
+  border-color: var(--p5-line);
+  background: var(--p5-surface-soft);
+}
+
+.phase5-session-shell .answer-list > div {
+  border-color: var(--p5-line);
+}
+
+.phase5-session-shell .notion-source-link {
+  color: var(--p5-accent);
+}
+
+.phase5-session-shell .choice-list label.selected {
+  border-color: var(--p5-accent);
+  background: var(--p5-accent-soft);
+}
+
+.phase5-session-shell .choice-list input {
+  accent-color: var(--p5-accent);
+}
+
+.phase5-session-shell .recommended-grade {
+  outline-color: var(--p5-accent);
+}
+
+.phase5-session-shell .answer-verdict.correct {
+  color: var(--p5-success);
+}
+
+.phase5-session-shell .answer-verdict.incorrect {
+  color: var(--p5-danger);
+}
+
+.phase5-session-shell .grade-buttons button:hover {
+  border-color: #c7d1e4;
+  background: #f8faff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase5-session-shell .progress-track span {
+    transition: none;
+  }
+}

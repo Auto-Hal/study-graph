@@ -16,7 +16,6 @@ import {
 import { syncObjectiveStateMirror } from "@/src/lib/review/offline/objective-state-mirror";
 import { recoverAndFlushPilotOutbox } from "@/src/lib/review/offline/foreground-sync";
 import { reconcilePilotResults, type PilotSessionResult } from "@/src/lib/review/offline/result-reconciliation";
-import PilotBlockedAttemptDiagnostics from "@/src/components/PilotBlockedAttemptDiagnostics";
 
 export type { ReviewCard } from "@/src/lib/review/types";
 
@@ -194,10 +193,10 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
           ? "回答を保存しました。復習予定が更新されていない回答が " + noSrsCount + "件あります。"
           : fullySaved
             ? "回答と評価を保存し、次回復習日を更新しました。"
-            : "セッションは完了しました。現在は永続保存を使わないfallbackモードです。";
+            : "セッションは完了しました。この練習の回答は保存の対象外です。";
     const accuracyLabel = accuracy === null ? "—" : String(accuracy) + "%";
     const nextDueLabel = nextDue ?? "—";
-    return <section className="review-stage result-stage" aria-live="polite"><p className="eyebrow">SESSION COMPLETE</p><h1>{session.projectTitle}の{session.mode === "practice" ? "Practice" : "復習"}は完了です。</h1><p className="result-lead">{resultLead}</p>{displayedPendingCount > 0 && <p className="persistence-note" role="status">端末保存済み・未同期 {displayedPendingCount}件</p>}{displayedAuthRequiredCount > 0 && <p className="persistence-note" role="status">ログイン待ち {displayedAuthRequiredCount}件。<Link href="/login">ログインして再送</Link></p>}{displayedBlockedCount > 0 && <p className="persistence-note" role="status">確認が必要 {displayedBlockedCount}件。自動再送は停止しています。</p>}{versionedPilotSession && <PilotBlockedAttemptDiagnostics />}<div className="result-grid"><div><strong>{accuracyLabel}</strong><span>正答率</span></div><div><strong>{summary.again + summary.hard}</strong><span>要再確認</span></div><div><strong>{nextDueLabel}</strong><span>最短の次回復習</span></div></div><div className="grade-summary">{gradeOptions.map((option) => <div key={option.grade}><span>{option.label}</span><strong>{summary[option.grade]}</strong></div>)}</div><div className="result-actions">{!versionedPilotSession && <button className="primary-action" type="button" onClick={() => { setIndex(0); setRevealed(false); setAnswerValue(""); setAnswerCorrect(null); setRecommended(null); setResults([]); setFinished(false); setSaveError(null); startedAt.current = Date.now(); }}>もう一度取り組む</button>}<Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.historyHref ? "学習記録を見る" : "Knowledge Graphを見る"}</Link></div></section>;
+    return <section className="review-stage result-stage" aria-live="polite"><p className="eyebrow">SESSION COMPLETE</p><h1>{session.projectTitle}の{session.mode === "practice" ? "Practice" : "復習"}は完了です。</h1><p className="result-lead">{resultLead}</p>{displayedPendingCount > 0 && <p className="persistence-note" role="status">端末保存済み・未同期 {displayedPendingCount}件</p>}{displayedAuthRequiredCount > 0 && <p className="persistence-note" role="status">ログイン待ち {displayedAuthRequiredCount}件。<Link href="/login">ログインして再送</Link></p>}{displayedBlockedCount > 0 && <p className="persistence-note" role="status">確認が必要 {displayedBlockedCount}件。自動再送は停止しています。</p>}<div className="result-grid"><div><strong>{accuracyLabel}</strong><span>正答率</span></div><div><strong>{summary.again + summary.hard}</strong><span>要再確認</span></div><div><strong>{nextDueLabel}</strong><span>最短の次回復習</span></div></div><div className="grade-summary">{gradeOptions.map((option) => <div key={option.grade}><span>{option.label}</span><strong>{summary[option.grade]}</strong></div>)}</div><div className="result-actions">{!versionedPilotSession && <button className="primary-action" type="button" onClick={() => { setIndex(0); setRevealed(false); setAnswerValue(""); setAnswerCorrect(null); setRecommended(null); setResults([]); setFinished(false); setSaveError(null); startedAt.current = Date.now(); }}>もう一度取り組む</button>}<Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.historyHref ? "学習記録を見る" : "Knowledge Graphを見る"}</Link></div></section>;
   }
 
   const card = cards[index];
