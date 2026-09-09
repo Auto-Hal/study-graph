@@ -6,8 +6,12 @@ import {
   type OfflineDeliveryClassification,
   type OfflineReceiptRecord,
   type OfflineTransportDiagnostics,
+  type OfflineSubmission,
+  reconcileBlockedOfflineAttemptWithReceipt,
+  safeTransportErrorCode,
 } from "./outbox-core.ts";
 import { transitionOfflineAttempt } from "./outbox-core.ts";
+import { canonicalizeJson } from "./model-core.ts";
 
 export const ATTEMPT_OUTBOX_DB_NAME = "study-graph-attempt-outbox" as const;
 export const ATTEMPT_OUTBOX_DB_VERSION = 1 as const;
@@ -64,6 +68,24 @@ export type AttemptOutboxOptions = Readonly<{
   indexedDB?: IDBFactory;
   dbName?: string;
   now?: () => string;
+}>;
+
+export type OfflineAttemptTransportMetadataPatch = Readonly<{
+  /** Guard updates against a stale response overwriting a newer terminal state. */
+  expectedStatus?: OfflineAttemptCommitted["status"];
+  httpStatus?: number | null;
+  serverErrorCode?: string | null;
+  observedAt?: string | null;
+  transportError?: string | null;
+  markAttempted?: boolean;
+  incrementRetry?: boolean;
+}>;
+
+export type BlockedAttemptReconciliationExpectation = Readonly<{
+  attemptId: string;
+  instanceId: string;
+  requestHash: string;
+  submission: OfflineSubmission;
 }>;
 
 export class OfflineOutboxError extends Error {
@@ -435,6 +457,181 @@ export async function getOfflineReceipt(
     const transaction = database.transaction(ATTEMPT_RECEIPTS_STORE_NAME, "readonly");
     const value = await requestResult(transaction.objectStore(ATTEMPT_RECEIPTS_STORE_NAME).get(attemptId));
     return value ? value as PersistedOfflineReceipt : null;
+  } finally {
+    database.close();
+  }
+}
+
+/**
+ * Update only mutable transport history. The immutable submission, request
+ * hash, attempt identity, and blocked reason are never touched. An expected
+ * status guard prevents a late manual response from overwriting a newer
+ * terminal record.
+ */
+export async function updateOfflineAttemptTransportMetadata(
+  attemptId: string,
+  patch: OfflineAttemptTransportMetadataPatch,
+  options: AttemptOutboxOptions = {},
+): Promise<PersistedOfflineAttempt | null> {
+  const database = await openAttemptOutbox(options);
+  try {
+    return await new Promise<PersistedOfflineAttempt | null>((resolve, reject) => {
+      const transaction = database.transaction(ATTEMPT_OUTBOX_STORE_NAME, "readwrite");
+      const store = transaction.objectStore(ATTEMPT_OUTBOX_STORE_NAME);
+      let result: PersistedOfflineAttempt | null = null;
+      let operationError: Error | null = null;
+      transaction.oncomplete = () => operationError
+        ? reject(operationError)
+        : resolve(result);
+      transaction.onerror = () => reject(operationError ?? transaction.error ?? new OfflineOutboxError("outbox_storage_failed"));
+      transaction.onabort = () => reject(operationError ?? transaction.error ?? new OfflineOutboxError("outbox_storage_failed"));
+      const request = store.get(attemptId);
+      request.onerror = () => {
+        operationError = new OfflineOutboxError("outbox_storage_failed", "IndexedDB transport metadata read failed");
+        transaction.abort();
+      };
+      request.onsuccess = () => {
+        const current = asPersisted(request.result);
+        if (!current || (patch.expectedStatus !== undefined && current.record.status !== patch.expectedStatus)) {
+          result = current;
+          return;
+        }
+        const now = clock(options)();
+        const nextTransport: AttemptOutboxTransportMetadata = {
+          ...current.transport,
+          updatedAt: now,
+          lastAttemptedAt: patch.markAttempted ? now : current.transport.lastAttemptedAt,
+          retryCount: patch.incrementRetry ? current.transport.retryCount + 1 : current.transport.retryCount,
+          lastTransportError: patch.transportError === undefined
+            ? current.transport.lastTransportError
+            : safeTransportErrorCode(patch.transportError),
+          lastHttpStatus: patch.httpStatus === undefined ? current.transport.lastHttpStatus ?? null : patch.httpStatus,
+          lastServerErrorCode: patch.serverErrorCode === undefined
+            ? current.transport.lastServerErrorCode ?? null
+            : safeTransportErrorCode(patch.serverErrorCode),
+          lastTransportObservedAt: patch.observedAt === undefined
+            ? current.transport.lastTransportObservedAt ?? null
+            : patch.observedAt,
+        };
+        const persisted = deepFreeze({ ...current, transport: deepFreeze(nextTransport) });
+        store.put(persisted);
+        result = persisted;
+      };
+    });
+  } finally {
+    database.close();
+  }
+}
+
+/**
+ * Atomically reconcile a blocked attempt with a complete authoritative
+ * receipt. This is the only storage operation that may move blocked to an
+ * accepted terminal state; generic delivery and foreground flush never call
+ * it. The current outbox row is re-read inside the transaction so a stale
+ * response cannot overwrite a newer terminal authority.
+ */
+export async function reconcileBlockedAttemptWithAuthoritativeReceipt(
+  attemptId: string,
+  expected: BlockedAttemptReconciliationExpectation,
+  receipt: OfflineReceiptRecord,
+  options: AttemptOutboxOptions = {},
+): Promise<PersistedOfflineAttempt | null> {
+  const database = await openAttemptOutbox(options);
+  try {
+    return await new Promise<PersistedOfflineAttempt | null>((resolve, reject) => {
+      const transaction = database.transaction(
+        [ATTEMPT_OUTBOX_STORE_NAME, ATTEMPT_RECEIPTS_STORE_NAME],
+        "readwrite",
+      );
+      const outbox = transaction.objectStore(ATTEMPT_OUTBOX_STORE_NAME);
+      const receipts = transaction.objectStore(ATTEMPT_RECEIPTS_STORE_NAME);
+      let result: PersistedOfflineAttempt | null = null;
+      let operationError: Error | null = null;
+      transaction.oncomplete = () => operationError
+        ? reject(operationError)
+        : resolve(result);
+      transaction.onerror = () => reject(operationError ?? transaction.error ?? new OfflineOutboxError("outbox_storage_failed"));
+      transaction.onabort = () => reject(operationError ?? transaction.error ?? new OfflineOutboxError("outbox_storage_failed"));
+
+      const request = outbox.get(attemptId);
+      request.onerror = () => {
+        operationError = new OfflineOutboxError("outbox_storage_failed", "IndexedDB reconciliation read failed");
+        transaction.abort();
+      };
+      request.onsuccess = () => {
+        const current = asPersisted(request.result);
+        if (!current) {
+          result = null;
+          return;
+        }
+        // A concurrent accepted/blocked terminal record is the current
+        // authority. Never overwrite it with a late manual response.
+        if (current.record.status !== "blocked") {
+          result = current;
+          return;
+        }
+        try {
+          if (
+            !/^[0-9a-f]{64}$/.test(current.record.requestHash)
+            || !/^[0-9a-f]{64}$/.test(expected.requestHash)
+            || current.attemptId !== attemptId
+            || current.instanceId !== expected.instanceId
+            || current.record.submission.attemptId !== expected.attemptId
+            || current.record.submission.instanceId !== expected.instanceId
+            || current.record.requestHash !== expected.requestHash
+            || canonicalizeJson(current.record.submission) !== canonicalizeJson(expected.submission)
+          ) {
+            throw new OfflineOutboxError("attempt_conflict", "blocked submission changed before reconciliation");
+          }
+          const nextRecord = reconcileBlockedOfflineAttemptWithReceipt(current.record, receipt, expected);
+          const now = clock(options)();
+          const persisted = deepFreeze({
+            ...current,
+            record: nextRecord,
+            transport: deepFreeze({
+              ...current.transport,
+              updatedAt: now,
+              lastTransportError: null,
+              lastHttpStatus: current.transport.lastHttpStatus ?? null,
+              lastServerErrorCode: current.transport.lastServerErrorCode ?? null,
+              lastTransportObservedAt: current.transport.lastTransportObservedAt ?? null,
+            }),
+          });
+          const existingRequest = receipts.get(attemptId);
+          existingRequest.onerror = () => {
+            operationError = new OfflineOutboxError("outbox_storage_failed", "IndexedDB receipt read failed");
+            transaction.abort();
+          };
+          existingRequest.onsuccess = () => {
+            const existing = existingRequest.result as PersistedOfflineReceipt | undefined;
+            if (existing) {
+              if (
+                existing.instanceId !== current.instanceId
+                || canonicalizeJson(existing.receipt) !== canonicalizeJson(receipt)
+              ) {
+                operationError = new OfflineOutboxError("receipt_conflict", "A different authoritative receipt already exists");
+                transaction.abort();
+                return;
+              }
+            } else {
+              receipts.add(deepFreeze({
+                attemptId,
+                instanceId: current.instanceId,
+                receipt,
+                receivedAt: now,
+              } satisfies PersistedOfflineReceipt));
+            }
+            outbox.put(persisted);
+            result = persisted;
+          };
+        } catch (error) {
+          operationError = error instanceof OfflineOutboxError
+            ? error
+            : new OfflineOutboxError("invalid_record", error instanceof Error ? error.message : "invalid blocked reconciliation");
+          transaction.abort();
+        }
+      };
+    });
   } finally {
     database.close();
   }

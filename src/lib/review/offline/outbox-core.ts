@@ -10,6 +10,8 @@ import {
   type OfflineReceiptKind,
   type OfflineReceiptRecord,
   type OfflineSubmissionInput,
+  type OfflineSubmission,
+  canonicalizeJson,
   deepFreeze,
 } from "./model-core.ts";
 
@@ -186,6 +188,47 @@ function acceptReceipt(record: OfflineAttemptCommitted, receipt: OfflineReceiptR
   const restored = authoritativeReceiptResult(receipt, record.submission.instanceId);
   if (restored.attemptId !== record.submission.attemptId) {
     throw new Error("stored receipt attemptId does not match the outbox submission");
+  }
+  return deepFreeze({
+    ...record,
+    status: restored.srsApplied ? "accepted-applied" as const : "accepted-no-srs" as const,
+    receipt,
+    blockedReason: null,
+  });
+}
+
+/**
+ * Reconcile a terminal blocked record only after an explicit operation has
+ * obtained a complete authoritative receipt. This is deliberately separate
+ * from transitionOfflineAttempt(): automatic delivery and crash recovery must
+ * continue to treat `blocked` as terminal.
+ */
+export function reconcileBlockedOfflineAttemptWithReceipt(
+  record: OfflineAttemptCommitted,
+  receipt: OfflineReceiptRecord,
+  expected?: Readonly<{
+    attemptId: string;
+    instanceId: string;
+    requestHash: string;
+    submission: OfflineSubmission;
+  }>,
+): OfflineAttemptCommitted {
+  if (record.status !== "blocked") {
+    throw new Error("Only a blocked attempt can be explicitly reconciled");
+  }
+  if (expected) {
+    if (
+      record.submission.attemptId !== expected.attemptId
+      || record.submission.instanceId !== expected.instanceId
+      || record.requestHash !== expected.requestHash
+      || canonicalizeJson(record.submission) !== canonicalizeJson(expected.submission)
+    ) {
+      throw new Error("blocked attempt immutable submission does not match reconciliation expectation");
+    }
+  }
+  const restored = authoritativeReceiptResult(receipt, record.submission.instanceId);
+  if (restored.attemptId !== record.submission.attemptId) {
+    throw new Error("stored receipt attemptId does not match the blocked outbox submission");
   }
   return deepFreeze({
     ...record,

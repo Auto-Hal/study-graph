@@ -191,13 +191,31 @@ test("blocked diagnostics are a structural, non-mutating projection", () => {
   assert.doesNotMatch(diagnostics, /put\(|delete\(|transaction\([^)]*,\s*["']readwrite["']/);
 });
 
+test("explicit blocked recovery is validation-gated and keeps the generic terminal state", () => {
+  assert.match(pilotTransport, /recoverBlockedPilotAttemptExplicitly/);
+  assert.match(pilotTransport, /hashExerciseAttemptRequestBrowser/);
+  assert.match(pilotTransport, /\/api\/review\/pilot\/attempt\/validate/);
+  assert.match(pilotTransport, /reconcileBlockedAttemptWithAuthoritativeReceipt/);
+  assert.match(pilotTransport, /updateOfflineAttemptTransportMetadata/);
+  const recoveryStart = pilotTransport.indexOf("export async function recoverBlockedPilotAttemptExplicitly");
+  const recoveryEnd = pilotTransport.indexOf("\n/**\n * Send one durable pilot submission", recoveryStart);
+  assert.ok(recoveryStart >= 0 && recoveryEnd > recoveryStart);
+  const recovery = pilotTransport.slice(recoveryStart, recoveryEnd);
+  assert.doesNotMatch(recovery, /markOfflineAttemptSending\s*\(|markOfflineAttemptReauthenticated\s*\(|crypto\.randomUUID/);
+  assert.match(recovery, /status !== ["']blocked["']/);
+  assert.match(recovery, /reconcileBlockedAttemptWithAuthoritativeReceipt/);
+  assert.match(diagnosticsComponent, /同じ保存済み回答を再送/);
+  assert.match(diagnosticsComponent, /result\?\.ok/);
+  assert.doesNotMatch(diagnosticsComponent, /sendPilotOutboxAttempt/);
+});
+
 test("dashboard reaches blocked diagnostics without changing the offline authority", () => {
   assert.match(dashboard, /import PilotBlockedAttemptDiagnostics from ["']\.\/PilotBlockedAttemptDiagnostics["'];/);
   const prefetchIndex = dashboard.indexOf("<OfflinePrefetchControl />");
   const diagnosticsIndex = dashboard.indexOf("<PilotBlockedAttemptDiagnostics />");
   const historyIndex = dashboard.indexOf("progress-link-card");
   assert.ok(prefetchIndex >= 0 && diagnosticsIndex > prefetchIndex && historyIndex > diagnosticsIndex);
-  assert.match(diagnosticsComponent, /if \(loadError \|\| records\.length === 0\) return null/);
+  assert.match(diagnosticsComponent, /if \(loadError \|\| \(records\.length === 0 && notice === null\)\) return null/);
   assert.doesNotMatch(diagnosticsComponent, /prefetchPilotOfflineInstance|sendPilotOutboxAttempt|transitionOfflineAttempt|commitPilotOfflineAttempt|crypto\.randomUUID|markOfflineInstanceAnswered/);
   assert.match(offlineReview, /findOfflineAttemptByInstanceId\(record\.instanceId\)/);
   assert.match(offlineReview, /if \(existingAttempt\)[\s\S]*?continue;/);

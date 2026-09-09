@@ -3,6 +3,8 @@ import {
   commitOfflineAttempt,
   createOfflineAttemptDraft,
   getOfflineAttempt,
+  reconcileBlockedAttemptWithAuthoritativeReceipt,
+  updateOfflineAttemptTransportMetadata,
   markOfflineAttemptReauthenticated,
   markOfflineAttemptSending,
   type AttemptOutboxOptions,
@@ -10,8 +12,12 @@ import {
 } from "./attempt-outbox.ts";
 import {
   authoritativeReceiptResult,
+  canonicalizeJson,
   createOfflineSubmission,
+  OFFLINE_SUBMISSION_SCHEMA_VERSION,
+  REQUEST_HASH_VERSION,
   type OfflineReceiptKind,
+  type OfflineSubmission,
 } from "./model-core.ts";
 import {
   classifyOfflineServerOutcome,
@@ -71,8 +77,15 @@ export async function commitPilotOfflineAttempt(
   return commitOfflineAttempt(record, options);
 }
 
-function parseJson(response: Response): Promise<Record<string, unknown>> {
-  return response.json().catch(() => ({})) as Promise<Record<string, unknown>>;
+async function parseJson(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const value: unknown = await response.json();
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 function receiptFromStoredRecord(record: PersistedOfflineAttempt): StoredPilotReceiptResult {
@@ -177,6 +190,307 @@ export function requestBody(record: PersistedOfflineAttempt) {
 
 function resultForAccepted(record: PersistedOfflineAttempt): StoredPilotReceiptResult {
   return receiptFromStoredRecord(record);
+}
+
+export type ManualRecoveryFailure = "integrity" | "validation" | "auth-required" | "network" | "server" | "rate-limit" | "semantic";
+
+export type ManualBlockedPilotRecoveryResult =
+  | { kind: "accepted"; record: PersistedOfflineAttempt; result: StoredPilotReceiptResult }
+  | {
+      kind: "blocked";
+      record: PersistedOfflineAttempt;
+      reason: import("./model-core.ts").OfflineBlockedReason;
+      phase: "integrity" | "validation" | "send" | "receipt-lookup";
+      failure: ManualRecoveryFailure;
+      httpStatus: number | null;
+      serverErrorCode: string | null;
+    }
+  | { kind: "terminal"; record: PersistedOfflineAttempt };
+
+type ManualBlockedPilotRecoveryOptions = AttemptOutboxOptions & {
+  receiptKind?: OfflineReceiptKind;
+  fetchImpl?: FetchLike;
+  cryptoProvider?: Pick<Crypto, "subtle">;
+};
+
+function manualFailureKind(
+  classification: OfflineDeliveryClassification,
+  phase: "validation" | "send" | "receipt-lookup",
+): ManualRecoveryFailure {
+  if (classification.kind === "retryable") return classification.reason === "network"
+    ? "network"
+    : classification.reason === "rate-limit" ? "rate-limit" : "server";
+  if (classification.kind === "auth-required") return "auth-required";
+  if (classification.kind === "blocked") {
+    if (classification.reason === "attempt-conflict" || classification.reason === "instance-already-answered") return "semantic";
+    if (phase === "validation" || classification.diagnostics?.httpStatus === 400) return "validation";
+    return "semantic";
+  }
+  return phase === "validation" ? "validation" : "semantic";
+}
+
+async function preserveBlockedTransportDiagnostics(
+  record: PersistedOfflineAttempt,
+  diagnostics: ReturnType<typeof transportDiagnostics>,
+  options: AttemptOutboxOptions,
+  transportError?: string | null,
+) {
+  try {
+    return await updateOfflineAttemptTransportMetadata(record.attemptId, {
+      expectedStatus: "blocked",
+      httpStatus: diagnostics.httpStatus,
+      serverErrorCode: diagnostics.serverErrorCode,
+      observedAt: diagnostics.observedAt,
+      transportError: transportError === undefined ? record.record.blockedReason : transportError,
+    }, options) ?? record;
+  } catch {
+    // Diagnostic history is best-effort. A storage failure must never turn a
+    // durable blocked submission into a different state or trigger a retry.
+    return record;
+  }
+}
+
+function blockedManualResult(
+  record: PersistedOfflineAttempt,
+  phase: "integrity" | "validation" | "send" | "receipt-lookup",
+  failure: ManualRecoveryFailure,
+  diagnostics: ReturnType<typeof transportDiagnostics>,
+  reason: import("./model-core.ts").OfflineBlockedReason = record.record.blockedReason ?? "malformed-response",
+): ManualBlockedPilotRecoveryResult {
+  return {
+    kind: "blocked",
+    record,
+    reason,
+    phase,
+    failure,
+    httpStatus: diagnostics.httpStatus,
+    serverErrorCode: diagnostics.serverErrorCode,
+  };
+}
+
+function isAcceptedRecord(record: PersistedOfflineAttempt) {
+  return record.record.status === "accepted-applied" || record.record.status === "accepted-no-srs";
+}
+
+function canonicalizeSubmissionForComparison(submission: OfflineSubmission) {
+  return canonicalizeJson(submission);
+}
+
+/**
+ * A guarded metadata write can observe a concurrent terminal update. Return
+ * that current authority instead of manufacturing a blocked result around an
+ * accepted (or otherwise non-blocked) record.
+ */
+function manualResultAfterBlockedMetadataUpdate(
+  record: PersistedOfflineAttempt,
+  phase: "integrity" | "validation" | "send" | "receipt-lookup",
+  failure: ManualRecoveryFailure,
+  diagnostics: ReturnType<typeof transportDiagnostics>,
+  reason?: import("./model-core.ts").OfflineBlockedReason,
+): ManualBlockedPilotRecoveryResult {
+  if (isAcceptedRecord(record)) return { kind: "accepted", record, result: resultForAccepted(record) };
+  if (record.record.status !== "blocked") return { kind: "terminal", record };
+  return blockedManualResult(record, phase, failure, diagnostics, reason);
+}
+
+/**
+ * Explicit, user-triggered recovery for a blocked pilot attempt. The generic
+ * state machine remains terminal: this operation never marks the record
+ * sending or pending. It validates the immutable tuple, performs a fresh
+ * validation-only request, then sends the same tuple once. Only a complete
+ * authoritative receipt can atomically reconcile blocked to accepted.
+ */
+export async function recoverBlockedPilotAttemptExplicitly(
+  attemptId: string,
+  options: ManualBlockedPilotRecoveryOptions = {},
+): Promise<ManualBlockedPilotRecoveryResult | null> {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  if (!fetchImpl) throw new Error("fetch is unavailable");
+
+  let current = await getOfflineAttempt(attemptId, options);
+  if (!current) return null;
+  if (isAcceptedRecord(current)) return { kind: "accepted", record: current, result: resultForAccepted(current) };
+  if (current.record.status !== "blocked") return { kind: "terminal", record: current };
+
+  const submission = current.record.submission;
+  const expected = {
+    attemptId: current.attemptId,
+    instanceId: current.instanceId,
+    requestHash: current.record.requestHash,
+    submission,
+  } as const;
+  const invalidDiagnostics = transportDiagnostics(null);
+  if (
+    submission.submissionSchemaVersion !== OFFLINE_SUBMISSION_SCHEMA_VERSION
+    || submission.requestHashVersion !== REQUEST_HASH_VERSION
+    || submission.attemptId !== current.attemptId
+    || submission.instanceId !== current.instanceId
+    || !/^[0-9a-f]{64}$/.test(current.record.requestHash)
+  ) {
+    const preserved = await preserveBlockedTransportDiagnostics(current, invalidDiagnostics, options, "request-hash-mismatch");
+    return manualResultAfterBlockedMetadataUpdate(preserved, "integrity", "integrity", invalidDiagnostics);
+  }
+
+  let recomputedHash: string;
+  try {
+    recomputedHash = await hashExerciseAttemptRequestBrowser({
+      attemptId: submission.attemptId,
+      instanceId: submission.instanceId,
+      rawAnswer: submission.rawAnswer,
+      selfEvaluation: submission.selfEvaluation,
+      responseMs: submission.responseMs,
+      usedHint: submission.usedHint,
+    }, options.cryptoProvider);
+  } catch {
+    const preserved = await preserveBlockedTransportDiagnostics(current, invalidDiagnostics, options, "request-hash-unavailable");
+    return manualResultAfterBlockedMetadataUpdate(preserved, "integrity", "integrity", invalidDiagnostics);
+  }
+  if (recomputedHash !== current.record.requestHash) {
+    const preserved = await preserveBlockedTransportDiagnostics(current, invalidDiagnostics, options, "request-hash-mismatch");
+    return manualResultAfterBlockedMetadataUpdate(preserved, "integrity", "integrity", invalidDiagnostics);
+  }
+
+  // Record only mutable transport history. This operation intentionally does
+  // not enter the ordinary in-flight state and keeps status blocked while the
+  // validation and submission requests are in flight.
+  current = await updateOfflineAttemptTransportMetadata(current.attemptId, {
+    expectedStatus: "blocked",
+    markAttempted: true,
+    incrementRetry: true,
+    transportError: null,
+    httpStatus: null,
+    serverErrorCode: null,
+    observedAt: null,
+  }, options) ?? current;
+  if (isAcceptedRecord(current)) return { kind: "accepted", record: current, result: resultForAccepted(current) };
+  if (current.record.status !== "blocked") return { kind: "terminal", record: current };
+
+  let validationResponse: Response;
+  try {
+    validationResponse = await fetchImpl("/api/review/pilot/attempt/validate", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody(current)),
+    });
+  } catch {
+    const diagnostics = transportDiagnostics(null);
+    const preserved = await preserveBlockedTransportDiagnostics(current, diagnostics, options, "network");
+    return manualResultAfterBlockedMetadataUpdate(preserved, "validation", "network", diagnostics);
+  }
+  const validationPayload = await parseJson(validationResponse);
+  const validationDiagnostics = transportDiagnostics(validationResponse.status, validationPayload);
+  if (validationResponse.status !== 200 || validationPayload.ok !== true) {
+    const failure = validationResponse.status === 401
+      ? "auth-required" as const
+      : validationResponse.status === 429
+        ? "rate-limit" as const
+        : validationResponse.status >= 500
+          ? "server" as const
+          : validationResponse.status >= 400
+            ? "validation" as const
+            : "semantic" as const;
+    const preserved = await preserveBlockedTransportDiagnostics(current, validationDiagnostics, options, failure === "auth-required" ? "auth-required" : "validation-failed");
+    return manualResultAfterBlockedMetadataUpdate(preserved, "validation", failure, validationDiagnostics);
+  }
+
+  // Re-read after validation. A concurrent operation may have reconciled the
+  // record; an accepted terminal record wins and no second POST is sent.
+  current = await getOfflineAttempt(attemptId, options);
+  if (!current) return null;
+  if (isAcceptedRecord(current)) return { kind: "accepted", record: current, result: resultForAccepted(current) };
+  if (current.record.status !== "blocked") return { kind: "terminal", record: current };
+  if (
+    current.record.requestHash !== expected.requestHash
+    || current.record.submission.attemptId !== expected.attemptId
+    || current.record.submission.instanceId !== expected.instanceId
+    || canonicalizeSubmissionForComparison(current.record.submission) !== canonicalizeSubmissionForComparison(expected.submission)
+  ) {
+    const preserved = await preserveBlockedTransportDiagnostics(current, invalidDiagnostics, options, "request-hash-mismatch");
+    return manualResultAfterBlockedMetadataUpdate(preserved, "integrity", "integrity", invalidDiagnostics, "attempt-conflict");
+  }
+
+  let response: Response;
+  let classification: OfflineDeliveryClassification;
+  try {
+    response = await fetchImpl("/api/review/pilot/attempt", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody(current)),
+    });
+    const payload = await parseJson(response);
+    classification = withTransportDiagnostics(classifyOfflineServerOutcome({
+      type: "http",
+      status: response.status,
+      code: typeof payload.error === "string" ? payload.error : undefined,
+      attemptId: payload.attemptId,
+      requestHash: payload.requestHash,
+      receipt: payload.receipt,
+      receiptKind: options.receiptKind,
+    }, {
+      attemptId: current.record.submission.attemptId,
+      instanceId: current.instanceId,
+      receiptKind: options.receiptKind ?? "objective",
+      requestHash: current.record.requestHash,
+    }), transportDiagnostics(response.status, payload));
+  } catch {
+    const diagnostics = transportDiagnostics(null);
+    const preserved = await preserveBlockedTransportDiagnostics(current, diagnostics, options, "network");
+    return manualResultAfterBlockedMetadataUpdate(preserved, "send", "network", diagnostics);
+  }
+
+  let outcomePhase: "send" | "receipt-lookup" = "send";
+  if (classification.kind === "receipt-lookup-required") {
+    outcomePhase = "receipt-lookup";
+    classification = await lookupStoredReceipt(current, options.receiptKind ?? "objective", fetchImpl);
+  }
+
+  if (classification.kind === "accepted") {
+    try {
+      const reconciled = await reconcileBlockedAttemptWithAuthoritativeReceipt(
+        attemptId,
+        expected,
+        classification.receipt,
+        options,
+      );
+      if (!reconciled) return null;
+      if (isAcceptedRecord(reconciled)) {
+        return { kind: "accepted", record: reconciled, result: resultForAccepted(reconciled) };
+      }
+      if (reconciled.record.status === "blocked") {
+        const diagnostics = classification.diagnostics ?? transportDiagnostics(response.status);
+        return blockedManualResult(reconciled, "send", "semantic", diagnostics, "incomplete-authoritative-receipt");
+      }
+      return { kind: "terminal", record: reconciled };
+    } catch {
+      const latest = await getOfflineAttempt(attemptId, options);
+      if (latest && isAcceptedRecord(latest)) return { kind: "accepted", record: latest, result: resultForAccepted(latest) };
+      const diagnostics = classification.diagnostics ?? transportDiagnostics(response.status);
+      const preserved = latest && latest.record.status === "blocked"
+        ? await preserveBlockedTransportDiagnostics(latest, diagnostics, options, "receipt-reconciliation-failed")
+        : current;
+      return manualResultAfterBlockedMetadataUpdate(preserved, outcomePhase, "semantic", diagnostics, "incomplete-authoritative-receipt");
+    }
+  }
+
+  const diagnostics = classification.diagnostics ?? transportDiagnostics(response.status);
+  const failure = manualFailureKind(classification, outcomePhase);
+  const transportError = classification.kind === "retryable"
+    ? classification.reason
+    : classification.kind === "auth-required"
+      ? "auth-required"
+      : classification.kind === "blocked"
+        ? classification.reason
+        : "manual-recovery-failed";
+  const preserved = await preserveBlockedTransportDiagnostics(current, diagnostics, options, transportError);
+  return manualResultAfterBlockedMetadataUpdate(
+    preserved,
+    outcomePhase,
+    failure,
+    diagnostics,
+    classification.kind === "blocked" ? classification.reason : preserved.record.blockedReason ?? "malformed-response",
+  );
 }
 
 /**

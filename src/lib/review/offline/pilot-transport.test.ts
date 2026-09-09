@@ -9,9 +9,15 @@ import {
   getOfflineAttempt,
   markOfflineAttemptSending,
 } from "./attempt-outbox.ts";
-import { createOfflineAttemptDraft } from "./model-core.ts";
+import { createOfflineAttemptDraft, createOfflineReceiptRecord } from "./model-core.ts";
 import { transitionOfflineAttempt } from "./outbox.ts";
-import { commitPilotOfflineAttempt, flushPilotAttemptOutbox, sendPilotOutboxAttempt } from "./pilot-transport.ts";
+import { reconcileBlockedOfflineAttemptWithReceipt } from "./outbox-core.ts";
+import {
+  commitPilotOfflineAttempt,
+  flushPilotAttemptOutbox,
+  recoverBlockedPilotAttemptExplicitly,
+  sendPilotOutboxAttempt,
+} from "./pilot-transport.ts";
 
 class FakeRequest<T = unknown> {
   result!: T;
@@ -410,4 +416,232 @@ test("a validation 400 keeps safe diagnostics separate and blocked records are n
   assert.equal(flushed.length, 0);
   assert.equal(automaticRetryCount, 0);
   assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "blocked");
+});
+
+async function explicitlyBlocked(indexedDB: FakeIndexedDb, dbName: string) {
+  const options = opts(indexedDB, dbName);
+  await commitPilotOfflineAttempt({
+    attemptId,
+    instanceId,
+    rawAnswer: "あ",
+    selfEvaluation: "good",
+    responseMs: 100,
+    usedHint: false,
+  }, { ...options, cryptoProvider: browserCrypto });
+  await markOfflineAttemptSending(attemptId, options);
+  await applyOfflineDelivery(attemptId, { kind: "blocked", reason: "malformed-response" }, options);
+  return options;
+}
+
+test("explicit blocked recovery requires validation and preserves the exact wire tuple", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = await explicitlyBlocked(indexedDB, "manual-recovery-accepted");
+  const before = await getOfflineAttempt(attemptId, options);
+  assert.ok(before);
+  const calls: string[] = [];
+  const bodies: Record<string, unknown>[] = [];
+  const result = await recoverBlockedPilotAttemptExplicitly(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    cryptoProvider: browserCrypto,
+    fetchImpl: async (input, init) => {
+      calls.push(String(input));
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "blocked");
+      if (String(input).endsWith("/validate")) return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      return new Response(JSON.stringify({ receipt: receipt() }), { status: 200 });
+    },
+  });
+  assert.equal(result?.kind, "accepted");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].endsWith("/validate"), true);
+  assert.equal(calls[1].endsWith("/attempt"), true);
+  assert.deepEqual(Object.keys(bodies[0]).sort(), ["attemptId", "instanceId", "rawAnswer", "responseMs", "selfEvaluation", "usedHint"]);
+  assert.deepEqual(bodies[0], bodies[1]);
+  assert.equal(bodies[0].attemptId, attemptId);
+  assert.equal(bodies[0].instanceId, instanceId);
+  assert.equal(bodies[0].rawAnswer, "あ");
+  assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "accepted-applied");
+  assert.equal((await getOfflineAttempt(attemptId, options))?.record.submission.attemptId, before?.record.submission.attemptId);
+});
+
+test("validation failure or validation network failure prevents the actual attempt POST", async () => {
+  for (const [name, fetchImpl] of [
+    ["rejected", async (input: RequestInfo | URL, _init?: RequestInit) => {
+      assert.equal(String(input).endsWith("/validate"), true);
+      return new Response(JSON.stringify({ ok: false, error: "invalid_response_ms" }), { status: 400 });
+    }],
+    ["network", async (input: RequestInfo | URL, _init?: RequestInit) => {
+      assert.equal(String(input).endsWith("/validate"), true);
+      throw new Error("offline");
+    }],
+  ] as const) {
+    const indexedDB = new FakeIndexedDb();
+    const options = await explicitlyBlocked(indexedDB, "manual-recovery-validation-" + name);
+    let postCount = 0;
+    const result = await recoverBlockedPilotAttemptExplicitly(attemptId, {
+      ...options,
+      receiptKind: "legacy",
+      cryptoProvider: browserCrypto,
+      fetchImpl: async (input, init) => {
+        if (String(input).endsWith("/attempt")) postCount += 1;
+        return fetchImpl(input, init);
+      },
+    });
+    assert.equal(result?.kind, "blocked");
+    assert.equal(postCount, 0);
+    assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "blocked");
+  }
+});
+
+test("explicit manual send keeps blocked on transport failures and stores safe diagnostics", async () => {
+  for (const [name, response] of [
+    ["400", new Response(JSON.stringify({ error: "invalid_response_ms" }), { status: 400 })],
+    ["401", new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 })],
+    ["429", new Response(JSON.stringify({ error: "busy" }), { status: 429 })],
+    ["500", new Response(JSON.stringify({ error: "busy" }), { status: 500 })],
+  ] as const) {
+    const indexedDB = new FakeIndexedDb();
+    const options = await explicitlyBlocked(indexedDB, "manual-recovery-failure-" + name);
+    const result = await recoverBlockedPilotAttemptExplicitly(attemptId, {
+      ...options,
+      receiptKind: "legacy",
+      cryptoProvider: browserCrypto,
+      fetchImpl: async (input) => String(input).endsWith("/validate")
+        ? new Response(JSON.stringify({ ok: true }), { status: 200 })
+        : response,
+    });
+    assert.equal(result?.kind, "blocked");
+    const persisted = await getOfflineAttempt(attemptId, options);
+    assert.equal(persisted?.record.status, "blocked");
+    assert.equal(persisted?.record.blockedReason, "malformed-response");
+    assert.equal(persisted?.transport.lastHttpStatus, response.status);
+    if (name === "400") assert.equal(persisted?.transport.lastServerErrorCode, "invalid_response_ms");
+  }
+});
+
+test("explicit manual recovery accepts a complete no-SRS receipt without changing the submission", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = await explicitlyBlocked(indexedDB, "manual-recovery-no-srs");
+  const before = await getOfflineAttempt(attemptId, options);
+  assert.ok(before);
+  const result = await recoverBlockedPilotAttemptExplicitly(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    cryptoProvider: browserCrypto,
+    fetchImpl: async (input) => String(input).endsWith("/validate")
+      ? new Response(JSON.stringify({ ok: true }), { status: 200 })
+      : new Response(JSON.stringify({ receipt: receipt({
+          effectiveSrsGrade: null,
+          srsApplied: false,
+          srsReason: "scope-not-eligible",
+          reviewStateAfter: null,
+        }) }), { status: 200 }),
+  });
+  assert.equal(result?.kind, "accepted");
+  assert.equal(result && result.kind === "accepted" ? result.result.srsApplied : null, false);
+  const persisted = await getOfflineAttempt(attemptId, options);
+  assert.equal(persisted?.record.status, "accepted-no-srs");
+  assert.deepEqual(persisted?.record.submission, before.record.submission);
+  assert.equal(persisted?.record.blockedReason, null);
+});
+
+test("malformed manual authoritative receipt keeps the blocked record terminal", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = await explicitlyBlocked(indexedDB, "manual-recovery-incomplete-receipt");
+  const result = await recoverBlockedPilotAttemptExplicitly(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    cryptoProvider: browserCrypto,
+    fetchImpl: async (input) => String(input).endsWith("/validate")
+      ? new Response(JSON.stringify({ ok: true }), { status: 200 })
+      : new Response(JSON.stringify({ receipt: { attemptId, instanceId } }), { status: 200 }),
+  });
+  assert.equal(result?.kind, "blocked");
+  assert.equal(result && result.kind === "blocked" ? result.reason : null, "incomplete-authoritative-receipt");
+  const persisted = await getOfflineAttempt(attemptId, options);
+  assert.equal(persisted?.record.status, "blocked");
+  assert.equal(persisted?.record.receipt, null);
+});
+
+test("a manual send network failure preserves blocked and does not become automatic retryable state", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = await explicitlyBlocked(indexedDB, "manual-recovery-send-network");
+  let actualSend = false;
+  const result = await recoverBlockedPilotAttemptExplicitly(attemptId, {
+    ...options,
+    receiptKind: "legacy",
+    cryptoProvider: browserCrypto,
+    fetchImpl: async (input) => {
+      if (String(input).endsWith("/validate")) return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      actualSend = true;
+      throw new Error("offline after validation");
+    },
+  });
+  assert.equal(actualSend, true);
+  assert.equal(result?.kind, "blocked");
+  assert.equal(result && result.kind === "blocked" ? result.failure : null, "network");
+  assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "blocked");
+});
+
+test("instance_already_answered uses stored receipt lookup and never changes blocked without authority", async () => {
+  for (const [name, storedAttempt] of [
+    ["same", attemptId],
+    ["different", "33333333-3333-4333-8333-333333333333"],
+  ] as const) {
+    const indexedDB = new FakeIndexedDb();
+    const options = await explicitlyBlocked(indexedDB, "manual-recovery-lookup-" + name);
+    const local = await getOfflineAttempt(attemptId, options);
+    assert.ok(local);
+    const calls: string[] = [];
+    const result = await recoverBlockedPilotAttemptExplicitly(attemptId, {
+      ...options,
+      receiptKind: "legacy",
+      cryptoProvider: browserCrypto,
+      fetchImpl: async (input) => {
+        const url = String(input);
+        calls.push(url);
+        if (url.endsWith("/validate")) return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        if (url.includes("/attempt?") || url.endsWith("/attempt")) return new Response(JSON.stringify({ error: "instance_already_answered" }), { status: 409 });
+        return new Response(JSON.stringify({
+          attemptId: storedAttempt,
+          requestHash: local.record.requestHash,
+          receiptKind: "legacy",
+          receipt: receipt({ attemptId: storedAttempt }),
+        }), { status: 200 });
+      },
+    });
+    assert.equal(calls.length, 3);
+    assert.equal(result?.kind, name === "same" ? "accepted" : "blocked");
+    assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, name === "same" ? "accepted-applied" : "blocked");
+  }
+});
+
+test("blocked reconciliation rejects an immutable request-hash mismatch", () => {
+  const blocked = transitionOfflineAttempt(
+    transitionOfflineAttempt(
+      transitionOfflineAttempt(createOfflineAttemptDraft(), {
+      type: "confirm-submission",
+      submission: {
+        attemptId,
+        instanceId,
+        rawAnswer: "あ",
+        selfEvaluation: "good",
+        responseMs: 100,
+        usedHint: false,
+      },
+      requestHash: "a".repeat(64),
+      }),
+      { type: "begin-send" },
+    ),
+    { type: "blocked", reason: "malformed-response" },
+  ) as import("./model-core.ts").OfflineAttemptCommitted;
+  const storedReceipt = createOfflineReceiptRecord("legacy", receipt(), instanceId, attemptId);
+  assert.throws(() => reconcileBlockedOfflineAttemptWithReceipt(blocked, storedReceipt, {
+    attemptId,
+    instanceId,
+    requestHash: "b".repeat(64),
+    submission: blocked.submission,
+  }), /immutable submission/);
+  assert.equal(blocked.status, "blocked");
 });

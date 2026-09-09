@@ -100,6 +100,26 @@ open the existing blocked completion screen on the iPhone, capture the
 structural values, and use the explicit validation action if needed. They
 should not clear storage or press any action that creates a new attempt.
 
+### Explicit blocked recovery
+
+Blocked is still an automatic-retry terminal state. A user may explicitly
+recover a blocked pilot record only after the local immutable six-field tuple
+has passed browser SHA-256 verification and a fresh call to
+/api/review/pilot/attempt/validate returns { ok: true }. The following
+request sends the same attemptId, instanceId, rawAnswer, selfEvaluation,
+responseMs, and usedHint; it never creates a UUID or changes the request hash.
+The outbox row stays blocked while the manual network operation is in flight.
+
+Only a complete authoritative receipt can reconcile the row to
+accepted-applied or accepted-no-srs. Receipt and terminal outbox state are
+written in one IndexedDB transaction after a current-row identity/hash/
+submission check. A late response, incomplete receipt, validator failure,
+401, 429, 5xx, network failure, or semantic conflict leaves the blocked row
+blocked; only safe transport status/error metadata may be updated. Automatic
+mount/online/visibility flush and crash recovery never scan blocked records.
+After accepted reconciliation the client refreshes the display-only Objective
+state mirror; it does not use that mirror to grade, schedule, or authorize SRS.
+
 ## Objective state mirror
 
 `GET /api/review/pilot/objective-state` is an authenticated, server-only read
