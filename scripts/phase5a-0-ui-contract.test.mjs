@@ -142,6 +142,16 @@ test("Kuzushiji detail and progress routes keep learner language and deep links"
   assert.match(kuzushijiDetail, /\/projects\/kuzushiji\/progress/);
   assert.doesNotMatch(kuzushijiDetail, /learn-shell|learn-header|sync-pill/);
   assert.doesNotMatch(kuzushijiDetail, /Notion誤読回数|Notion最終復習日/);
+  assert.match(kuzushijiDetail, /これまでの復習/);
+  assert.match(kuzushijiDetail, /過去の最終評価/);
+  assert.match(kuzushijiDetail, /過去の反復回数/);
+  assert.match(kuzushijiDetail, /過去の最終復習/);
+  assert.match(kuzushijiDetail, /当時の次回予定/);
+  assert.match(kuzushijiDetail, /過去の復習記録/);
+  assert.doesNotMatch(kuzushijiDetail, /Study Graph 最終評価/);
+  assert.doesNotMatch(kuzushijiDetail, /<Property label="最終復習"/);
+  assert.doesNotMatch(kuzushijiDetail, /<Property label="次回復習"/);
+  assert.doesNotMatch(kuzushijiDetail, />次回 \{formatDate\(attempt\.due_at\)\}</);
 
   assert.match(kuzushijiProgress, /AppHeader/);
   assert.match(kuzushijiProgress, /学習記録/);

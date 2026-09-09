@@ -204,12 +204,12 @@ export default async function KuzushijiEntityDetailPage({
 
       {reviewState && (
         <section className="phase5-detail-section" aria-labelledby="detail-learning-title">
-          <h2 id="detail-learning-title">学習状況</h2>
+          <h2 id="detail-learning-title">これまでの復習</h2>
           <div className="phase5-info-list">
-            <Property label="Study Graph 最終評価" value={gradeLabels[reviewState.last_grade]} />
-            <Property label="反復回数" value={reviewState.repetitions} />
-            <Property label="最終復習" value={formatDate(reviewState.last_reviewed_at)} />
-            <Property label="次回復習" value={formatDate(reviewState.due_at)} />
+            <Property label="過去の最終評価" value={gradeLabels[reviewState.last_grade]} />
+            <Property label="過去の反復回数" value={reviewState.repetitions} />
+            <Property label="過去の最終復習" value={formatDate(reviewState.last_reviewed_at)} />
+            <Property label="当時の次回予定" value={formatDate(reviewState.due_at)} />
           </div>
         </section>
       )}
@@ -223,14 +223,14 @@ export default async function KuzushijiEntityDetailPage({
 
       {review.attempts.length > 0 && (
         <section className="phase5-detail-section phase5-detail-history" aria-labelledby="detail-history-title">
-          <h2 id="detail-history-title">復習履歴</h2>
+          <h2 id="detail-history-title">過去の復習記録</h2>
           <div className="phase5-detail-history-list">
             {review.attempts.slice(0, 12).map((attempt) => (
               <div className="phase5-detail-history-row" key={attempt.id}>
                 <span>{formatDate(attempt.reviewed_at)}</span>
                 <div>
                   <strong>{gradeLabels[attempt.grade]}</strong>
-                  <p>間隔 {attempt.interval_days === 0 ? "10分" : `${attempt.interval_days}日`}・次回 {formatDate(attempt.due_at)}</p>
+                  <p>過去の間隔 {attempt.interval_days === 0 ? "10分" : `${attempt.interval_days}日`}・当時の次回予定 {formatDate(attempt.due_at)}</p>
                 </div>
                 <em>{attempt.previous_interval_days === 0 ? "初回" : `前 ${attempt.previous_interval_days}日`}</em>
               </div>
