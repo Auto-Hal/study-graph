@@ -17,6 +17,10 @@ const settings = read("app/settings/advanced/diagnostics/page.tsx");
 const layout = read("app/layout.tsx");
 const phase5SessionCss = read("app/phase5-review-session.css");
 const docs = read("docs/PHASE_5A_0_PRODUCT_UX.md");
+const graphPage = read("app/graph/page.tsx");
+const kuzushijiSection = read("app/projects/kuzushiji/[section]/page.tsx");
+const kuzushijiDetail = read("app/projects/kuzushiji/[section]/[id]/page.tsx");
+const kuzushijiProgress = read("app/projects/kuzushiji/progress/page.tsx");
 
 test("primary navigation exposes exactly 今日, 学ぶ, 復習", () => {
   assert.match(nav, /href="\/"/);
@@ -84,4 +88,61 @@ test("Phase 5A-0 documents preserved boundaries and deferred gateway work", () =
   assert.match(docs, /Supabase as\n?the authority/);
   assert.match(docs, /GPT Content Gateway/);
   assert.match(docs, /Consolidation Set/);
+});
+
+test("Graph uses the Phase 5 learner shell while preserving graph state links", () => {
+  assert.match(graphPage, /AppHeader/);
+  assert.match(graphPage, /phase5-graph-shell/);
+  assert.match(graphPage, /PrimaryNav active="learn"/);
+  assert.match(graphPage, /\/graph\?project=/);
+  assert.match(graphPage, /initialNodeId/);
+  assert.match(graphPage, /initialRelation/);
+  for (const technicalCopy of [
+    "PHASE 2.5",
+    "KNOWLEDGE GRAPH · PHASE 2.5",
+    "Notion Relations 接続中",
+    "ADAPTER ARCHITECTURE",
+    "NODES",
+    "NODE TYPES",
+  ]) {
+    assert.doesNotMatch(graphPage, new RegExp(technicalCopy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
+test("Kuzushiji section routes use compact editorial rows", () => {
+  assert.match(kuzushijiSection, /AppHeader/);
+  assert.match(kuzushijiSection, /phase5-deep-row/);
+  assert.match(kuzushijiSection, /PrimaryNav active="learn"/);
+  assert.match(kuzushijiSection, /\/projects\/kuzushiji\/lectures\//);
+  assert.match(kuzushijiSection, /\/projects\/kuzushiji\/characters\//);
+  assert.match(kuzushijiSection, /\/projects\/kuzushiji\/mistakes\//);
+  assert.doesNotMatch(kuzushijiSection, /learn-shell|learn-header|sync-pill/);
+  assert.doesNotMatch(kuzushijiSection, /LECTURES|CHARACTERS|MISTAKES|SOURCES|EXPRESSIONS/);
+  assert.doesNotMatch(kuzushijiSection, /\bitems\b/);
+});
+
+test("Kuzushiji detail and progress routes keep learner language and deep links", () => {
+  assert.match(kuzushijiDetail, /AppHeader/);
+  assert.match(kuzushijiDetail, /phase5-info-list/);
+  assert.match(kuzushijiDetail, /PrimaryNav active="learn"/);
+  assert.match(kuzushijiDetail, /\/graph\?node=/);
+  assert.match(kuzushijiDetail, /\/projects\/kuzushiji\/progress/);
+  assert.doesNotMatch(kuzushijiDetail, /learn-shell|learn-header|sync-pill/);
+  assert.doesNotMatch(kuzushijiDetail, /Notion誤読回数|Notion最終復習日/);
+
+  assert.match(kuzushijiProgress, /AppHeader/);
+  assert.match(kuzushijiProgress, /学習記録/);
+  assert.match(kuzushijiProgress, /PrimaryNav active="learn"/);
+  assert.match(kuzushijiProgress, /\/review\/session\?project=kuzushiji/);
+  for (const internalLabel of [
+    "LEGACY ATTEMPTS",
+    "LEGACY CONFIDENT",
+    "OBJECTIVE STATE",
+    "state revision",
+    "epoch 1",
+    "Objective SRS 接続中",
+  ]) {
+    assert.doesNotMatch(kuzushijiProgress, new RegExp(internalLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.doesNotMatch(kuzushijiProgress, /learn-shell|learn-header|sync-pill/);
 });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import {
@@ -48,7 +49,7 @@ function itemMeta(
     const character = data.characters.find((item) => item.id === id);
     return {
       label: character?.glyph || "未登録の文字",
-      detail: character ? [character.reading, character.mother ? `字母 ${character.mother}` : ""].filter(Boolean).join("・") : "Notion項目",
+      detail: character ? [character.reading, character.mother ? `字母 ${character.mother}` : ""].filter(Boolean).join("・") : "学習項目",
       href: `/projects/kuzushiji/characters/${id}`,
     };
   }
@@ -61,7 +62,7 @@ function itemMeta(
   };
 }
 
-async function legacyReviewData() {
+async function reviewData() {
   if (!isReviewPersistenceConfigured()) {
     return { history: [] as KuzushijiReviewAttempt[], connected: false };
   }
@@ -70,7 +71,7 @@ async function legacyReviewData() {
     const history = await getReviewHistory(100);
     return { history: history.filter(isKuzushijiAttempt), connected: true };
   } catch (error) {
-    console.error("Study Graph: legacy progress history fetch failed", error);
+    console.error("Study Graph: progress history fetch failed", error);
     return { history: [] as KuzushijiReviewAttempt[], connected: false };
   }
 }
@@ -80,7 +81,7 @@ async function objectiveReviewData(): Promise<{ state: PilotObjectiveReviewState
   try {
     return { state: await getKuzushijiPilotObjectiveState(), connected: true };
   } catch (error) {
-    console.error("Study Graph: Objective progress state fetch failed", error);
+    console.error("Study Graph: current review schedule fetch failed", error);
     return { state: null, connected: false };
   }
 }
@@ -88,7 +89,7 @@ async function objectiveReviewData(): Promise<{ state: PilotObjectiveReviewState
 export default async function KuzushijiProgressPage() {
   const [data, review, objective] = await Promise.all([
     getKuzushijiDashboard(),
-    legacyReviewData(),
+    reviewData(),
     objectiveReviewData(),
   ]);
   const counts: Record<ReviewGrade, number> = { again: 0, hard: 0, good: 0, easy: 0 };
@@ -100,151 +101,120 @@ export default async function KuzushijiProgressPage() {
   const objectiveDueNow = objective.connected && (
     !objectiveState || new Date(objectiveState.due_at).getTime() <= Date.now()
   );
-  const objectiveStateLabel = objectiveState ? `R${objectiveState.state_revision}` : objective.connected ? "NEW" : "—";
   const objectiveNextLabel = objectiveState ? formatDateTime(objectiveState.due_at) : objective.connected ? "初回待ち" : "—";
 
   return (
-    <main className="learn-shell">
-      <header className="learn-header">
-        <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark" aria-hidden="true">SG</span>
-          <span>
-            <strong>Study Graph</strong>
-            <small>くずし字・学習記録</small>
-          </span>
-        </Link>
-        <div className={`sync-pill ${objective.connected ? "online" : "demo"}`}>
-          <span className="dot" />
-          {objective.connected ? "Objective SRS 接続中" : "Objective SRS 未接続"}
-        </div>
-      </header>
+    <main className="phase5-shell phase5-deep-shell">
+      <AppHeader context="くずし字 · 学習記録" backHref="/projects/kuzushiji" backLabel="くずし字" />
 
-      <nav className="breadcrumbs" aria-label="パンくずリスト">
-        <Link href="/projects">Projects</Link>
-        <span><Link href="/projects/kuzushiji">くずし字</Link></span>
+      <div className="phase5-context-nav" aria-label="現在地">
+        <Link href="/projects/kuzushiji">くずし字</Link>
+        <span aria-hidden="true">›</span>
         <span>学習記録</span>
-      </nav>
+      </div>
 
-      <section className="learn-hero">
-        <p className="eyebrow">PROGRESS</p>
-        <h1>復習した事実を、次の学習につなげる。</h1>
-        <p className="learn-hero-copy">
-          現在のObjective SRSによる次回予定と、移行前を含むLegacy履歴を分けて表示します。Notionの知識データには書き戻しません。
-        </p>
+      <section className="phase5-page-heading phase5-deep-heading">
+        <div>
+          <p className="phase5-eyebrow">くずし字</p>
+          <h1 className="phase5-page-title">学習記録</h1>
+          <p className="phase5-context">次の復習と、これまでの歩み</p>
+        </div>
       </section>
 
       {!objective.connected && (
-        <section className="settings-warning" role="status">
-          <strong>現行Objective SRSへ接続できていません。</strong>
-          <p>次回復習日は表示できません。Reviewの保存系設定とSupabase接続を確認してください。</p>
-        </section>
+        <p className="phase5-deep-notice" role="status">
+          次の復習予定を取得できませんでした。時間をおいてもう一度確認してください。
+        </p>
       )}
 
       {!review.connected && (
-        <section className="settings-warning" role="status">
-          <strong>Legacy履歴へ接続できていません。</strong>
-          <p>現行Objective SRSとは別の、移行前を含む過去履歴だけが表示できない状態です。</p>
-        </section>
+        <p className="phase5-deep-notice" role="status">
+          過去の復習記録を取得できませんでした。時間をおいてもう一度確認してください。
+        </p>
       )}
 
-      <section className="progress-summary-grid" aria-label="復習サマリー">
-        <article className="progress-summary-card">
-          <span>LEGACY ATTEMPTS</span>
-          <strong>{review.history.length}</strong>
-          <small>移行前を含む保存履歴</small>
-        </article>
-        <article className="progress-summary-card">
-          <span>LEGACY CONFIDENT</span>
-          <strong>{confidentRate}%</strong>
-          <small>過去履歴の「できた」「即答」</small>
-        </article>
-        <article className="progress-summary-card">
-          <span>OBJECTIVE STATE</span>
-          <strong>{objectiveStateLabel}</strong>
-          <small>{objectiveState ? `前回 ${gradeLabels[objectiveState.last_grade]}` : objective.connected ? "epoch 1・未初期化" : "状態を取得できません"}</small>
-        </article>
-        <article className="progress-summary-card">
-          <span>NEXT REVIEW</span>
-          <strong>{objectiveNextLabel}</strong>
-          <small>{objectiveDueNow ? "現在Review対象" : objectiveState ? "Objective SRSの次回予定" : "Objective SRS未接続"}</small>
-        </article>
+      <section className="phase5-progress-focus" aria-labelledby="next-review-title">
+        <div>
+          <p className="phase5-eyebrow">次の復習</p>
+          <h2 id="next-review-title">{objectiveState ? (objectiveDueNow ? "今、復習できます" : objectiveNextLabel) : objective.connected ? "はじめての復習" : "予定を確認できません"}</h2>
+          <p>{objectiveState ? `前回は「${gradeLabels[objectiveState.last_grade]}」でした。` : objective.connected ? "最初の回答を保存すると、次の予定がここに表示されます。" : "接続が戻ると次の予定を表示します。"}</p>
+        </div>
+        {objectiveState && (
+          <Link className="phase5-action" href="/review/session?project=kuzushiji">
+            復習を始める <span aria-hidden="true">→</span>
+          </Link>
+        )}
       </section>
 
-      <section className="progress-layout">
-        <div>
-          <article className="progress-panel">
-            <div className="progress-panel-header">
-              <h2>Legacy復習履歴</h2>
-              <span>{review.history.length} attempts</span>
-            </div>
-            {review.history.length > 0 ? (
-              <div className="activity-list">
-                {review.history.slice(0, 20).map((attempt) => {
-                  const meta = itemMeta(attempt.item_id, attempt.item_kind, data);
-                  return (
-                    <Link className="activity-row" href={meta.href} key={attempt.id}>
-                      <span className="activity-time">{formatDateTime(attempt.reviewed_at)}</span>
-                      <div className="activity-copy">
-                        <strong>{meta.label}</strong>
-                        <p>{meta.detail}・当時の次回 {formatDateTime(attempt.due_at)}</p>
-                      </div>
-                      <span className="activity-grade">{gradeLabels[attempt.grade]}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="progress-empty">表示できるLegacy復習履歴はありません。</p>
-            )}
-          </article>
+      <section className="phase5-progress-section" aria-labelledby="history-title">
+        <div className="phase5-section-heading">
+          <h2 id="history-title">これまでの復習</h2>
+          <span>{review.history.length}件</span>
         </div>
-
-        <div>
-          <article className="progress-panel">
-            <div className="progress-panel-header">
-              <h2>Legacy自己評価の内訳</h2>
-              <span>{review.history.length} answers</span>
-            </div>
-            <div className="grade-distribution">
-              {(Object.keys(gradeLabels) as ReviewGrade[]).map((grade) => {
-                const percent = review.history.length > 0 ? Math.round((counts[grade] / review.history.length) * 100) : 0;
-                return (
-                  <div className="grade-meter-row" key={grade}>
-                    <span>{gradeLabels[grade]}</span>
-                    <div className="grade-meter-track" aria-label={`${gradeLabels[grade]} ${percent}%`}>
-                      <i style={{ width: `${percent}%` }} />
-                    </div>
-                    <strong>{counts[grade]}</strong>
-                  </div>
-                );
-              })}
-            </div>
-          </article>
-
-          <article className="progress-panel">
-            <div className="progress-panel-header">
-              <h2>現行Objective SRS</h2>
-              <span>epoch 1</span>
-            </div>
-            {objectiveState ? (
-              <div className="upcoming-list">
-                <Link className="upcoming-row" href="/review?project=kuzushiji">
-                  <span className="upcoming-time">{formatDateTime(objectiveState.due_at)}</span>
-                  <div className="upcoming-copy">
-                    <strong>日本永代蔵「あ」字形の単字読解</strong>
-                    <p>前回 {gradeLabels[objectiveState.last_grade]}・state revision {objectiveState.state_revision}</p>
-                  </div>
-                  <span className="activity-grade">{objectiveState.interval_days === 0 ? "10分" : `${objectiveState.interval_days}日`}</span>
+        {review.history.length > 0 ? (
+          <div className="phase5-progress-list">
+            {review.history.slice(0, 20).map((attempt) => {
+              const meta = itemMeta(attempt.item_id, attempt.item_kind, data);
+              return (
+                <Link className="phase5-progress-row" href={meta.href} key={attempt.id}>
+                  <span className="phase5-progress-time">{formatDateTime(attempt.reviewed_at)}</span>
+                  <span className="phase5-progress-copy">
+                    <strong>{meta.label}</strong>
+                    <span>{meta.detail}・当時の次回 {formatDateTime(attempt.due_at)}</span>
+                  </span>
+                  <span className="phase5-progress-grade">{gradeLabels[attempt.grade]}</span>
                 </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="phase5-deep-empty">表示できる復習記録はありません。</p>
+        )}
+      </section>
+
+      <section className="phase5-progress-section" aria-labelledby="confidence-title">
+        <div className="phase5-section-heading">
+          <h2 id="confidence-title">これまでの自己評価</h2>
+          <span>{confidentRate}%が「できた」以上</span>
+        </div>
+        <div className="phase5-grade-distribution">
+          {(Object.keys(gradeLabels) as ReviewGrade[]).map((grade) => {
+            const percent = review.history.length > 0 ? Math.round((counts[grade] / review.history.length) * 100) : 0;
+            return (
+              <div className="phase5-grade-row" key={grade}>
+                <span>{gradeLabels[grade]}</span>
+                <div className="phase5-grade-track" aria-label={`${gradeLabels[grade]} ${percent}%`}><i style={{ width: `${percent}%` }} /></div>
+                <strong>{counts[grade]}</strong>
               </div>
-            ) : objective.connected ? (
-              <p className="progress-empty">Objective epoch 1はまだ未初期化です。次の対象Reviewを保存すると、ここに初回の次回予定が作成されます。</p>
-            ) : (
-              <p className="progress-empty">Objective SRSへ接続できないため、現行の次回予定を表示できません。</p>
-            )}
-          </article>
+            );
+          })}
         </div>
       </section>
+
+      <section className="phase5-progress-section" aria-labelledby="current-review-title">
+        <div className="phase5-section-heading">
+          <h2 id="current-review-title">現在の復習</h2>
+          <span>次の予定</span>
+        </div>
+        {objectiveState ? (
+          <Link className="phase5-progress-next" href="/review/session?project=kuzushiji">
+            <span>
+              <strong>日本永代蔵「あ」字形の単字読解</strong>
+              <span>{objectiveDueNow ? "今取り組めます" : `次回 ${objectiveNextLabel}`}・前回 {gradeLabels[objectiveState.last_grade]}</span>
+            </span>
+            <b>{objectiveState.interval_days === 0 ? "10分" : `${objectiveState.interval_days}日`}</b>
+          </Link>
+        ) : objective.connected ? (
+          <p className="phase5-deep-empty">最初の復習を保存すると、次の予定がここに表示されます。</p>
+        ) : (
+          <p className="phase5-deep-empty">次の復習予定を表示できません。</p>
+        )}
+      </section>
+
+      <div className="phase5-link-strip">
+        <Link href="/projects/kuzushiji">くずし字へ戻る</Link>
+        <Link href="/review">復習を開く</Link>
+      </div>
 
       <PrimaryNav active="learn" />
     </main>

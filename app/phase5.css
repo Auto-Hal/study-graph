@@ -226,3 +226,361 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
   .phase5-action, .phase5-secondary-action, .phase5-bottom-nav a { transition: none; }
   .phase5-loading-line { animation: none; }
 }
+
+/* Deep learner routes share the same editorial rhythm without inheriting the
+   old dashboard containers. These selectors are scoped so compatibility pages
+   can keep their existing presentation while they are migrated. */
+.phase5-deep-shell { max-width: 1120px; }
+.phase5-deep-heading { margin-bottom: 0; }
+.phase5-context-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -10px 0 22px;
+  color: var(--p5-muted);
+  font-size: 13px;
+}
+.phase5-context-nav a { color: var(--p5-accent); font-weight: 700; }
+.phase5-context-nav span[aria-hidden="true"] { color: #9aa4b2; }
+.phase5-deep-count {
+  flex: none;
+  color: var(--p5-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.phase5-deep-selector {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+  scrollbar-width: thin;
+}
+.phase5-deep-selector a,
+.phase5-deep-selector > span {
+  display: inline-flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--p5-line);
+  border-radius: 10px;
+  background: var(--p5-surface);
+  color: var(--p5-muted);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.phase5-deep-selector a.active {
+  border-color: var(--p5-accent);
+  background: var(--p5-accent-soft);
+  color: var(--p5-accent);
+}
+.phase5-deep-selector > span.planned { opacity: .62; }
+.phase5-deep-selector small { font-size: 11px; font-weight: 600; }
+.phase5-deep-meta {
+  margin: 12px 0 0;
+  color: var(--p5-muted);
+  font-size: 13px;
+}
+.phase5-deep-learning {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
+  gap: 24px;
+  align-items: center;
+  margin-top: 24px;
+  padding: 17px 0;
+  border-top: 1px solid var(--p5-line);
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-deep-label { display: block; color: var(--p5-text); font-size: 14px; font-weight: 750; }
+.phase5-deep-learning p { margin: 5px 0 0; color: var(--p5-muted); font-size: 12px; line-height: 1.55; }
+.phase5-deep-learning dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.phase5-deep-learning dl div { min-width: 0; }
+.phase5-deep-learning dt { color: var(--p5-muted); font-size: 11px; }
+.phase5-deep-learning dd { margin: 3px 0 0; color: var(--p5-text); font-size: 18px; font-weight: 750; }
+.phase5-deep-notice {
+  margin: 18px 0 0;
+  padding: 11px 14px;
+  border-left: 3px solid var(--p5-warning);
+  background: #fff8ed;
+  color: #6b501e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.phase5-deep-list {
+  margin-top: 28px;
+  border-top: 1px solid var(--p5-line);
+}
+.phase5-deep-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto 22px;
+  gap: 14px;
+  min-height: 74px;
+  align-items: center;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-deep-row-leading {
+  color: var(--p5-accent);
+  font-family: Georgia, "Yu Mincho", serif;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+}
+.phase5-deep-row-main { min-width: 0; }
+.phase5-deep-row-main strong,
+.phase5-deep-row-main span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase5-deep-row-main strong { color: var(--p5-text); font-size: 15px; line-height: 1.45; }
+.phase5-deep-row-main span { margin-top: 4px; color: var(--p5-muted); font-size: 13px; line-height: 1.45; }
+.phase5-deep-row-status { color: var(--p5-success); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.phase5-deep-row-arrow { color: var(--p5-muted); font-size: 19px; text-align: right; }
+.phase5-deep-row:hover .phase5-deep-row-main strong,
+.phase5-deep-row:focus-visible .phase5-deep-row-main strong { color: var(--p5-accent); }
+.phase5-deep-row:focus-visible,
+.phase5-deep-selector a:focus-visible,
+.phase5-context-nav a:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
+.phase5-deep-empty {
+  margin: 0;
+  padding: 28px 0;
+  color: var(--p5-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.phase5-deep-empty strong { color: var(--p5-text); }
+.phase5-deep-empty p { margin: 7px 0 0; }
+
+.phase5-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 34px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-detail-heading h1 { max-width: 760px; }
+.phase5-detail-status {
+  flex: none;
+  margin-top: 4px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e9f4ef;
+  color: var(--p5-success);
+  font-size: 12px;
+  font-weight: 750;
+}
+.phase5-detail-section { margin-top: 32px; }
+.phase5-detail-section h2 { margin: 0 0 12px; font-size: 18px; letter-spacing: -.02em; }
+.phase5-info-list { border-top: 1px solid var(--p5-line); }
+.phase5-info-row {
+  display: grid;
+  grid-template-columns: minmax(112px, .34fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: baseline;
+  min-height: 54px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-info-row span { color: var(--p5-muted); font-size: 13px; }
+.phase5-info-row strong { color: var(--p5-text); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.phase5-info-row.wide { grid-template-columns: minmax(112px, .34fr) minmax(0, 1fr); }
+.phase5-detail-reference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 32px;
+  padding: 14px 0;
+  border-top: 1px solid var(--p5-line);
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-detail-reference span { color: var(--p5-muted); font-size: 13px; }
+.phase5-detail-reference a { color: var(--p5-accent); font-size: 13px; font-weight: 750; }
+.phase5-detail-history { margin-top: 34px; }
+.phase5-detail-history-list { border-top: 1px solid var(--p5-line); }
+.phase5-detail-history-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  min-height: 64px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-detail-history-row > span,
+.phase5-detail-history-row p { color: var(--p5-muted); font-size: 12px; }
+.phase5-detail-history-row strong { font-size: 14px; }
+.phase5-detail-history-row p { margin: 4px 0 0; }
+.phase5-detail-history-row em { color: var(--p5-muted); font-size: 12px; font-style: normal; white-space: nowrap; }
+.phase5-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 36px;
+  padding: 20px 0 8px;
+  border-top: 1px solid var(--p5-line);
+}
+.phase5-detail-actions a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--p5-accent);
+  font-size: 13px;
+  font-weight: 750;
+}
+.phase5-detail-actions a:first-child { color: var(--p5-text); }
+.phase5-detail-actions a:last-child { margin-left: auto; }
+
+.phase5-progress-focus {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 32px;
+  padding: 22px 0 24px;
+  border-top: 2px solid var(--p5-text);
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-progress-focus h2 { margin: 0; font-size: clamp(23px, 4vw, 30px); letter-spacing: -.035em; }
+.phase5-progress-focus p:not(.phase5-eyebrow) { margin: 8px 0 0; color: var(--p5-muted); font-size: 13px; line-height: 1.6; }
+.phase5-progress-focus .phase5-action { flex: none; }
+.phase5-progress-section { margin-top: 38px; }
+.phase5-progress-section > .phase5-section-heading { margin-bottom: 12px; }
+.phase5-progress-section > .phase5-section-heading > span { color: var(--p5-muted); font-size: 12px; }
+.phase5-progress-list,
+.phase5-grade-distribution { border-top: 1px solid var(--p5-line); }
+.phase5-progress-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  min-height: 68px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-progress-time { color: var(--p5-muted); font-size: 12px; line-height: 1.45; }
+.phase5-progress-copy { min-width: 0; }
+.phase5-progress-copy strong,
+.phase5-progress-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase5-progress-copy strong { font-size: 14px; }
+.phase5-progress-copy span { margin-top: 4px; color: var(--p5-muted); font-size: 12px; }
+.phase5-progress-grade { padding: 5px 9px; border-radius: 999px; background: var(--p5-accent-soft); color: var(--p5-accent); font-size: 12px; font-weight: 750; white-space: nowrap; }
+.phase5-grade-distribution { display: grid; gap: 0; }
+.phase5-grade-row { display: grid; grid-template-columns: 80px minmax(0, 1fr) 30px; gap: 12px; align-items: center; min-height: 54px; border-bottom: 1px solid var(--p5-line); }
+.phase5-grade-row > span { color: var(--p5-muted); font-size: 13px; }
+.phase5-grade-row > strong { font-size: 13px; text-align: right; }
+.phase5-grade-track { height: 7px; overflow: hidden; border-radius: 999px; background: var(--p5-surface-soft); }
+.phase5-grade-track i { display: block; height: 100%; border-radius: inherit; background: var(--p5-accent); }
+.phase5-progress-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 70px;
+  padding: 14px 0;
+  border-top: 1px solid var(--p5-line);
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-progress-next > span { min-width: 0; }
+.phase5-progress-next strong,
+.phase5-progress-next > span > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase5-progress-next strong { font-size: 14px; }
+.phase5-progress-next > span > span { margin-top: 4px; color: var(--p5-muted); font-size: 12px; }
+.phase5-progress-next b { flex: none; color: var(--p5-accent); font-size: 13px; }
+
+/* GraphExplorer keeps its data and interaction model; this shell only brings
+   its surfaces, controls, and node treatment into the Phase 5 visual system. */
+.phase5-graph-shell .graph-workspace { margin-top: 30px; }
+.phase5-graph-shell .graph-toolbar,
+.phase5-graph-shell .graph-learning-filters,
+.phase5-graph-shell .graph-canvas-card,
+.phase5-graph-shell .graph-detail-card {
+  border-color: var(--p5-line);
+  background: var(--p5-surface);
+  box-shadow: none;
+}
+.phase5-graph-shell .graph-toolbar { border-radius: 12px; }
+.phase5-graph-shell .graph-search input,
+.phase5-graph-shell .graph-relation-filter select,
+.phase5-graph-shell .graph-view-actions button,
+.phase5-graph-shell .graph-kind-filters button,
+.phase5-graph-shell .graph-learning-filters button {
+  border-color: var(--p5-line);
+  color: var(--p5-text);
+}
+.phase5-graph-shell .graph-view-actions button.active,
+.phase5-graph-shell .graph-kind-filters button.active,
+.phase5-graph-shell .graph-learning-filters button.active {
+  border-color: var(--p5-accent);
+  background: var(--p5-accent);
+  color: #fff;
+}
+.phase5-graph-shell .graph-canvas-card { border-radius: 14px; }
+.phase5-graph-shell .graph-canvas-heading { border-color: var(--p5-line); }
+.phase5-graph-shell .graph-canvas-heading h2 { font-family: inherit; }
+.phase5-graph-shell .graph-canvas-heading > span { background: var(--p5-surface-soft); color: var(--p5-muted); }
+.phase5-graph-shell .graph-canvas-scroll {
+  background:
+    linear-gradient(rgba(54,89,184,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(54,89,184,.035) 1px, transparent 1px),
+    #fbfcfe;
+  background-size: 32px 32px;
+}
+.phase5-graph-shell .graph-edges line { stroke: #cbd4e2; }
+.phase5-graph-shell .graph-edges line.selected { stroke: var(--p5-accent); }
+.phase5-graph-shell .graph-node rect { fill: #fff; stroke: #cbd4e2; }
+.phase5-graph-shell .graph-node .node-kind { fill: var(--p5-muted); }
+.phase5-graph-shell .graph-node .node-label { fill: var(--p5-text); }
+.phase5-graph-shell .graph-node .node-meta { fill: var(--p5-muted); }
+.phase5-graph-shell .graph-node.selected rect { stroke: var(--p5-accent); }
+.phase5-graph-shell .graph-node:focus-visible rect { stroke: var(--p5-accent); }
+.phase5-graph-shell .graph-legend { border-color: var(--p5-line); }
+.phase5-graph-shell .graph-legend i,
+.phase5-graph-shell .graph-kind-filters button span { border-color: var(--p5-line); background: var(--p5-surface-soft); color: var(--p5-muted); }
+.phase5-graph-shell .graph-detail-kind,
+.phase5-graph-shell .graph-connected-kind { border-color: var(--p5-line); background: var(--p5-accent-soft); color: var(--p5-accent); }
+.phase5-graph-shell .graph-detail-card { border-radius: 14px; }
+.phase5-graph-shell .graph-detail-stats div,
+.phase5-graph-shell .graph-learning-detail { background: var(--p5-surface-soft); }
+.phase5-graph-shell .graph-connected-list button { border-color: var(--p5-line); color: var(--p5-text); }
+.phase5-graph-shell .graph-detail-actions a { border-color: var(--p5-line); }
+.phase5-graph-shell .graph-detail-actions .graph-primary-action { border-color: var(--p5-accent); background: var(--p5-accent); }
+.phase5-graph-shell .graph-learning-filters { border-radius: 12px; }
+.phase5-graph-shell .graph-relation-labels button { background: var(--p5-accent-soft); color: var(--p5-accent); }
+.phase5-graph-shell .graph-learning-dot.due { background: var(--p5-warning); fill: var(--p5-warning); }
+.phase5-graph-shell .graph-learning-dot.weak { background: var(--p5-danger); fill: var(--p5-danger); }
+.phase5-graph-shell .graph-learning-dot.recent { background: var(--p5-success); fill: var(--p5-success); }
+.phase5-graph-shell .graph-learning-dot.tracked { background: var(--p5-muted); fill: var(--p5-muted); }
+
+@media (max-width: 760px) {
+  .phase5-detail-heading { margin-bottom: 26px; }
+  .phase5-deep-count { margin-top: 7px; }
+  .phase5-deep-row { grid-template-columns: 42px minmax(0, 1fr) 20px; grid-template-rows: auto auto; gap: 3px 11px; min-height: 70px; }
+  .phase5-deep-row-main { grid-column: 2; grid-row: 1; }
+  .phase5-deep-row-status { display: block; grid-column: 2; grid-row: 2; font-size: 11px; }
+  .phase5-deep-row-arrow { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  .phase5-deep-row-leading { font-size: 16px; }
+  .phase5-info-row,
+  .phase5-info-row.wide { grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr); gap: 14px; }
+  .phase5-detail-history-row { grid-template-columns: 82px minmax(0, 1fr); gap: 11px; }
+  .phase5-detail-history-row em { grid-column: 2; }
+  .phase5-detail-actions a:last-child { margin-left: 0; }
+  .phase5-progress-focus { display: block; }
+  .phase5-progress-focus .phase5-action { margin-top: 18px; }
+  .phase5-progress-row { grid-template-columns: 82px minmax(0, 1fr); gap: 11px; }
+  .phase5-progress-grade { grid-column: 2; width: max-content; }
+  .phase5-progress-next { align-items: flex-start; }
+  .phase5-deep-learning { grid-template-columns: 1fr; gap: 14px; }
+}
+
+@media (max-width: 430px) {
+  .phase5-context-nav { margin-top: -4px; }
+  .phase5-deep-heading .phase5-page-title { font-size: 29px; }
+  .phase5-deep-row-main strong { font-size: 14px; }
+  .phase5-deep-row-main span { font-size: 12px; }
+  .phase5-info-row { min-height: 50px; padding: 11px 0; }
+  .phase5-progress-time { font-size: 11px; }
+  .phase5-progress-copy strong { font-size: 13px; }
+}
