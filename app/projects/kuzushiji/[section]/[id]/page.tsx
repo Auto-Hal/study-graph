@@ -92,6 +92,29 @@ export default async function KuzushijiEntityDetailPage({
     getKuzushijiReferenceData(),
     reviewDataForItem(id),
   ]);
+  const sourceIsTrusted = section === "sources" || section === "expressions"
+    ? reference.mode === "notion"
+    : data.mode === "notion";
+
+  if (!sourceIsTrusted) {
+    return (
+      <main className="phase5-shell phase5-deep-shell">
+        <AppHeader context={`くずし字 · ${sectionLabels[section]}`} backHref={`/projects/kuzushiji/${section}`} backLabel={sectionLabels[section]} />
+        <div className="phase5-context-nav" aria-label="現在地">
+          <Link href="/projects/kuzushiji">くずし字</Link>
+          <span aria-hidden="true">›</span>
+          <Link href={`/projects/kuzushiji/${section}`}>{sectionLabels[section]}</Link>
+        </div>
+        <section className="phase5-deep-unavailable" role="status">
+          <p className="phase5-eyebrow">{sectionLabels[section]}</p>
+          <h1 className="phase5-page-title">学習データを表示できません</h1>
+          <p>接続を確認できたあと、もう一度この項目を開いてください。</p>
+          <Link href={`/projects/kuzushiji/${section}`}>一覧へ戻る</Link>
+        </section>
+        <PrimaryNav active="learn" />
+      </main>
+    );
+  }
   const reviewState = review.state;
 
   const lecture = section === "lectures" ? data.lectures.find((item) => item.id === id) : null;
@@ -143,8 +166,8 @@ export default async function KuzushijiEntityDetailPage({
             <Property label="分類" value={character.category || "未設定"} />
             <Property label="習得状態" value={character.mastery || "未設定"} />
             <Property label="重要度" value={character.importance || "未設定"} />
-            <Property label="誤読回数" value={character.errorCount} />
-            <Property label="最終復習日" value={formatDate(character.lastReviewedAt)} />
+            <Property label="誤読回数（学習データ）" value={character.errorCount} />
+            <Property label="学習データ上の最終復習日" value={formatDate(character.lastReviewedAt)} />
           </>}
 
           {mistake && <>

@@ -50,16 +50,19 @@ export default async function KuzushijiSectionPage({
     needsReference ? getKuzushijiReferenceData() : Promise.resolve(null),
   ]);
   const meta = sectionMeta[section];
+  const sourceIsTrusted = needsReference ? reference?.mode === "notion" : data.mode === "notion";
 
-  const count = section === "lectures"
+  const count = sourceIsTrusted && section === "lectures"
     ? data.lectures.length
-    : section === "characters"
+    : sourceIsTrusted && section === "characters"
       ? data.characters.length
-      : section === "mistakes"
+      : sourceIsTrusted && section === "mistakes"
         ? data.mistakes.length
-        : section === "sources"
+        : sourceIsTrusted && section === "sources"
           ? reference?.sources.length ?? 0
-          : reference?.expressions.length ?? 0;
+          : sourceIsTrusted
+            ? reference?.expressions.length ?? 0
+            : 0;
 
   return (
     <main className="phase5-shell phase5-deep-shell">
@@ -77,10 +80,17 @@ export default async function KuzushijiSectionPage({
           <h1 className="phase5-page-title">{meta.title}</h1>
           <p className="phase5-context">{meta.description}</p>
         </div>
-        <span className="phase5-deep-count">{count}件</span>
+        {sourceIsTrusted && <span className="phase5-deep-count">{count}件</span>}
       </section>
 
       <section className="phase5-deep-list" aria-label={`${meta.title}一覧`}>
+        {!sourceIsTrusted ? (
+          <div className="phase5-deep-unavailable" role="status">
+            <strong>学習データを表示できません。</strong>
+            <p>接続を確認できたあと、もう一度この一覧を開いてください。</p>
+            <Link href="/settings/advanced/diagnostics">接続を確認する</Link>
+          </div>
+        ) : <>
         {section === "lectures" && data.lectures.map((lecture) => (
           <Link className="phase5-deep-row" href={`/projects/kuzushiji/lectures/${lecture.id}`} key={lecture.id}>
             <span className="phase5-deep-row-leading">{String(lecture.sequence).padStart(2, "0")}</span>
@@ -147,6 +157,7 @@ export default async function KuzushijiSectionPage({
             <p>学習データが更新されたあと、もう一度確認できます。</p>
           </div>
         )}
+        </>}
       </section>
 
       <PrimaryNav active="learn" />

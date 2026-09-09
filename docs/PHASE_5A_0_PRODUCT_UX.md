@@ -47,7 +47,9 @@ data model and advanced interaction behavior remain unchanged.
 
 The cutover keeps the existing Graph query state, node/relation navigation,
 Kuzushiji data readers, review history, and project deep links. It is a
-presentation change only and does not introduce a new read path.
+presentation change only and does not introduce a new read path. Synthetic
+adapter fallback data remains an internal availability fallback and is never
+rendered as real learner data on these routes.
 
 ## Preserved authority boundaries
 

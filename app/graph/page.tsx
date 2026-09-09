@@ -18,7 +18,8 @@ export default async function KnowledgeGraphPage({
     loadProjectGraph(project.id),
     Promise.resolve(listGraphProjects()),
   ]);
-  const learning = await getGraphLearningOverlay(graph.nodes, graph.edges);
+  const graphIsTrusted = graph.mode === "notion";
+  const learning = graphIsTrusted ? await getGraphLearningOverlay(graph.nodes, graph.edges) : null;
   const initialNodeId = query.node && graph.nodes.some((node) => node.id === query.node) ? query.node : undefined;
   const initialRelation = query.relation && graph.edges.some((edge) => edge.label === query.relation) ? query.relation : undefined;
   const initialView = query.view === "focus" ? "focus" as const : "overview" as const;
@@ -55,39 +56,44 @@ export default async function KnowledgeGraphPage({
         ))}
       </nav>
 
-      <p className="phase5-deep-meta" aria-label="表示中の知識量">
-        {graph.nodes.length}項目 · {graph.edges.length}のつながり
-      </p>
+      {graphIsTrusted ? (
+        <>
+          <p className="phase5-deep-meta" aria-label="表示中の知識量">
+            {graph.nodes.length}項目 · {graph.edges.length}のつながり
+          </p>
 
-      {graph.mode === "demo" && (
-        <p className="phase5-deep-notice" role="status">
-          現在、一部のつながりを表示できません。時間をおいてもう一度お試しください。
-        </p>
+          <section className="phase5-deep-learning" aria-label="学習状態">
+            <div>
+              <span className="phase5-deep-label">復習の手がかり</span>
+              <p>{learning?.mode === "supabase" ? "知識の地図に、これまでの復習状態を重ねています。" : "復習状態は現在表示できません。"}</p>
+            </div>
+            <dl>
+              <div><dt>学習済み</dt><dd>{learning?.summary.tracked ?? 0}</dd></div>
+              <div><dt>復習時期</dt><dd>{learning?.summary.due ?? 0}</dd></div>
+              <div><dt>要確認</dt><dd>{learning?.summary.weak ?? 0}</dd></div>
+              <div><dt>最近復習</dt><dd>{learning?.summary.recent ?? 0}</dd></div>
+            </dl>
+          </section>
+
+          <GraphExplorer
+            projectId={project.id}
+            kindDefinitions={project.graphNodeKinds}
+            nodes={graph.nodes}
+            edges={graph.edges}
+            learning={learning!}
+            initialNodeId={initialNodeId}
+            initialRelation={initialRelation}
+            initialView={initialView}
+          />
+        </>
+      ) : (
+        <section className="phase5-deep-unavailable" role="status" aria-live="polite">
+          <p className="phase5-eyebrow">{project.shortLabel}</p>
+          <h2>知識のつながりを表示できません</h2>
+          <p>学習データを確認できないため、つながりの地図は表示していません。</p>
+          <Link href="/settings/advanced/diagnostics">接続を確認する</Link>
+        </section>
       )}
-
-      <section className="phase5-deep-learning" aria-label="学習状態">
-        <div>
-          <span className="phase5-deep-label">復習の手がかり</span>
-          <p>{learning.mode === "supabase" ? "知識の地図に、これまでの復習状態を重ねています。" : "復習状態は現在表示できません。"}</p>
-        </div>
-        <dl>
-          <div><dt>学習済み</dt><dd>{learning.summary.tracked}</dd></div>
-          <div><dt>復習時期</dt><dd>{learning.summary.due}</dd></div>
-          <div><dt>要確認</dt><dd>{learning.summary.weak}</dd></div>
-          <div><dt>最近復習</dt><dd>{learning.summary.recent}</dd></div>
-        </dl>
-      </section>
-
-      <GraphExplorer
-        projectId={project.id}
-        kindDefinitions={project.graphNodeKinds}
-        nodes={graph.nodes}
-        edges={graph.edges}
-        learning={learning}
-        initialNodeId={initialNodeId}
-        initialRelation={initialRelation}
-        initialView={initialView}
-      />
 
       <PrimaryNav active="learn" />
     </main>

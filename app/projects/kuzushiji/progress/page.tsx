@@ -139,7 +139,7 @@ export default async function KuzushijiProgressPage() {
           <h2 id="next-review-title">{objectiveState ? (objectiveDueNow ? "今、復習できます" : objectiveNextLabel) : objective.connected ? "はじめての復習" : "予定を確認できません"}</h2>
           <p>{objectiveState ? `前回は「${gradeLabels[objectiveState.last_grade]}」でした。` : objective.connected ? "最初の回答を保存すると、次の予定がここに表示されます。" : "接続が戻ると次の予定を表示します。"}</p>
         </div>
-        {objectiveState && (
+        {objectiveDueNow && (
           <Link className="phase5-action" href="/review/session?project=kuzushiji">
             復習を始める <span aria-hidden="true">→</span>
           </Link>
@@ -196,14 +196,22 @@ export default async function KuzushijiProgressPage() {
           <h2 id="current-review-title">現在の復習</h2>
           <span>次の予定</span>
         </div>
-        {objectiveState ? (
+        {objectiveState ? objectiveDueNow ? (
           <Link className="phase5-progress-next" href="/review/session?project=kuzushiji">
             <span>
               <strong>日本永代蔵「あ」字形の単字読解</strong>
-              <span>{objectiveDueNow ? "今取り組めます" : `次回 ${objectiveNextLabel}`}・前回 {gradeLabels[objectiveState.last_grade]}</span>
+              <span>今取り組めます・前回 {gradeLabels[objectiveState.last_grade]}</span>
             </span>
             <b>{objectiveState.interval_days === 0 ? "10分" : `${objectiveState.interval_days}日`}</b>
           </Link>
+        ) : (
+          <div className="phase5-progress-next">
+            <span>
+              <strong>日本永代蔵「あ」字形の単字読解</strong>
+              <span>次回 {objectiveNextLabel}・前回 {gradeLabels[objectiveState.last_grade]}</span>
+            </span>
+            <b>{objectiveState.interval_days === 0 ? "10分" : `${objectiveState.interval_days}日`}</b>
+          </div>
         ) : objective.connected ? (
           <p className="phase5-deep-empty">最初の復習を保存すると、次の予定がここに表示されます。</p>
         ) : (
