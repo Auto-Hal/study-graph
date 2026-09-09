@@ -13,6 +13,8 @@ const graphRegistry = read("src/lib/graph/registry.ts");
 const projectHome = read("app/projects/[projectId]/page.tsx");
 const sectionPage = read("app/projects/[projectId]/[section]/page.tsx");
 const detailPage = read("app/projects/[projectId]/[section]/[id]/page.tsx");
+const projectsPage = read("app/projects/page.tsx");
+const kuzushijiDashboard = read("src/components/KuzushijiSnapshotDashboard.tsx");
 
 test("Art History and Philosophy open learner workspaces from the registry", () => {
   assert.match(registry, /id: "western-art-history"[\s\S]*?href: "\/projects\/western-art-history"/);
@@ -55,6 +57,27 @@ test("lectures and knowledge sections are first-class workspace links", () => {
   assert.match(projectHome, /知識のつながり/);
   assert.match(sectionPage, /encodeURIComponent\(node\.id\)/);
   assert.match(detailPage, /getWorkspaceSectionForKind/);
+});
+
+test("all project workspaces use the same overview, learning, knowledge, and graph grammar", () => {
+  for (const source of [projectHome, kuzushijiDashboard]) {
+    assert.match(source, /phase5-workspace-overview/);
+    assert.match(source, /<h2[^>]*>学習|<h2[^>]*>講義/);
+    assert.match(source, /<h2[^>]*>知識/);
+    assert.match(source, /phase5-workspace-graph/);
+    assert.match(source, /<details/);
+    assert.match(source, /知識のつながり/);
+  }
+  assert.match(projectsPage, /project\.context/);
+  assert.doesNotMatch(projectsPage, /完了講義|今日の復習|復習予定を確認できません/);
+});
+
+test("knowledge connections stay collapsed by default", () => {
+  for (const source of [projectHome, kuzushijiDashboard]) {
+    assert.match(source, /<details className="phase5-workspace-section phase5-workspace-graph">/);
+    assert.doesNotMatch(source, /<details[^>]*\bopen(?:=|\s|>)/);
+    assert.match(source, /phase5-workspace-graph-summary/);
+  }
 });
 
 test("detail pages preserve graph focus and source links", () => {

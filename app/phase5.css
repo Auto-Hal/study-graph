@@ -355,6 +355,7 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
    intentionally a reading surface: hierarchy comes from headings and rules,
    while each row remains a single, clear destination. */
 .phase5-workspace-section { margin-top: 38px; }
+.phase5-workspace-overview { margin-bottom: 27px; }
 .phase5-workspace-section .phase5-section-heading { margin-bottom: 12px; }
 .phase5-workspace-links { border-top: 1px solid var(--p5-line); }
 .phase5-workspace-entry {
@@ -376,6 +377,28 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-workspace-graph-link:focus-visible,
 .phase5-related-row:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
 .phase5-workspace-graph { margin-top: 42px; }
+.phase5-workspace-graph-summary {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 2px;
+  border-top: 2px solid var(--p5-text);
+  border-bottom: 1px solid var(--p5-line);
+  cursor: pointer;
+  list-style: none;
+}
+.phase5-workspace-graph-summary::-webkit-details-marker { display: none; }
+.phase5-workspace-graph-summary:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
+.phase5-workspace-graph-summary-main { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-graph-summary-main strong { color: var(--p5-text); font-size: 16px; }
+.phase5-workspace-graph-summary-main small { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-graph-toggle { color: var(--p5-accent); font-size: 20px; line-height: 1; }
+.phase5-workspace-graph[open] .phase5-workspace-graph-toggle { font-size: 0; }
+.phase5-workspace-graph[open] .phase5-workspace-graph-toggle::after { font-size: 20px; content: "−"; }
+.phase5-workspace-graph-content { display: grid; gap: 12px; padding: 14px 2px 0; }
+.phase5-workspace-graph-content p { margin: 0; color: var(--p5-muted); font-size: 13px; line-height: 1.6; }
 .phase5-workspace-graph-link {
   display: flex;
   min-height: 74px;
@@ -390,6 +413,9 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-workspace-graph-link strong { color: var(--p5-text); font-size: 16px; }
 .phase5-workspace-graph-link small { color: var(--p5-muted); font-size: 12px; }
 .phase5-workspace-graph-link > span:last-child { color: var(--p5-accent); font-size: 20px; }
+.phase5-workspace-secondary-links { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 25px; }
+.phase5-workspace-secondary-links a { color: var(--p5-accent); font-size: 14px; font-weight: 700; }
+.phase5-workspace-secondary-links a::after { margin-left: 4px; content: "→"; }
 .phase5-related-list { border-top: 1px solid var(--p5-line); }
 .phase5-related-row {
   display: grid;

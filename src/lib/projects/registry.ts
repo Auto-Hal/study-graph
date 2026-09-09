@@ -16,6 +16,8 @@ export type StudyProjectDefinition = {
   eyebrow: string;
   description: string;
   goal: string;
+  /** Short learner-facing context used consistently in the project index. */
+  context: string;
   href: string;
   icon: string;
   status: StudyProjectStatus;
@@ -33,6 +35,7 @@ export const studyProjects: StudyProjectDefinition[] = [
     eyebrow: "KUZUSHIJI",
     description: "講義・文字・誤読・資料・表現をRelationでつなぎ、実物資料の読解力を育てる。",
     goal: "博物館・文書館の実物資料を、訳文なしで自力読解できる状態を目指す。",
+    context: "講義と文字を読む",
     href: "/projects/kuzushiji",
     icon: "く",
     status: "active",
@@ -58,6 +61,7 @@ export const studyProjects: StudyProjectDefinition[] = [
     eyebrow: "WESTERN ART HISTORY",
     description: "Artist・Artwork・Movement・Periodなどを横断し、作品を時代と関係の中で理解する。",
     goal: "体系理解と美術検定2級合格につながる知識構造を可視化する。",
+    context: "作品と時代の関係を学ぶ",
     href: "/projects/western-art-history",
     icon: "美",
     status: "active",
@@ -86,6 +90,7 @@ export const studyProjects: StudyProjectDefinition[] = [
     eyebrow: "WESTERN PHILOSOPHY",
     description: "哲学者・著作・用語・問題をRelationでたどり、論争と思想の継承を見える形にする。",
     goal: "思想を自分の言葉で説明し、時代を越えた問題のつながりを理解する。",
+    context: "思想・人物・著作をたどる",
     href: "/projects/philosophy",
     icon: "哲",
     status: "active",

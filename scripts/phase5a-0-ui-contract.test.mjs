@@ -44,12 +44,20 @@ test("review landing and focused session are separate routes", () => {
 
 test("due language is shown only from authoritative Supabase schedule state", () => {
   assert.match(home, /scheduledReview\.persistence === "supabase"/);
-  assert.match(projects, /scheduledReview\.persistence === "supabase"/);
   assert.match(reviewLanding, /scheduledReview\.persistence === "supabase"/);
   assert.match(home, /復習予定を確認できません/);
   assert.match(reviewLanding, /期限はサーバーで確認できていません/);
   assert.doesNotMatch(dashboard, /問が期限です/);
   assert.match(dashboard, /復習候補/);
+});
+
+test("Learn project rows keep a shared structure without Kuzushiji-only state", () => {
+  assert.match(projects, /studyProjects\.map/);
+  assert.match(projects, /phase5-project-mark/);
+  assert.match(projects, /phase5-project-title/);
+  assert.match(projects, /phase5-project-goal.*project\.context/);
+  assert.match(projects, /phase5-project-arrow/);
+  assert.doesNotMatch(projects, /getKuzushijiDashboard|getDueReviewItems|completedLectures|reviewCount|kuzushijiMeta/);
 });
 
 test("learning position does not infer lecture sequence from completion count", () => {

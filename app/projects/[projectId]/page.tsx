@@ -31,7 +31,7 @@ export default async function ProjectWorkspacePage({
         <span>{workspace.title}</span>
       </div>
 
-      <section className="phase5-page-heading phase5-deep-heading">
+      <section className="phase5-page-heading phase5-deep-heading phase5-workspace-overview">
         <div>
           <p className="phase5-eyebrow">{workspace.shortLabel}</p>
           <h1 className="phase5-page-title">{workspace.title}</h1>
@@ -75,12 +75,22 @@ export default async function ProjectWorkspacePage({
             </div>
           </section>
 
-          <section className="phase5-workspace-section phase5-workspace-graph" aria-labelledby="workspace-graph-title">
-            <Link className="phase5-workspace-graph-link" href={workspace.graphHref}>
-              <span><strong id="workspace-graph-title">知識のつながり</strong><small>{workspace.graphContext}</small></span>
-              <span aria-hidden="true">→</span>
-            </Link>
-          </section>
+          <details className="phase5-workspace-section phase5-workspace-graph">
+            <summary className="phase5-workspace-graph-summary">
+              <span className="phase5-workspace-graph-summary-main">
+                <strong>知識のつながり</strong>
+                <small>関係を見ながら学ぶ</small>
+              </span>
+              <span className="phase5-workspace-graph-toggle" aria-hidden="true">＋</span>
+            </summary>
+            <div className="phase5-workspace-graph-content">
+              <p>{workspace.graphContext}</p>
+              <Link className="phase5-workspace-graph-link" href={workspace.graphHref}>
+                <span>つながりを見る</span>
+                <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+          </details>
         </>
       )}
 
