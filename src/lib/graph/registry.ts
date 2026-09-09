@@ -4,6 +4,7 @@ import { defaultStudyProjectId, getStudyProject, studyProjects } from "@/src/lib
 import { getKuzushijiGraph } from "@/src/lib/notion/kuzushiji-graph";
 import { getWesternArtHistoryGraph } from "@/src/lib/notion/western-art-history-graph";
 import { getPhilosophyGraph } from "@/src/lib/notion/philosophy-graph";
+import { workspaceNodeHref } from "@/src/lib/projects/workspace";
 
 const westernArtPlaceholderLabels = new Set([
   "芸術家",
@@ -56,13 +57,21 @@ const kuzushijiAdapter: GraphAdapter = {
 const westernArtHistoryAdapter: GraphAdapter = {
   projectId: "western-art-history",
   async load(): Promise<GraphData> {
-    return removeWesternArtPlaceholderNodes(await getWesternArtHistoryGraph());
+    const graph = removeWesternArtPlaceholderNodes(await getWesternArtHistoryGraph());
+    return graph.mode === "notion"
+      ? { ...graph, nodes: graph.nodes.map((node) => ({ ...node, href: node.href ?? workspaceNodeHref("western-art-history", node.kind, node.id) })) }
+      : graph;
   },
 };
 
 const philosophyAdapter: GraphAdapter = {
   projectId: "philosophy",
-  load: getPhilosophyGraph,
+  async load(): Promise<GraphData> {
+    const graph = await getPhilosophyGraph();
+    return graph.mode === "notion"
+      ? { ...graph, nodes: graph.nodes.map((node) => ({ ...node, href: node.href ?? workspaceNodeHref("philosophy", node.kind, node.id) })) }
+      : graph;
+  },
 };
 
 const graphAdapters: Record<string, GraphAdapter> = {

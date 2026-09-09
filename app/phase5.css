@@ -351,6 +351,61 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-deep-empty strong { color: var(--p5-text); }
 .phase5-deep-empty p { margin: 7px 0 0; }
 
+/* Shared workspace navigation for non-Kuzushiji projects. The workspace is
+   intentionally a reading surface: hierarchy comes from headings and rules,
+   while each row remains a single, clear destination. */
+.phase5-workspace-section { margin-top: 38px; }
+.phase5-workspace-section .phase5-section-heading { margin-bottom: 12px; }
+.phase5-workspace-links { border-top: 1px solid var(--p5-line); }
+.phase5-workspace-entry {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-workspace-entry-main { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-entry-main strong { color: var(--p5-text); font-size: 15px; }
+.phase5-workspace-entry-main span { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-entry-arrow { color: var(--p5-muted); font-size: 19px; }
+.phase5-workspace-entry:hover .phase5-workspace-entry-main strong,
+.phase5-workspace-entry:focus-visible .phase5-workspace-entry-main strong { color: var(--p5-accent); }
+.phase5-workspace-entry:focus-visible,
+.phase5-workspace-graph-link:focus-visible,
+.phase5-related-row:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
+.phase5-workspace-graph { margin-top: 42px; }
+.phase5-workspace-graph-link {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 2px;
+  border-top: 2px solid var(--p5-text);
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-workspace-graph-link > span:first-child { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-graph-link strong { color: var(--p5-text); font-size: 16px; }
+.phase5-workspace-graph-link small { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-graph-link > span:last-child { color: var(--p5-accent); font-size: 20px; }
+.phase5-related-list { border-top: 1px solid var(--p5-line); }
+.phase5-related-row {
+  display: grid;
+  grid-template-columns: minmax(90px, .35fr) minmax(0, 1fr) auto;
+  gap: 14px;
+  min-height: 58px;
+  align-items: center;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-related-label { color: var(--p5-muted); font-size: 12px; }
+.phase5-related-row strong { min-width: 0; overflow: hidden; color: var(--p5-text); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.phase5-related-row > span:last-child { color: var(--p5-muted); font-size: 18px; }
+.phase5-related-row:hover strong { color: var(--p5-accent); }
+.phase5-detail-copy { max-width: 760px; margin: 0; color: var(--p5-muted); font-size: 15px; line-height: 1.75; white-space: pre-wrap; }
+
 .phase5-detail-heading {
   display: flex;
   align-items: flex-start;
@@ -595,6 +650,7 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
   .phase5-detail-history-row { grid-template-columns: 82px minmax(0, 1fr); gap: 11px; }
   .phase5-detail-history-row em { grid-column: 2; }
   .phase5-detail-actions a:last-child { margin-left: 0; }
+  .phase5-related-row { grid-template-columns: 88px minmax(0, 1fr) auto; gap: 10px; }
   .phase5-progress-focus { display: block; }
   .phase5-progress-focus .phase5-action { margin-top: 18px; }
   .phase5-progress-row { grid-template-columns: 82px minmax(0, 1fr); gap: 11px; }
