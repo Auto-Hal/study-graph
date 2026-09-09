@@ -13,7 +13,24 @@ export default async function ReviewLandingPage() {
   const scheduledReview = await getDueReviewItems(data.reviewQueue);
   const projects = getActiveStudyProjects();
   const dataAvailable = data.mode === "notion";
-  const count = dataAvailable ? scheduledReview.items.length : 0;
+  const scheduleAvailable = dataAvailable && scheduledReview.persistence === "supabase";
+  const count = scheduleAvailable ? scheduledReview.items.length : null;
+
+  const reviewTitle = !dataAvailable
+    ? "復習データを取得できません"
+    : !scheduleAvailable
+      ? "復習予定を確認できません"
+      : count > 0
+        ? "期限の来た項目があります"
+        : "今日は予定がありません";
+
+  const reviewDescription = !dataAvailable
+    ? "通信が戻ったら、もう一度確認してください。"
+    : !scheduleAvailable
+      ? "学習候補はありますが、期限はサーバーで確認できていません。"
+      : count > 0
+        ? "短いセッションで、ひとつずつ思い出します。"
+        : "学習を続けるか、別のプロジェクトを選べます。";
 
   return (
     <main className="phase5-shell">
@@ -26,11 +43,13 @@ export default async function ReviewLandingPage() {
         <div>
           <article className="phase5-review-focus">
             <p className="phase5-eyebrow">今日の復習</p>
-            <h2>{!dataAvailable ? "復習データを取得できません" : count > 0 ? "期限の来た項目があります" : "今日は予定がありません"}</h2>
-            <span className="phase5-review-count">{count}</span>
-            <span className="phase5-review-label">問題</span>
-            <p>{!dataAvailable ? "通信が戻ったら、もう一度確認してください。" : count > 0 ? "短いセッションで、ひとつずつ思い出します。" : "学習を続けるか、別のプロジェクトを選べます。"}</p>
-            {count > 0 ? <Link className="phase5-action" href="/review/session?project=kuzushiji">今日の復習を始める <span aria-hidden="true">→</span></Link> : <Link className="phase5-secondary-action" href="/projects">学ぶプロジェクトを見る <span aria-hidden="true">→</span></Link>}
+            <h2>{reviewTitle}</h2>
+            <span className="phase5-review-count">{count ?? "—"}</span>
+            <span className="phase5-review-label">{count === null ? "予定" : "問題"}</span>
+            <p>{reviewDescription}</p>
+            {count !== null && count > 0
+              ? <Link className="phase5-action" href="/review/session?project=kuzushiji">今日の復習を始める <span aria-hidden="true">→</span></Link>
+              : <Link className="phase5-secondary-action" href="/projects">学ぶプロジェクトを見る <span aria-hidden="true">→</span></Link>}
           </article>
           <div className="phase5-project-switcher" aria-label="プロジェクト別復習">
             {projects.map((project) => <Link href={`/review/session?project=${encodeURIComponent(project.id)}`} key={project.id}>{project.shortLabel}</Link>)}
@@ -47,7 +66,12 @@ export default async function ReviewLandingPage() {
       <section className="phase5-section" aria-labelledby="supported-review-title">
         <div className="phase5-section-heading"><h2 id="supported-review-title">プロジェクトから選ぶ</h2><Link href="/projects">学ぶ</Link></div>
         <div className="phase5-row-list">
-          {projects.map((project) => <Link className="phase5-row" href={`/review/session?project=${encodeURIComponent(project.id)}`} key={project.id}><span className="phase5-row-main"><span className="phase5-row-title">{project.title}</span><span className="phase5-row-meta">{project.review.strategy === "notion-queue" ? "今日の復習" : "Practice"}</span></span><span className="phase5-row-arrow" aria-hidden="true">→</span></Link>)}
+          {projects.map((project) => {
+            const meta = project.review.strategy === "notion-queue"
+              ? (scheduleAvailable ? "今日の復習" : "復習を確認")
+              : "Practice";
+            return <Link className="phase5-row" href={`/review/session?project=${encodeURIComponent(project.id)}`} key={project.id}><span className="phase5-row-main"><span className="phase5-row-title">{project.title}</span><span className="phase5-row-meta">{meta}</span></span><span className="phase5-row-arrow" aria-hidden="true">→</span></Link>;
+          })}
         </div>
       </section>
       <PrimaryNav active="review" />

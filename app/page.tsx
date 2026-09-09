@@ -10,12 +10,13 @@ export default async function Home() {
   const data = await getKuzushijiDashboard();
   const scheduledReview = await getDueReviewItems(data.reviewQueue);
   const hasTrustedData = data.mode === "notion";
-  const reviewQueue = hasTrustedData ? scheduledReview.items : [];
+  const hasAuthoritativeReview = hasTrustedData && scheduledReview.persistence === "supabase";
+  const reviewQueue = hasAuthoritativeReview ? scheduledReview.items : [];
+  const reviewScheduleUnavailable = hasTrustedData && !hasAuthoritativeReview;
   const completedLectures = hasTrustedData ? data.lectures.filter((lecture) => lecture.status === "完了").length : 0;
   const weakCharacters = hasTrustedData ? data.characters.filter((character) => character.mastery !== "即読").length : 0;
   const openMistakes = hasTrustedData ? data.mistakes.filter((mistake) => !mistake.resolved).length : 0;
   const recentLectures = hasTrustedData ? [...data.lectures].sort((a, b) => b.sequence - a.sequence).slice(0, 3) : [];
-  const latestLecture = recentLectures[0] ?? null;
 
   const focus = reviewQueue.length > 0
     ? {
@@ -25,13 +26,13 @@ export default async function Home() {
         href: "/review/session?project=kuzushiji",
         label: "始める",
       }
-    : latestLecture
+    : hasTrustedData
       ? {
-          title: latestLecture.title,
-          detail: "学習を続ける",
-          description: latestLecture.theme || "くずし字の現在位置から続けます。",
-          href: `/projects/kuzushiji/lectures/${latestLecture.id}`,
-          label: "学習を続ける",
+          title: "くずし字",
+          detail: completedLectures > 0 ? `完了講義 ${completedLectures}件` : "学習を始める",
+          description: "現在位置を確認して、次に取り組む講義を選びます。",
+          href: "/projects/kuzushiji",
+          label: "現在位置を見る",
         }
       : {
           title: "学習を選ぶ",
@@ -52,7 +53,7 @@ export default async function Home() {
         <p className="phase5-eyebrow">次の一歩</p>
         <h2 id="today-focus-title">{focus.title}</h2>
         <p>{focus.description}</p>
-        <div className="phase5-focus-meta"><span>{focus.detail}</span>{data.mode !== "notion" && <span>学習データを確認中</span>}</div>
+        <div className="phase5-focus-meta"><span>{focus.detail}</span>{data.mode !== "notion" && <span>学習データを確認中</span>}{reviewScheduleUnavailable && <span>復習予定を確認できません</span>}</div>
         <Link className="phase5-action" href={focus.href}>{focus.label} <span aria-hidden="true">→</span></Link>
       </section>
 
@@ -74,7 +75,7 @@ export default async function Home() {
         <div className="phase5-section-heading"><h2 id="continue-learning-title">学習を続ける</h2><Link href="/projects">すべての学び</Link></div>
         <div className="phase5-row-list">
           <Link className="phase5-row" href="/projects/kuzushiji">
-            <span className="phase5-row-main"><span className="phase5-row-title">くずし字</span><span className="phase5-row-meta">{completedLectures > 0 ? `第${completedLectures}回まで完了` : "最初の講義から始める"}</span></span>
+            <span className="phase5-row-main"><span className="phase5-row-title">くずし字</span><span className="phase5-row-meta">{completedLectures > 0 ? `完了講義 ${completedLectures}件` : "講義を確認する"}</span></span>
             <span className="phase5-row-arrow" aria-hidden="true">→</span>
           </Link>
         </div>

@@ -11,7 +11,13 @@ export default async function ProjectsPage() {
   const data = await getKuzushijiDashboard();
   const scheduledReview = await getDueReviewItems(data.reviewQueue);
   const completedLectures = data.mode === "notion" ? data.lectures.filter((lecture) => lecture.status === "完了").length : 0;
-  const reviewCount = data.mode === "notion" ? scheduledReview.items.length : null;
+  const reviewCount = data.mode === "notion" && scheduledReview.persistence === "supabase" ? scheduledReview.items.length : null;
+  const kuzushijiMeta = data.mode !== "notion"
+    ? "学習データを確認して続ける"
+    : [
+        completedLectures > 0 ? `完了講義 ${completedLectures}件` : "講義を確認",
+        reviewCount === null ? "復習予定を確認できません" : `今日の復習 ${reviewCount}問`,
+      ].join(" · ");
 
   return (
     <main className="phase5-shell">
@@ -22,12 +28,9 @@ export default async function ProjectsPage() {
       <section className="phase5-project-grid" aria-label="学習プロジェクト">
         {studyProjects.map((project) => {
           const active = project.status === "active";
-          const href = project.id === "kuzushiji" ? project.href : project.href;
-          const meta = project.id === "kuzushiji"
-            ? (completedLectures > 0 ? `第${completedLectures}回まで完了${reviewCount === null ? "" : ` · 復習 ${reviewCount}問`}` : reviewCount === null ? "学習データを確認して続ける" : "最初の講義から始める")
-            : project.goal;
+          const meta = project.id === "kuzushiji" ? kuzushijiMeta : project.goal;
           return active ? (
-            <Link className="phase5-project-row" href={href} key={project.id}>
+            <Link className="phase5-project-row" href={project.href} key={project.id}>
               <span className="phase5-project-mark" aria-hidden="true">{project.icon}</span>
               <span><span className="phase5-project-title">{project.title}</span><span className="phase5-project-goal">{meta}</span></span>
               <span className="phase5-project-arrow" aria-hidden="true">→</span>
