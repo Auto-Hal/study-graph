@@ -25,6 +25,15 @@ jobs:
       - name: Phase 4D-5 operational tests
         run: npm run test:phase4d-5
 
+      - name: Phase 4D-2 Objective persistence tests
+        run: npm run test:phase4d-2
+
+      - name: Pilot regression tests
+        run: npm run test:pilot
+
+      - name: Objective rawAnswer contract regression tests
+        run: npm run test:objective-raw-answer-fix
+
       - name: Phase 4E-1 offline model tests
         run: npm run test:phase4e-1
 
@@ -42,6 +51,12 @@ jobs:
 
       - name: Phase 4E-6 final offline hardening tests
         run: npm run test:phase4e-6
+
+      - name: TypeScript noEmit
+        run: npx tsc --noEmit
+
+      - name: Diff check
+        run: git diff --check
 
       - name: Build
         run: npm run build
