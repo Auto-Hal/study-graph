@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import { getKuzushijiReferenceData } from "@/src/lib/notion/kuzushiji-reference";
@@ -71,7 +72,7 @@ async function reviewDataForItem(id: string): Promise<{ state: ReviewState | nul
 
 function Property({ label, value, wide = false }: { label: string; value: string | number; wide?: boolean }) {
   return (
-    <div className={`property-cell ${wide ? "wide" : ""}`}>
+    <div className={`phase5-info-row ${wide ? "wide" : ""}`}>
       <span>{label}</span>
       <strong>{value === "" ? "未設定" : value}</strong>
     </div>
@@ -91,6 +92,29 @@ export default async function KuzushijiEntityDetailPage({
     getKuzushijiReferenceData(),
     reviewDataForItem(id),
   ]);
+  const sourceIsTrusted = section === "sources" || section === "expressions"
+    ? reference.mode === "notion"
+    : data.mode === "notion";
+
+  if (!sourceIsTrusted) {
+    return (
+      <main className="phase5-shell phase5-deep-shell">
+        <AppHeader context={`くずし字 · ${sectionLabels[section]}`} backHref={`/projects/kuzushiji/${section}`} backLabel={sectionLabels[section]} />
+        <div className="phase5-context-nav" aria-label="現在地">
+          <Link href="/projects/kuzushiji">くずし字</Link>
+          <span aria-hidden="true">›</span>
+          <Link href={`/projects/kuzushiji/${section}`}>{sectionLabels[section]}</Link>
+        </div>
+        <section className="phase5-deep-unavailable" role="status">
+          <p className="phase5-eyebrow">{sectionLabels[section]}</p>
+          <h1 className="phase5-page-title">学習データを表示できません</h1>
+          <p>接続を確認できたあと、もう一度この項目を開いてください。</p>
+          <Link href={`/projects/kuzushiji/${section}`}>一覧へ戻る</Link>
+        </section>
+        <PrimaryNav active="learn" />
+      </main>
+    );
+  }
   const reviewState = review.state;
 
   const lecture = section === "lectures" ? data.lectures.find((item) => item.id === id) : null;
@@ -103,42 +127,29 @@ export default async function KuzushijiEntityDetailPage({
 
   const title = lecture?.title || character?.glyph || mistake?.title || source?.title || expression?.expression || sectionLabels[section];
   const status = lecture?.status || character?.mastery || (mistake ? (mistake.resolved ? "克服済み" : "未克服") : "") || source?.difficulty || expression?.mastery || "";
-  const mode = section === "sources" || section === "expressions" ? reference.mode : data.mode;
   const itemUrl = "url" in item ? item.url : "#";
 
   return (
-    <main className="learn-shell">
-      <header className="learn-header">
-        <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark" aria-hidden="true">SG</span>
-          <span>
-            <strong>Study Graph</strong>
-            <small>くずし字・{sectionLabels[section]}</small>
-          </span>
-        </Link>
-        <div className={`sync-pill ${mode === "notion" ? "online" : "demo"}`}>
-          <span className="dot" />
-          {mode === "notion" ? "Notion 接続中" : "Demo data"}
+    <main className="phase5-shell phase5-deep-shell">
+      <AppHeader context={`くずし字 · ${sectionLabels[section]}`} backHref={`/projects/kuzushiji/${section}`} backLabel={sectionLabels[section]} />
+
+      <div className="phase5-context-nav" aria-label="現在地">
+        <Link href="/projects/kuzushiji">くずし字</Link>
+        <span aria-hidden="true">›</span>
+        <Link href={`/projects/kuzushiji/${section}`}>{sectionLabels[section]}</Link>
+      </div>
+
+      <header className="phase5-detail-heading">
+        <div>
+          <p className="phase5-eyebrow">{sectionLabels[section]}</p>
+          <h1 className="phase5-page-title">{title}</h1>
         </div>
+        {status && <span className="phase5-detail-status">{status}</span>}
       </header>
 
-      <nav className="breadcrumbs" aria-label="パンくずリスト">
-        <Link href="/projects">Projects</Link>
-        <span><Link href="/projects/kuzushiji">くずし字</Link></span>
-        <span><Link href={`/projects/kuzushiji/${section}`}>{sectionLabels[section]}</Link></span>
-        <span>{title}</span>
-      </nav>
-
-      <article className="entity-detail-card">
-        <div className="entity-detail-title-row">
-          <div>
-            <p className="eyebrow">{section.toUpperCase()} DETAIL</p>
-            <h1>{title}</h1>
-          </div>
-          {status && <span className="mini-pill">{status}</span>}
-        </div>
-
-        <div className="property-grid">
+      <section className="phase5-detail-section" aria-labelledby="detail-facts-title">
+        <h2 id="detail-facts-title">内容</h2>
+        <div className="phase5-info-list">
           {lecture && <>
             <Property label="回次" value={lecture.sequence} />
             <Property label="状態" value={lecture.status || "未設定"} />
@@ -155,8 +166,8 @@ export default async function KuzushijiEntityDetailPage({
             <Property label="分類" value={character.category || "未設定"} />
             <Property label="習得状態" value={character.mastery || "未設定"} />
             <Property label="重要度" value={character.importance || "未設定"} />
-            <Property label="Notion誤読回数" value={character.errorCount} />
-            <Property label="Notion最終復習日" value={formatDate(character.lastReviewedAt)} />
+            <Property label="誤読回数（学習データ）" value={character.errorCount} />
+            <Property label="学習データ上の最終復習日" value={formatDate(character.lastReviewedAt)} />
           </>}
 
           {mistake && <>
@@ -188,49 +199,52 @@ export default async function KuzushijiEntityDetailPage({
             <Property label="用例" value={expression.example || "未設定"} wide />
             <Property label="注意点" value={expression.notes || "未設定"} wide />
           </>}
-
-          {reviewState && <>
-            <Property label="Study Graph 最終評価" value={gradeLabels[reviewState.last_grade]} />
-            <Property label="反復回数" value={reviewState.repetitions} />
-            <Property label="最終復習" value={formatDate(reviewState.last_reviewed_at)} />
-            <Property label="次回復習" value={formatDate(reviewState.due_at)} />
-          </>}
         </div>
+      </section>
 
-        {source?.referenceUrl && (
-          <section className="reference-link-panel">
-            <strong>参照URL</strong>
-            <a href={source.referenceUrl} target="_blank" rel="noreferrer">外部資料を開く →</a>
-          </section>
-        )}
+      {reviewState && (
+        <section className="phase5-detail-section" aria-labelledby="detail-learning-title">
+          <h2 id="detail-learning-title">これまでの復習</h2>
+          <div className="phase5-info-list">
+            <Property label="過去の最終評価" value={gradeLabels[reviewState.last_grade]} />
+            <Property label="過去の反復回数" value={reviewState.repetitions} />
+            <Property label="過去の最終復習" value={formatDate(reviewState.last_reviewed_at)} />
+            <Property label="当時の次回予定" value={formatDate(reviewState.due_at)} />
+          </div>
+        </section>
+      )}
 
-        {review.attempts.length > 0 && (
-          <section className="item-history">
-            <h2>復習履歴</h2>
-            <div className="activity-list">
-              {review.attempts.slice(0, 12).map((attempt) => (
-                <div className="activity-row" key={attempt.id}>
-                  <span className="activity-time">{formatDate(attempt.reviewed_at)}</span>
-                  <div className="activity-copy">
-                    <strong>{gradeLabels[attempt.grade]}</strong>
-                    <p>間隔 {attempt.interval_days === 0 ? "10分" : `${attempt.interval_days}日`}・次回 {formatDate(attempt.due_at)}</p>
-                  </div>
-                  <span className="activity-grade">{attempt.previous_interval_days === 0 ? "初回" : `前 ${attempt.previous_interval_days}日`}</span>
+      {source?.referenceUrl && (
+        <section className="phase5-detail-reference">
+          <span>参照資料</span>
+          <a href={source.referenceUrl} target="_blank" rel="noreferrer">外部資料を開く <span aria-hidden="true">↗</span></a>
+        </section>
+      )}
+
+      {review.attempts.length > 0 && (
+        <section className="phase5-detail-section phase5-detail-history" aria-labelledby="detail-history-title">
+          <h2 id="detail-history-title">過去の復習記録</h2>
+          <div className="phase5-detail-history-list">
+            {review.attempts.slice(0, 12).map((attempt) => (
+              <div className="phase5-detail-history-row" key={attempt.id}>
+                <span>{formatDate(attempt.reviewed_at)}</span>
+                <div>
+                  <strong>{gradeLabels[attempt.grade]}</strong>
+                  <p>過去の間隔 {attempt.interval_days === 0 ? "10分" : `${attempt.interval_days}日`}・当時の次回予定 {formatDate(attempt.due_at)}</p>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <em>{attempt.previous_interval_days === 0 ? "初回" : `前 ${attempt.previous_interval_days}日`}</em>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-        <div className="detail-actions">
-          <Link href={`/projects/kuzushiji/${section}`}>← {sectionLabels[section]}一覧へ</Link>
-          <Link href={`/graph?node=${encodeURIComponent(id)}&view=focus`}>Graphで関係を見る</Link>
-          {(section === "characters" || section === "mistakes") && <Link href="/projects/kuzushiji/progress">学習記録を見る</Link>}
-          {itemUrl !== "#" && (
-            <a className="primary-detail-action" href={itemUrl} target="_blank" rel="noreferrer">Notionで元データを開く</a>
-          )}
-        </div>
-      </article>
+      <nav className="phase5-detail-actions" aria-label="この項目の操作">
+        <Link href={`/projects/kuzushiji/${section}`}>一覧へ戻る</Link>
+        <Link href={`/graph?node=${encodeURIComponent(id)}&view=focus`}>知識のつながりを見る</Link>
+        {(section === "characters" || section === "mistakes") && <Link href="/projects/kuzushiji/progress">学習記録を見る</Link>}
+        {itemUrl !== "#" && <a href={itemUrl} target="_blank" rel="noreferrer">元の資料を開く <span aria-hidden="true">↗</span></a>}
+      </nav>
 
       <PrimaryNav active="learn" />
     </main>

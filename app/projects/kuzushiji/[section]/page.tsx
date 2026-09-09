@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
 import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
 import { getKuzushijiReferenceData } from "@/src/lib/notion/kuzushiji-reference";
@@ -8,31 +9,26 @@ export const dynamic = "force-dynamic";
 
 type Section = "lectures" | "characters" | "mistakes" | "sources" | "expressions";
 
-const sectionMeta: Record<Section, { eyebrow: string; title: string; description: string }> = {
+const sectionMeta: Record<Section, { title: string; description: string }> = {
   lectures: {
-    eyebrow: "LECTURES",
     title: "講義",
-    description: "講義の回次、テーマ、状態をStudy Graph内で確認します。",
+    description: "これまでの講義と、次に読むテーマ",
   },
   characters: {
-    eyebrow: "CHARACTERS",
     title: "文字",
-    description: "読み・字母・習得状態・重要度を一覧し、個別の定着状況へ進みます。",
+    description: "読みと字形の学習項目",
   },
   mistakes: {
-    eyebrow: "MISTAKES",
     title: "誤読記録",
-    description: "誤った判断と原因を残し、再出題・克服状況を振り返ります。",
+    description: "読み違いから、もう一度確認したい項目",
   },
   sources: {
-    eyebrow: "SOURCES",
     title: "資料",
-    description: "講義で扱った原資料・教材と、種別・難易度・所蔵情報を確認します。",
+    description: "講義で扱った原資料と教材",
   },
   expressions: {
-    eyebrow: "EXPRESSIONS",
     title: "頻出表現",
-    description: "候文などの表現を、読み・意味・用例・習得状態とともに確認します。",
+    description: "読み・意味・用例を確認する表現",
   },
 };
 
@@ -54,111 +50,114 @@ export default async function KuzushijiSectionPage({
     needsReference ? getKuzushijiReferenceData() : Promise.resolve(null),
   ]);
   const meta = sectionMeta[section];
-  const mode = reference?.mode ?? data.mode;
+  const sourceIsTrusted = needsReference ? reference?.mode === "notion" : data.mode === "notion";
 
-  const count = section === "lectures"
+  const count = sourceIsTrusted && section === "lectures"
     ? data.lectures.length
-    : section === "characters"
+    : sourceIsTrusted && section === "characters"
       ? data.characters.length
-      : section === "mistakes"
+      : sourceIsTrusted && section === "mistakes"
         ? data.mistakes.length
-        : section === "sources"
+        : sourceIsTrusted && section === "sources"
           ? reference?.sources.length ?? 0
-          : reference?.expressions.length ?? 0;
+          : sourceIsTrusted
+            ? reference?.expressions.length ?? 0
+            : 0;
 
   return (
-    <main className="learn-shell">
-      <header className="learn-header">
-        <Link className="learn-brand" href="/">
-          <span className="learn-brand-mark" aria-hidden="true">SG</span>
-          <span>
-            <strong>Study Graph</strong>
-            <small>くずし字・{meta.title}</small>
-          </span>
-        </Link>
-        <div className={`sync-pill ${mode === "notion" ? "online" : "demo"}`}>
-          <span className="dot" />
-          {mode === "notion" ? "Notion 接続中" : "Demo data"}
-        </div>
-      </header>
+    <main className="phase5-shell phase5-deep-shell">
+      <AppHeader context={`くずし字 · ${meta.title}`} backHref="/projects/kuzushiji" backLabel="くずし字" />
 
-      <nav className="breadcrumbs" aria-label="パンくずリスト">
-        <Link href="/projects">Projects</Link>
-        <span><Link href="/projects/kuzushiji">くずし字</Link></span>
+      <div className="phase5-context-nav" aria-label="現在地">
+        <Link href="/projects/kuzushiji">くずし字</Link>
+        <span aria-hidden="true">›</span>
         <span>{meta.title}</span>
-      </nav>
+      </div>
 
-      <section className="section-heading">
+      <section className="phase5-page-heading phase5-deep-heading">
         <div>
-          <p className="eyebrow">{meta.eyebrow}</p>
-          <h1>{meta.title}</h1>
-          <p>{meta.description}</p>
+          <p className="phase5-eyebrow">くずし字</p>
+          <h1 className="phase5-page-title">{meta.title}</h1>
+          <p className="phase5-context">{meta.description}</p>
         </div>
-        <span className="section-count">{count} items</span>
+        {sourceIsTrusted && <span className="phase5-deep-count">{count}件</span>}
       </section>
 
-      <section className="entity-list" aria-label={`${meta.title}一覧`}>
+      <section className="phase5-deep-list" aria-label={`${meta.title}一覧`}>
+        {!sourceIsTrusted ? (
+          <div className="phase5-deep-unavailable" role="status">
+            <strong>学習データを表示できません。</strong>
+            <p>接続を確認できたあと、もう一度この一覧を開いてください。</p>
+            <Link href="/settings/advanced/diagnostics">接続を確認する</Link>
+          </div>
+        ) : <>
         {section === "lectures" && data.lectures.map((lecture) => (
-          <Link className="entity-row" href={`/projects/kuzushiji/lectures/${lecture.id}`} key={lecture.id}>
-            <span className="entity-row-leading">{String(lecture.sequence).padStart(2, "0")}</span>
-            <div>
+          <Link className="phase5-deep-row" href={`/projects/kuzushiji/lectures/${lecture.id}`} key={lecture.id}>
+            <span className="phase5-deep-row-leading">{String(lecture.sequence).padStart(2, "0")}</span>
+            <span className="phase5-deep-row-main">
               <strong>{lecture.title || "無題の講義"}</strong>
-              <p>{lecture.theme || "学習テーマ未設定"}</p>
-            </div>
-            <span className="entity-row-status">{lecture.status || "未設定"}</span>
+              <span>{lecture.theme || "学習テーマ未設定"}</span>
+            </span>
+            <span className="phase5-deep-row-status">{lecture.status || "未設定"}</span>
+            <span className="phase5-deep-row-arrow" aria-hidden="true">→</span>
           </Link>
         ))}
 
         {section === "characters" && data.characters.map((character) => (
-          <Link className="entity-row" href={`/projects/kuzushiji/characters/${character.id}`} key={character.id}>
-            <span className="entity-row-leading">{character.reading || "?"}</span>
-            <div>
+          <Link className="phase5-deep-row" href={`/projects/kuzushiji/characters/${character.id}`} key={character.id}>
+            <span className="phase5-deep-row-leading">{character.reading || "?"}</span>
+            <span className="phase5-deep-row-main">
               <strong>{character.glyph || "文字未設定"}</strong>
-              <p>{[character.mother ? `字母 ${character.mother}` : "", character.importance ? `重要度 ${character.importance}` : ""].filter(Boolean).join("・") || "詳細未設定"}</p>
-            </div>
-            <span className="entity-row-status">{character.mastery || "未設定"}</span>
+              <span>{[character.mother ? `字母 ${character.mother}` : "", character.importance ? `重要度 ${character.importance}` : ""].filter(Boolean).join("・") || "詳細未設定"}</span>
+            </span>
+            <span className="phase5-deep-row-status">{character.mastery || "未設定"}</span>
+            <span className="phase5-deep-row-arrow" aria-hidden="true">→</span>
           </Link>
         ))}
 
         {section === "mistakes" && data.mistakes.map((mistake) => (
-          <Link className="entity-row" href={`/projects/kuzushiji/mistakes/${mistake.id}`} key={mistake.id}>
-            <span className="entity-row-leading">{mistake.resolved ? "済" : "要"}</span>
-            <div>
+          <Link className="phase5-deep-row" href={`/projects/kuzushiji/mistakes/${mistake.id}`} key={mistake.id}>
+            <span className="phase5-deep-row-leading">{mistake.resolved ? "済" : "要"}</span>
+            <span className="phase5-deep-row-main">
               <strong>{mistake.title || "誤読記録"}</strong>
-              <p>{mistake.cause || "原因未設定"}{mistake.errorDate ? `・${mistake.errorDate}` : ""}</p>
-            </div>
-            <span className="entity-row-status">{mistake.resolved ? "克服済み" : mistake.retry ? "再出題" : "記録中"}</span>
+              <span>{mistake.cause || "原因未設定"}{mistake.errorDate ? `・${mistake.errorDate}` : ""}</span>
+            </span>
+            <span className="phase5-deep-row-status">{mistake.resolved ? "克服済み" : mistake.retry ? "再出題" : "記録中"}</span>
+            <span className="phase5-deep-row-arrow" aria-hidden="true">→</span>
           </Link>
         ))}
 
         {section === "sources" && reference?.sources.map((source) => (
-          <Link className="entity-row" href={`/projects/kuzushiji/sources/${source.id}`} key={source.id}>
-            <span className="entity-row-leading">資料</span>
-            <div>
+          <Link className="phase5-deep-row" href={`/projects/kuzushiji/sources/${source.id}`} key={source.id}>
+            <span className="phase5-deep-row-leading">資料</span>
+            <span className="phase5-deep-row-main">
               <strong>{source.title || "資料名未設定"}</strong>
-              <p>{[source.usage, source.materialType, source.institution].filter(Boolean).join("・") || "詳細未設定"}</p>
-            </div>
-            <span className="entity-row-status">{source.difficulty || "未設定"}</span>
+              <span>{[source.usage, source.materialType, source.institution].filter(Boolean).join("・") || "詳細未設定"}</span>
+            </span>
+            <span className="phase5-deep-row-status">{source.difficulty || "未設定"}</span>
+            <span className="phase5-deep-row-arrow" aria-hidden="true">→</span>
           </Link>
         ))}
 
         {section === "expressions" && reference?.expressions.map((expression) => (
-          <Link className="entity-row" href={`/projects/kuzushiji/expressions/${expression.id}`} key={expression.id}>
-            <span className="entity-row-leading">{expression.reading || "?"}</span>
-            <div>
+          <Link className="phase5-deep-row" href={`/projects/kuzushiji/expressions/${expression.id}`} key={expression.id}>
+            <span className="phase5-deep-row-leading">{expression.reading || "?"}</span>
+            <span className="phase5-deep-row-main">
               <strong>{expression.expression || "表現未設定"}</strong>
-              <p>{[expression.category, expression.meaning].filter(Boolean).join("・") || "詳細未設定"}</p>
-            </div>
-            <span className="entity-row-status">{expression.mastery || expression.importance || "未設定"}</span>
+              <span>{[expression.category, expression.meaning].filter(Boolean).join("・") || "詳細未設定"}</span>
+            </span>
+            <span className="phase5-deep-row-status">{expression.mastery || expression.importance || "未設定"}</span>
+            <span className="phase5-deep-row-arrow" aria-hidden="true">→</span>
           </Link>
         ))}
 
         {count === 0 && (
-          <div className="empty-state-inline">
-            <strong>まだ項目がありません。</strong>
-            <p>Notionに追加すると、次回の表示時にここへ反映されます。</p>
+          <div className="phase5-deep-empty">
+            <strong>表示できる項目がありません。</strong>
+            <p>学習データが更新されたあと、もう一度確認できます。</p>
           </div>
         )}
+        </>}
       </section>
 
       <PrimaryNav active="learn" />

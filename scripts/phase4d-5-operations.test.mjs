@@ -36,9 +36,11 @@ test("runtime preserves immutable target isolation between Objective and legacy 
 
 test("Progress presents Objective state as current authority and legacy history as archival", () => {
   assert.match(progress, /getKuzushijiPilotObjectiveState/);
-  assert.match(progress, /Objective SRS 接続中/);
-  assert.match(progress, /LEGACY ATTEMPTS/);
-  assert.match(progress, /現行Objective SRS/);
+  assert.match(progress, /現在の復習/);
+  assert.match(progress, /これまでの復習/);
+  assert.match(progress, /これまでの自己評価/);
+  assert.doesNotMatch(progress, /Objective SRS 接続中/);
+  assert.doesNotMatch(progress, /LEGACY ATTEMPTS/);
   assert.doesNotMatch(progress, /getReviewStates/);
   assert.doesNotMatch(progress, /Legacy復習履歴[\s\S]{0,3000}次回の復習予定/);
 });

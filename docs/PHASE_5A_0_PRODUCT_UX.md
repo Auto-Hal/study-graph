@@ -36,6 +36,21 @@ The shell is mobile-first, respects the iOS safe area, provides visible focus,
 44px-class targets where practical, and honors reduced motion. Navigation
 feedback is immediate; data refresh remains server-authoritative.
 
+## Deep learner route cutover (5A-0-3b)
+
+The iPhone review after PR #49 found that the deeper learner routes still
+looked like an earlier Study Graph product. Graph, Kuzushiji lists and entity
+details, and the learning record now use the shared Phase 5 shell, compact
+headers, Japanese learner language, and editorial rows/sections. Graph's
+learner-facing shell and presentation are complete for this slice; its graph
+data model and advanced interaction behavior remain unchanged.
+
+The cutover keeps the existing Graph query state, node/relation navigation,
+Kuzushiji data readers, review history, and project deep links. It is a
+presentation change only and does not introduce a new read path. Synthetic
+adapter fallback data remains an internal availability fallback and is never
+rendered as real learner data on these routes.
+
 ## Preserved authority boundaries
 
 This slice keeps Notion read-only, Git/archive content immutable, Supabase as
@@ -54,4 +69,4 @@ The following are deliberately outside Phase 5A-0:
 - Auto Publish policy implementation
 - Consolidation Set persistence or new SRS semantics
 - structural read-path/performance redesign beyond low-risk presentation work
-- Graph visual redesign
+- deeper Graph interaction and data-model redesign
