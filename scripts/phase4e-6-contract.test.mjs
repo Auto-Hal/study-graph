@@ -210,11 +210,12 @@ test("explicit blocked recovery is validation-gated and keeps the generic termin
 });
 
 test("dashboard reaches blocked diagnostics without changing the offline authority", () => {
-  assert.match(dashboard, /import PilotBlockedAttemptDiagnostics from ["']\.\/PilotBlockedAttemptDiagnostics["'];/);
-  const prefetchIndex = dashboard.indexOf("<OfflinePrefetchControl />");
-  const diagnosticsIndex = dashboard.indexOf("<PilotBlockedAttemptDiagnostics />");
-  const historyIndex = dashboard.indexOf("progress-link-card");
-  assert.ok(prefetchIndex >= 0 && diagnosticsIndex > prefetchIndex && historyIndex > diagnosticsIndex);
+  // Phase 5 moves operational controls out of the learner-facing project
+  // detail. Their dedicated routes retain the same read-only authority.
+  assert.doesNotMatch(dashboard, /import PilotBlockedAttemptDiagnostics/);
+  assert.doesNotMatch(dashboard, /<OfflinePrefetchControl \/>/);
+  assert.match(offlineReview, /PilotBlockedAttemptDiagnostics/);
+  assert.match(readFileSync(resolve(root, "app/settings/advanced/diagnostics/page.tsx"), "utf8"), /PilotBlockedAttemptDiagnostics/);
   assert.match(diagnosticsComponent, /if \(loadError \|\| \(records\.length === 0 && notice === null\)\) return null/);
   assert.doesNotMatch(diagnosticsComponent, /prefetchPilotOfflineInstance|sendPilotOutboxAttempt|transitionOfflineAttempt|commitPilotOfflineAttempt|crypto\.randomUUID|markOfflineInstanceAnswered/);
   assert.match(offlineReview, /findOfflineAttemptByInstanceId\(record\.instanceId\)/);

@@ -1,86 +1,56 @@
 import Link from "next/link";
-import ReviewSession from "@/src/components/ReviewSession";
-import { loadReviewProject } from "@/src/lib/review/registry";
+import AppHeader from "@/src/components/AppHeader";
+import PrimaryNav from "@/src/components/PrimaryNav";
+import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
+import { getDueReviewItems } from "@/src/lib/supabase/review";
+import { getActiveStudyProjects } from "@/src/lib/projects/registry";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReviewPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ project?: string }>;
-}) {
-  const query = await searchParams;
-  const data = await loadReviewProject(query.project);
-  const practice = data.session.mode === "practice";
+/** Review landing only. The focused ReviewSession lives at /review/session. */
+export default async function ReviewLandingPage() {
+  const data = await getKuzushijiDashboard();
+  const scheduledReview = await getDueReviewItems(data.reviewQueue);
+  const projects = getActiveStudyProjects();
+  const dataAvailable = data.mode === "notion";
+  const count = dataAvailable ? scheduledReview.items.length : 0;
 
   return (
-    <main className="review-page-shell review-project-shell">
-      <header className="review-page-header">
-        <Link className="brand-link" href="/">
-          <span className="brand-mark">SG</span>
-          <span>
-            <strong>Study Graph</strong>
-            <small>{data.project.shortLabel}・{practice ? "Practice" : "今日の復習"}</small>
-          </span>
-        </Link>
-        <div className={`sync-pill ${data.sourceMode === "notion" ? "online" : "demo"}`}>
-          <span className="dot" />
-          {data.sourceMode === "notion" ? "Notion 接続中" : "Demo data"}
-        </div>
-        <form action="/api/auth/logout" method="post">
-          <button type="submit">ログアウト</button>
-        </form>
-      </header>
-
-      <section className="review-project-intro">
-        <div>
-          <p className="eyebrow">CROSS-PROJECT REVIEW · PHASE 3.0</p>
-          <h1>{practice ? "知識を思い出し、復習対象へ育てる。" : "今日の復習を、期限順に進める。"}</h1>
-          <p>
-            {practice
-              ? "Knowledge GraphのNotionノードから問題を作ります。初回Practiceで評価した知識だけがSupabaseの間隔反復へ参加します。"
-              : "Notionで管理している弱点候補とSupabaseの次回復習日を照合し、期限が来た項目だけを出題します。"}
-          </p>
-        </div>
-        <div className="review-session-badge">
-          <strong>{data.cards.length}</strong>
-          <span>{practice ? "今回のPractice" : "期限到来"}</span>
-        </div>
+    <main className="phase5-shell">
+      <AppHeader />
+      <section className="phase5-page-heading">
+        <div><p className="phase5-eyebrow">復習</p><h1 className="phase5-page-title">復習</h1><p className="phase5-context">思い出す時間を、ここから始めます</p></div>
       </section>
 
-      <nav className="review-project-selector" aria-label="Reviewプロジェクト選択">
-        {data.projects.map((project) => {
-          const active = project.id === data.project.id;
-          const strategyLabel = project.review.strategy === "graph-practice" ? "Practice" : "Scheduled";
-          return (
-            <Link
-              className={active ? "active" : undefined}
-              href={`/review?project=${encodeURIComponent(project.id)}`}
-              key={project.id}
-              aria-current={active ? "page" : undefined}
-            >
-              <span>{project.shortLabel}</span>
-              <small>{strategyLabel}</small>
-            </Link>
-          );
-        })}
-      </nav>
+      <section className="phase5-review-options" aria-label="復習を選ぶ">
+        <div>
+          <article className="phase5-review-focus">
+            <p className="phase5-eyebrow">今日の復習</p>
+            <h2>{!dataAvailable ? "復習データを取得できません" : count > 0 ? "期限の来た項目があります" : "今日は予定がありません"}</h2>
+            <span className="phase5-review-count">{count}</span>
+            <span className="phase5-review-label">問題</span>
+            <p>{!dataAvailable ? "通信が戻ったら、もう一度確認してください。" : count > 0 ? "短いセッションで、ひとつずつ思い出します。" : "学習を続けるか、別のプロジェクトを選べます。"}</p>
+            {count > 0 ? <Link className="phase5-action" href="/review/session?project=kuzushiji">今日の復習を始める <span aria-hidden="true">→</span></Link> : <Link className="phase5-secondary-action" href="/projects">学ぶプロジェクトを見る <span aria-hidden="true">→</span></Link>}
+          </article>
+          <div className="phase5-project-switcher" aria-label="プロジェクト別復習">
+            {projects.map((project) => <Link href={`/review/session?project=${encodeURIComponent(project.id)}`} key={project.id}>{project.shortLabel}</Link>)}
+          </div>
+        </div>
+        <aside className="phase5-review-side">
+          <p className="phase5-eyebrow">オフライン</p>
+          <h2>オフライン復習</h2>
+          <p>準備済みの問題がある端末で、通信なしで回答できます。</p>
+          <Link className="phase5-secondary-action" href="/review/offline">準備を確認する <span aria-hidden="true">→</span></Link>
+        </aside>
+      </section>
 
-      {data.sourceMode === "demo" && (
-        <section className="notice" role="status">
-          <strong>Notionを取得できていません。</strong>
-          <span> 現在はDemo dataのため、評価は保存しません。</span>
-        </section>
-      )}
-
-      {data.sourceMode === "notion" && data.persistence === "fallback" && (
-        <section className="notice" role="status">
-          <strong>復習履歴を取得できていません。</strong>
-          <span> 問題には取り組めますが、このセッションの評価は保存しません。</span>
-        </section>
-      )}
-
-      <ReviewSession cards={data.cards} persistence={data.persistence} session={data.session} />
+      <section className="phase5-section" aria-labelledby="supported-review-title">
+        <div className="phase5-section-heading"><h2 id="supported-review-title">プロジェクトから選ぶ</h2><Link href="/projects">学ぶ</Link></div>
+        <div className="phase5-row-list">
+          {projects.map((project) => <Link className="phase5-row" href={`/review/session?project=${encodeURIComponent(project.id)}`} key={project.id}><span className="phase5-row-main"><span className="phase5-row-title">{project.title}</span><span className="phase5-row-meta">{project.review.strategy === "notion-queue" ? "今日の復習" : "Practice"}</span></span><span className="phase5-row-arrow" aria-hidden="true">→</span></Link>)}
+        </div>
+      </section>
+      <PrimaryNav active="review" />
     </main>
   );
 }

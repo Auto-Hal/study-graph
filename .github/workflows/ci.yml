@@ -52,6 +52,9 @@ jobs:
       - name: Phase 4E-6 final offline hardening tests
         run: npm run test:phase4e-6
 
+      - name: Phase 5A-0 UI contract tests
+        run: npm run test:phase5a-0
+
       - name: TypeScript noEmit
         run: npx tsc --noEmit
 
