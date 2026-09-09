@@ -416,6 +416,29 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-workspace-secondary-links { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 25px; }
 .phase5-workspace-secondary-links a { color: var(--p5-accent); font-size: 14px; font-weight: 700; }
 .phase5-workspace-secondary-links a::after { margin-left: 4px; content: "→"; }
+.phase5-workspace-secondary { margin-top: 32px; }
+.phase5-workspace-secondary-summary {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 2px;
+  border-top: 1px solid var(--p5-line);
+  border-bottom: 1px solid var(--p5-line);
+  cursor: pointer;
+  list-style: none;
+}
+.phase5-workspace-secondary-summary::-webkit-details-marker { display: none; }
+.phase5-workspace-secondary-summary:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
+.phase5-workspace-secondary-summary > span:first-child { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-secondary-summary strong { color: var(--p5-text); font-size: 15px; }
+.phase5-workspace-secondary-summary small { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-secondary-toggle { color: var(--p5-accent); font-size: 20px; line-height: 1; }
+.phase5-workspace-secondary[open] .phase5-workspace-secondary-toggle { font-size: 0; }
+.phase5-workspace-secondary[open] .phase5-workspace-secondary-toggle::after { font-size: 20px; content: "−"; }
+.phase5-workspace-secondary-content { padding-top: 20px; }
+.phase5-workspace-secondary-content .phase5-focus { margin-bottom: 24px; }
 .phase5-related-list { border-top: 1px solid var(--p5-line); }
 .phase5-related-row {
   display: grid;

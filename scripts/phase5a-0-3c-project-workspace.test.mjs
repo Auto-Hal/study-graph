@@ -80,6 +80,51 @@ test("knowledge connections stay collapsed by default", () => {
   }
 });
 
+test("Kuzushiji keeps authoritative state behind a secondary collapsed disclosure", () => {
+  const dashboardView = kuzushijiDashboard.slice(kuzushijiDashboard.indexOf("function DashboardView"));
+  const secondaryIndex = dashboardView.indexOf('<details className="phase5-workspace-section phase5-workspace-secondary"');
+  assert.ok(secondaryIndex > 0, "Kuzushiji needs a secondary learning-status disclosure");
+  const primaryMarkup = dashboardView.slice(dashboardView.indexOf("return ("), secondaryIndex);
+  const secondaryMarkup = dashboardView.slice(secondaryIndex);
+
+  assert.match(primaryMarkup, /workspaceContext/);
+  assert.match(primaryMarkup, /kuzushiji-learning-title/);
+  assert.match(primaryMarkup, /kuzushiji-knowledge-title/);
+  for (const privilegedSurface of ["phase5-focus", "phase5-stat-line", "phase5-sync-line", "phase5-freshness", "端末の保存", "同期済み", "完了講義", "復習候補", "現在位置"]) {
+    assert.doesNotMatch(primaryMarkup, new RegExp(privilegedSurface.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(secondaryMarkup, /学習状況/);
+  assert.match(secondaryMarkup, /phase5-focus/);
+  assert.match(secondaryMarkup, /phase5-stat-line/);
+  assert.match(secondaryMarkup, /phase5-sync-line/);
+  assert.match(secondaryMarkup, /phase5-freshness/);
+  assert.match(secondaryMarkup, /href="\/review"/);
+  assert.match(secondaryMarkup, /href="\/projects\/kuzushiji\/progress"/);
+});
+
+test("the common workspace skeleton keeps its section order", () => {
+  const orderedMarkers = [
+    "phase5-workspace-overview",
+    "workspace-learning-title",
+    "workspace-knowledge-title",
+    "phase5-workspace-graph",
+  ];
+  const genericPositions = orderedMarkers.map((marker) => projectHome.indexOf(marker));
+  assert.ok(genericPositions.every((position) => position >= 0));
+  assert.deepEqual([...genericPositions].sort((a, b) => a - b), genericPositions);
+
+  const kuzushijiMarkers = [
+    "phase5-workspace-overview",
+    "kuzushiji-learning-title",
+    "kuzushiji-knowledge-title",
+    "phase5-workspace-graph",
+    "phase5-workspace-secondary",
+  ];
+  const kuzushijiPositions = kuzushijiMarkers.map((marker) => kuzushijiDashboard.indexOf(marker));
+  assert.ok(kuzushijiPositions.every((position) => position >= 0));
+  assert.deepEqual([...kuzushijiPositions].sort((a, b) => a - b), kuzushijiPositions);
+});
+
 test("detail pages preserve graph focus and source links", () => {
   assert.match(detailPage, /project=.*node=.*view=focus/);
   assert.match(detailPage, /知識のつながりを見る/);
