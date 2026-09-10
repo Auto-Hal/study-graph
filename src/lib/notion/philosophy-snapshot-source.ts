@@ -21,7 +21,7 @@ import {
   readNotionNumber,
   readNotionSelect,
   readNotionText,
-  requiredNotionText,
+  readNotionDisplayLabel,
   type StrictNotionPage,
   type StrictNotionRelationDeclaration,
 } from "./strict-snapshot-source.ts";
@@ -93,15 +93,15 @@ function lifespan(birth: number | null, death: number | null) {
   return `${year(birth)}–${year(death)}`;
 }
 
-function pageLabel(page: StrictNotionPage, propertyName: string, kind: string) {
-  return requiredNotionText(page, propertyName, `${LABEL} ${kind}`);
+function pageLabel(page: StrictNotionPage, propertyName: string, kind: string, fallback: string) {
+  return readNotionDisplayLabel(page, propertyName, `${LABEL} ${kind}`, fallback);
 }
 
 function mapLecture(page: StrictNotionPage): PhilosophyLecture {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "講義タイトル", "lecture"),
+    label: pageLabel(page, "講義タイトル", "lecture", "講義"),
     sequence: readNotionNumber(page, "回", `${LABEL} lecture`),
     status: readNotionSelect(page, "状態", `${LABEL} lecture`),
     question: readNotionText(page, "本日の問い", `${LABEL} lecture`),
@@ -114,7 +114,7 @@ function mapPhilosopher(page: StrictNotionPage): PhilosophyPhilosopher {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "哲学者名", "philosopher"),
+    label: pageLabel(page, "哲学者名", "philosopher", "哲学者"),
     lifespan: lifespan(readNotionNumber(page, "誕生年", `${LABEL} philosopher`), readNotionNumber(page, "死去年", `${LABEL} philosopher`)),
     schools: readNotionMultiSelect(page, "学派", `${LABEL} philosopher`),
     regions: readNotionMultiSelect(page, "地域", `${LABEL} philosopher`),
@@ -128,7 +128,7 @@ function mapTerm(page: StrictNotionPage): PhilosophyTerm {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "用語", "term"),
+    label: pageLabel(page, "用語", "term", "用語"),
     fields: readNotionMultiSelect(page, "分野", `${LABEL} term`),
     definition,
     reviewText: definition || null,
@@ -141,7 +141,7 @@ function mapProblem(page: StrictNotionPage): PhilosophyProblem {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "問題", "problem"),
+    label: pageLabel(page, "問題", "problem", "哲学的問題"),
     fields: readNotionMultiSelect(page, "分野", `${LABEL} problem`),
     overview,
     currentUnderstanding,
@@ -153,7 +153,7 @@ function mapWork(page: StrictNotionPage): PhilosophyWork {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "名前", "work"),
+    label: pageLabel(page, "名前", "work", "原典・著作"),
     author: readNotionText(page, "著者", `${LABEL} work`),
     years: readNotionText(page, "年代", `${LABEL} work`),
     genre: readNotionSelect(page, "ジャンル", `${LABEL} work`),
@@ -168,7 +168,7 @@ function mapCulture(page: StrictNotionPage): PhilosophyCulture {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "作品名", "culture"),
+    label: pageLabel(page, "作品名", "culture", "文化"),
     type: readNotionSelect(page, "種類", `${LABEL} culture`),
     authorOrDirector: readNotionText(page, "作者・監督", `${LABEL} culture`),
     years: readNotionText(page, "年代", `${LABEL} culture`),
@@ -182,7 +182,7 @@ function mapPeriod(page: StrictNotionPage): PhilosophyPeriod {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "時代", "period"),
+    label: pageLabel(page, "時代", "period", "時代"),
     years: readNotionText(page, "年代", `${LABEL} period`),
     features,
     reviewText: features || null,
@@ -194,7 +194,7 @@ function mapThoughtNote(page: StrictNotionPage): PhilosophyThoughtNote {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "タイトル", "thought-note"),
+    label: pageLabel(page, "タイトル", "thought-note", "思考ノート"),
     date: readNotionDate(page, "日付", `${LABEL} thought-note`),
     content,
     corrected: readNotionCheckbox(page, "後から修正したか", `${LABEL} thought-note`),
