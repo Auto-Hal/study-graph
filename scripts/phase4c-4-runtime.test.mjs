@@ -12,6 +12,14 @@ const session = readFileSync(resolve(root, "src/components/ReviewSession.tsx"), 
 const pilotTransport = readFileSync(resolve(root, "src/lib/review/offline/pilot-transport.ts"), "utf8");
 const attemptRoute = readFileSync(resolve(root, "app/api/review/pilot/attempt/route.ts"), "utf8");
 const issueRoute = readFileSync(resolve(root, "app/api/review/pilot/issue/route.ts"), "utf8");
+const prefetchRoute = readFileSync(resolve(root, "app/api/review/pilot/prefetch/route.ts"), "utf8");
+const validateRoute = readFileSync(resolve(root, "app/api/review/pilot/attempt/validate/route.ts"), "utf8");
+const snapshotRoute = readFileSync(resolve(root, "app/api/snapshots/kuzushiji/current/route.ts"), "utf8");
+const snapshotSyncRoute = readFileSync(resolve(root, "app/api/snapshots/kuzushiji/sync/route.ts"), "utf8");
+const receiptRoute = readFileSync(resolve(root, "app/api/review/pilot/receipt/route.ts"), "utf8");
+const objectiveStateRoute = readFileSync(resolve(root, "app/api/review/pilot/objective-state/route.ts"), "utf8");
+const kuzushijiPage = readFileSync(resolve(root, "app/projects/kuzushiji/page.tsx"), "utf8");
+const snapshotDashboard = readFileSync(resolve(root, "src/components/KuzushijiSnapshotDashboard.tsx"), "utf8");
 const supabaseClient = readFileSync(resolve(root, "src/lib/supabase/pilot.ts"), "utf8");
 const auth = readFileSync(resolve(root, "src/lib/review/pilot-auth.ts"), "utf8");
 const authCore = readFileSync(resolve(root, "src/lib/review/pilot-auth-core.ts"), "utf8");
@@ -52,8 +60,8 @@ test("archive registration and instance issuance are idempotent/conflict aware",
 test("pilot attempt route accepts only server-relevant submission fields", () => {
   assert.match(attemptRoute, /validatePilotAttemptInput/);
   assert.match(attemptRoute, /submitKuzushijiPilotAttempt/);
-  assert.match(attemptRoute, /pilotWriteAuthorizationFailure/);
-  assert.match(issueRoute, /pilotWriteAuthorizationFailure/);
+  assert.match(attemptRoute, /pilotWriteSameOriginFailure/);
+  assert.match(issueRoute, /pilotWriteSameOriginFailure/);
   assert.doesNotMatch(attemptRoute, /isCorrect/);
   assert.doesNotMatch(attemptRoute, /srsApplied/);
   assert.doesNotMatch(attemptRoute, /learnerId/);
@@ -64,7 +72,7 @@ test("pilot attempt route accepts only server-relevant submission fields", () =>
   assert.match(session, /crypto\.randomUUID\(\)/);
 });
 
-test("pilot write APIs have a server-issued authorization boundary", () => {
+test("native pilot writes keep same-origin protection without an interactive login", () => {
   assert.match(auth, /server-only/);
   assert.match(auth, /STUDY_GRAPH_ACCESS_PASSWORD/);
   assert.doesNotMatch(auth, /STUDY_GRAPH_APP_TOKEN/);
@@ -72,17 +80,49 @@ test("pilot write APIs have a server-issued authorization boundary", () => {
   assert.match(auth, /verifyPilotSessionToken/);
   assert.match(authCore, /HMAC/);
   assert.match(authCore, /study-graph-session-v1/);
-  assert.match(middleware, /NextResponse\.redirect/);
-  assert.match(middleware, /pathname = "\/login"/);
+  assert.match(middleware, /NextResponse\.next/);
+  assert.doesNotMatch(middleware, /NextResponse\.redirect|pathname = "\/login"/);
   assert.doesNotMatch(middleware, /createPilotSessionToken/);
   assert.doesNotMatch(middleware, /cookies\.set/);
-  assert.match(middleware, /PILOT_SESSION_COOKIE/);
   assert.doesNotMatch(auth, /NEXT_PUBLIC_/);
   assert.doesNotMatch(middleware, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(issueRoute, /authorizationFailure === "cross_origin_request" \? 403 : 401/);
-  assert.match(attemptRoute, /authorizationFailure === "cross_origin_request" \? 403 : 401/);
+  assert.match(issueRoute, /pilotWriteSameOriginFailure/);
+  assert.match(attemptRoute, /pilotWriteSameOriginFailure/);
+  assert.match(issueRoute, /status: 403/);
+  assert.match(attemptRoute, /status: 403/);
+  assert.doesNotMatch(issueRoute, /pilot_authorization_required/);
+  assert.doesNotMatch(attemptRoute, /pilot_authorization_required/);
   assert.doesNotMatch(issueRoute, /learnerId/);
   assert.doesNotMatch(attemptRoute, /learnerId/);
+});
+
+test("Review is a native no-login route while dormant auth compatibility remains isolated", () => {
+  assert.match(middleware, /matcher: \["\/review", "\/review\/:path\*"\]/);
+  assert.doesNotMatch(middleware, /NextResponse\.redirect|loginUrl|isPilotSessionCookieValid/);
+  assert.match(loginRoute, /createAuthenticatedPilotSessionCookieValue/);
+  assert.match(logoutRoute, /\/login/);
+});
+
+test("all native reads and writes use the no-login policy without weakening origin protection", () => {
+  for (const route of [snapshotRoute, receiptRoute, objectiveStateRoute]) {
+    assert.doesNotMatch(route, /isPilotSessionRequestAuthenticated|pilot_authorization_required/);
+  }
+  for (const route of [attemptRoute, issueRoute, prefetchRoute, validateRoute, snapshotSyncRoute]) {
+    assert.match(route, /pilotWriteSameOriginFailure/);
+    assert.match(route, /status: 403/);
+    assert.doesNotMatch(route, /pilotWriteAuthorizationFailure|pilot_authorization_required/);
+  }
+  assert.match(snapshotRoute, /getCurrentScopeKnowledgeSnapshotModel\("kuzushiji"\)/);
+  assert.match(objectiveStateRoute, /getKuzushijiPilotObjectiveState/);
+  assert.match(issueRoute, /issueKuzushijiPilotReview/);
+  assert.match(attemptRoute, /submitKuzushijiPilotAttempt/);
+  assert.match(receiptRoute, /getKuzushijiPilotAttemptReceipt/);
+  assert.match(prefetchRoute, /prefetchKuzushijiOfflineInstance/);
+  assert.match(validateRoute, /validatePilotAttemptInput/);
+  assert.match(kuzushijiPage, /KuzushijiSnapshotDashboard/);
+  assert.doesNotMatch(snapshotDashboard, /href="\/login"|ログインが必要です/);
+  assert.doesNotMatch(session, /href="\/login"|ログインして再送/);
+  assert.doesNotMatch(pilotTransport, /href="\/login"|window\.location.*\/login/);
 });
 
 test("explicit login and logout are the only session issuance/removal boundary", () => {

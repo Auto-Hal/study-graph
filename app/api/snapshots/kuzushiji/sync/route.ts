@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pilotWriteAuthorizationFailure } from "@/src/lib/review/pilot-auth";
+import { pilotWriteSameOriginFailure } from "@/src/lib/review/pilot-auth";
 import { syncKuzushijiScopeKnowledgeSnapshot } from "@/src/lib/review/snapshot-sync/kuzushiji";
 
 export const runtime = "nodejs";
@@ -7,11 +7,11 @@ export const dynamic = "force-dynamic";
 
 /** Explicit manual sync only; never call this from screen rendering. */
 export async function POST(request: Request) {
-  const authorizationFailure = await pilotWriteAuthorizationFailure(request);
+  const authorizationFailure = pilotWriteSameOriginFailure(request);
   if (authorizationFailure) {
     return NextResponse.json(
       { error: authorizationFailure },
-      { status: authorizationFailure === "cross_origin_request" ? 403 : 401, headers: { "Cache-Control": "no-store" } },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
     );
   }
 

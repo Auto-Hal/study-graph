@@ -87,8 +87,8 @@ test("manifest and dedicated cold-start route are present", () => {
   assert.doesNotMatch(shellPage, /getKuzushijiDashboard/);
 });
 
-test("objective state feed is authenticated read-only and server-fixed", () => {
-  assert.match(objectiveRoute, /isPilotSessionRequestAuthenticated/);
+test("objective state feed is no-login, read-only, and server-fixed", () => {
+  assert.doesNotMatch(objectiveRoute, /isPilotSessionRequestAuthenticated|pilot_authorization_required/);
   assert.match(objectiveRoute, /getKuzushijiPilotObjectiveState/);
   assert.match(objectiveRoute, /KUZUSHIJI_PILOT_OBJECTIVE_ID/);
   assert.match(objectiveRoute, /KUZUSHIJI_PILOT_SRS_EPOCH/);

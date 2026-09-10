@@ -33,9 +33,9 @@ test("browser hash uses Web Crypto while server request hash exports remain inta
   assert.match(server, /export \{ canonicalizeExerciseAttemptRequest \}/);
 });
 
-test("receipt lookup is authenticated, read-only, and server-derived", () => {
+test("receipt lookup is no-login, read-only, and server-derived", () => {
   const route = read("app/api/review/pilot/receipt/route.ts");
-  assert.match(route, /isPilotSessionRequestAuthenticated/);
+  assert.doesNotMatch(route, /isPilotSessionRequestAuthenticated|pilot_authorization_required/);
   assert.match(route, /resolveKuzushijiPilotInstance/);
   assert.match(route, /getKuzushijiPilotAttemptReceipt/);
   assert.match(route, /receiptKind: instance\.srs_target/);
@@ -48,7 +48,7 @@ test("Phase 4E-4 leaves database migrations and non-pilot writer untouched", () 
   assert.match(session, /fetch\("\/api\/review\/attempt"/);
   assert.match(session, /syncStatus: "auth-required"/);
   assert.match(session, /syncStatus: "blocked"/);
-  assert.match(session, /href="\/login"/);
+  assert.doesNotMatch(session, /href="\/login"/);
   assert.match(session, /outboxCounts\.authRequired/);
   assert.match(session, /outboxCounts\.blocked/);
   assert.match(session, /countOfflineAttemptStatuses/);
@@ -68,7 +68,7 @@ test("Review attention counts use the current durable outbox authority", () => {
   assert.doesNotMatch(session, /setOutboxCounts\(\(counts\)/);
   assert.doesNotMatch(session, /results\.filter\(\(result\) => result\.syncStatus === "pending"\)/);
   assert.match(session, /端末保存済み・未同期/);
-  assert.match(session, /ログイン待ち/);
+  assert.match(session, /端末保存済み・再送待ち/);
   assert.match(session, /確認が必要/);
 });
 

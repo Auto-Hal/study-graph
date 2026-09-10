@@ -59,7 +59,7 @@ Receipt adoption is receipt-first. A local accepted state requires a complete
 authoritative server receipt; an incomplete receipt is blocked and is never
 repaired with the current request's grading result. An
 `instance_already_answered` response without a receipt first produces the
-non-terminal `receipt-lookup-required` classification. Only the authenticated
+non-terminal `receipt-lookup-required` classification. Only the server-derived
 lookup result can then be terminal: a complete receipt for the same attempt is
 accepted, a different attempt is blocked, and an incomplete receipt is blocked.
 The transition function independently checks that an accepted receipt's

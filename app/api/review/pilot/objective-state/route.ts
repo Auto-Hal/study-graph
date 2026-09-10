@@ -4,7 +4,6 @@ import {
   KUZUSHIJI_PILOT_OBJECTIVE_ID,
   KUZUSHIJI_PILOT_SRS_EPOCH,
 } from "@/src/lib/review/exercises/kuzushiji-objective";
-import { isPilotSessionRequestAuthenticated } from "@/src/lib/review/pilot-auth";
 import {
   getKuzushijiPilotObjectiveState,
   getPilotRuntimeConfig,
@@ -20,15 +19,12 @@ function noStore(response: NextResponse) {
 }
 
 /**
- * Authenticated, read-only Objective state mirror feed. The browser cannot
+ * Read-only Objective state mirror feed. The browser cannot
  * choose learner, project, Objective, or epoch; all identity facts come from
  * the server-fixed pilot configuration and the existing read-only RPC.
  */
 export async function GET(request: Request) {
   void request;
-  if (!await isPilotSessionRequestAuthenticated(request)) {
-    return noStore(NextResponse.json({ error: "pilot_authorization_required" }, { status: 401 }));
-  }
   const config = getPilotRuntimeConfig();
   if (!config) {
     return noStore(NextResponse.json({ error: "pilot_runtime_not_configured" }, { status: 503 }));

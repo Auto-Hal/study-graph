@@ -13,9 +13,9 @@ unchanged.
   asset definitions.
 - Supabase is the server authority for the archived snapshot/current pointer,
   instances, attempts, receipts, and SRS state.
-- The authenticated snapshot API reads the Supabase current pointer and never
+- The no-login snapshot API reads the Supabase current pointer and never
   falls back to Notion or demo data.
-- The manual sync API is an explicit authenticated action. It calls the strict
+- The manual sync API is an explicit same-origin action. It calls the strict
   4E-2 reader, which requires a Notion token, fetches all three data sources to
   completion, and rejects partial or malformed pagination. It is not called by
   screen rendering and no cron is installed.
@@ -26,11 +26,11 @@ unchanged.
   freshness hint and never an SRS authority.
 - Cache Storage, offline attempts, and the outbox are intentionally deferred.
 
-The current snapshot route requires the existing signed Study Graph session.
-Manual sync also requires the existing same-origin write check. Supabase
-service-role credentials and the Notion token stay server-only. A missing
-session receives `401`; the browser cannot choose a project, learner, source,
-generation, or snapshot identity.
+The current snapshot route is available to the native learner workspace
+without a password session. Manual sync retains the existing same-origin
+write check. Supabase service-role credentials and the Notion token stay
+server-only. The browser cannot choose a project, learner, source, generation,
+or snapshot identity.
 
 ## Projection and evidence
 
@@ -53,8 +53,8 @@ The dashboard adapter accepts only the explicitly supported
 
 No current snapshot yields an explicit bootstrap message and a manual “今すぐ
 同期” action. A network/5xx error may display an already verified local cache;
-an authentication failure directs the user to login and never promotes cache
-to authority. An invalid candidate is not cached and cannot overwrite a
+an unavailable response never directs the user to login or promotes cache to
+authority. An invalid candidate is not cached and cannot overwrite a
 verified pointer. An expired `validUntil` remains viewable with a freshness
 notice. When the server current request succeeds, that response remains the
 display source even if IndexedDB returns a structured-clone copy; only a

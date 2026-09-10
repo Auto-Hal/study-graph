@@ -15,8 +15,7 @@ type PageState =
   | { kind: "loading" }
   | { kind: "ready"; dashboard: SnapshotDashboard; cached: boolean }
   | { kind: "bootstrap"; message?: string }
-  | { kind: "unavailable"; message: string }
-  | { kind: "auth-required" };
+  | { kind: "unavailable"; message: string };
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
@@ -29,10 +28,12 @@ function asSnapshot(value: unknown): ScopeKnowledgeSnapshot | null {
   return snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot as ScopeKnowledgeSnapshot : null;
 }
 
-async function fetchCurrentSnapshot(): Promise<{ kind: "snapshot"; snapshot: ScopeKnowledgeSnapshot } | { kind: "auth" } | { kind: "missing" } | { kind: "failed" }> {
+async function fetchCurrentSnapshot(): Promise<{ kind: "snapshot"; snapshot: ScopeKnowledgeSnapshot } | { kind: "missing" } | { kind: "failed" }> {
   try {
     const response = await fetch("/api/snapshots/kuzushiji/current", { method: "GET", credentials: "same-origin", cache: "no-store" });
-    if (response.status === 401) return { kind: "auth" };
+    // Native snapshot access is no-login. Treat an unexpected legacy 401 as a
+    // normal unavailable response rather than sending learners to /login.
+    if (response.status === 401) return { kind: "failed" };
     if (response.status === 404) return { kind: "missing" };
     if (!response.ok) return { kind: "failed" };
     const snapshot = asSnapshot(await response.json());
@@ -64,7 +65,6 @@ export default function KuzushijiSnapshotDashboard() {
   const loadCurrent = useCallback(async () => {
     setState((current) => current.kind === "ready" ? current : { kind: "loading" });
     const result = await fetchCurrentSnapshot();
-    if (result.kind === "auth") { setState({ kind: "auth-required" }); return; }
     if (result.kind === "snapshot") {
       try {
         const cacheResult = await cacheScopeKnowledgeSnapshot(result.snapshot);
@@ -98,7 +98,7 @@ export default function KuzushijiSnapshotDashboard() {
     setSyncing(true);
     try {
       const response = await fetch("/api/snapshots/kuzushiji/sync", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" });
-      if (response.status === 401) { setState({ kind: "auth-required" }); return; }
+      if (response.status === 401) { setState({ kind: "unavailable", message: "同期できませんでした。" }); return; }
       if (response.status === 403) { setState({ kind: "unavailable", message: "この操作は同じサイトから実行してください。" }); return; }
       if (!response.ok) { setState((current) => current.kind === "ready" ? current : { kind: "unavailable", message: "同期できませんでした。" }); return; }
       await loadCurrent();
@@ -110,7 +110,6 @@ export default function KuzushijiSnapshotDashboard() {
   }, [loadCurrent]);
 
   if (state.kind === "loading") return <main className="phase5-shell phase5-deep-shell phase5-workspace-shell"><AppHeader context="くずし字 · 学ぶ" backHref="/projects" backLabel="学ぶ" /><section className="phase5-empty" aria-live="polite">学習データを読み込んでいます…</section><PrimaryNav active="learn" /></main>;
-  if (state.kind === "auth-required") return <main className="phase5-shell phase5-deep-shell phase5-workspace-shell"><AppHeader context="くずし字 · 学ぶ" backHref="/projects" backLabel="学ぶ" /><section className="phase5-review-focus"><p className="phase5-eyebrow">ログイン</p><h1 className="phase5-page-title">ログインが必要です</h1><p className="phase5-context">学習データを表示するにはログインしてください。</p><Link className="phase5-action phase5-login-action" href="/login">ログイン</Link></section><PrimaryNav active="learn" /></main>;
   if (state.kind === "bootstrap" || state.kind === "unavailable") {
     const isBootstrap = state.kind === "bootstrap";
     return <main className="phase5-shell phase5-deep-shell phase5-workspace-shell"><AppHeader context="くずし字 · 学ぶ" backHref="/projects" backLabel="学ぶ" /><section className="phase5-page-heading phase5-workspace-overview"><div><p className="phase5-eyebrow">学習</p><h1 className="phase5-page-title">くずし字</h1><p className="phase5-context">{isBootstrap ? "学習データがまだ同期されていません" : state.message}</p></div></section><section className="phase5-review-focus"><h2>{isBootstrap ? "学習を始める準備をする" : "もう一度確認する"}</h2><p>通信が戻ったら、最新の学習データを同期できます。</p><button className="phase5-action" type="button" onClick={() => void manualSync()} disabled={syncing}>{syncing ? "同期中…" : isBootstrap ? "今すぐ同期" : "同期を試す"}</button></section><PrimaryNav active="learn" /></main>;

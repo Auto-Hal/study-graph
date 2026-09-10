@@ -4,18 +4,18 @@
 
 Phase 4C-5 hardens the already-merged Kuzushiji pilot runtime without changing its persistence model, scheduler semantics, archive schema, learner identity, or grading authority.
 
-## Long-lived single-user session
+## Native no-login access
 
-Study Graph is a single-user personal application. After one explicit password login, the signed HttpOnly session cookie remains valid for 90 days.
+The current Study Graph runtime is a single-learner personal workspace. Native
+reads and mutations do not require an interactive password session. Native
+mutation routes retain same-origin checking and all existing server-owned
+learner, instance, request-hash, grading, receipt, Scope, and SRS invariants.
 
-- `STUDY_GRAPH_ACCESS_PASSWORD` remains server-only.
-- The cookie contains no plaintext password.
-- The cookie is signed from a domain-separated secret derived from the access password.
-- Changing `STUDY_GRAPH_ACCESS_PASSWORD` invalidates existing sessions automatically because their signatures no longer verify.
-- Explicit logout removes the cookie immediately.
-- Pilot write APIs continue to require both a valid session and same-origin request.
-
-This is intended to make normal use feel like a personal app rather than a website that requires daily login.
+The signed session cookie and `/login` compatibility routes remain dormant for
+future sensitive external-account access or external-system writes. Study
+Graph currently performs no Notion writes, so normal learner use does not ask
+for a password. `STUDY_GRAPH_ACCESS_PASSWORD` is still server-only and is not
+used as a prerequisite for native Review or snapshot access.
 
 ## Pilot issuance rollback switch
 

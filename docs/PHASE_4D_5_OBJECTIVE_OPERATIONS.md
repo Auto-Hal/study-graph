@@ -16,7 +16,7 @@ Objective SRS is a scheduling record, not proof of mastery. The displayed grade 
 
 New pilot issuance is allowed only when all existing runtime gates pass:
 
-1. authenticated same-origin Study Graph session;
+1. same-origin Study Graph request (native learner access is no-login);
 2. `STUDY_GRAPH_PILOT_ISSUANCE_ENABLED` is not disabled;
 3. Notion Scope source is ready and the character is eligible;
 4. the immutable revision is issuable;

@@ -6,14 +6,14 @@ import { issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
 import { buildKuzushijiScopeSnapshot } from "@/src/lib/review/scope";
 import { getStudyProject } from "@/src/lib/projects/registry";
 import { PilotRpcError } from "@/src/lib/supabase/pilot";
-import { pilotWriteAuthorizationFailure } from "@/src/lib/review/pilot-auth";
+import { pilotWriteSameOriginFailure } from "@/src/lib/review/pilot-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const authorizationFailure = await pilotWriteAuthorizationFailure(request);
+  const authorizationFailure = pilotWriteSameOriginFailure(request);
   if (authorizationFailure) {
-    return NextResponse.json({ error: authorizationFailure }, { status: authorizationFailure === "cross_origin_request" ? 403 : 401 });
+    return NextResponse.json({ error: authorizationFailure }, { status: 403 });
   }
   if (!isPilotIssuanceEnabled()) {
     return NextResponse.json({ error: "pilot_issuance_disabled" }, { status: 503 });

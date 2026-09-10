@@ -3,7 +3,6 @@ import {
   getCurrentScopeKnowledgeSnapshotModel,
   SnapshotRpcError,
 } from "@/src/lib/supabase/snapshots";
-import { isPilotSessionRequestAuthenticated } from "@/src/lib/review/pilot-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,12 +14,8 @@ function noStoreHeaders(extra: Record<string, string> = {}) {
   };
 }
 
-/** Authenticated, server-authoritative current snapshot distribution. */
+/** Server-authoritative current snapshot distribution for native learner reads. */
 export async function GET(request: Request) {
-  if (!(await isPilotSessionRequestAuthenticated(request))) {
-    return NextResponse.json({ error: "pilot_authorization_required" }, { status: 401, headers: noStoreHeaders() });
-  }
-
   try {
     const snapshot = await getCurrentScopeKnowledgeSnapshotModel("kuzushiji");
     if (!snapshot) {

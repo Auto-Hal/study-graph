@@ -7,10 +7,11 @@ import test from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 
-test("prefetch API accepts only durable device/request IDs and is server authenticated", () => {
+test("prefetch API accepts only durable device/request IDs and keeps same-origin protection", () => {
   const route = read("app/api/review/pilot/prefetch/route.ts");
-  assert.match(route, /pilotWriteAuthorizationFailure/);
-  assert.match(route, /cross_origin_request/);
+  assert.match(route, /pilotWriteSameOriginFailure/);
+  assert.match(route, /status: 403/);
+  assert.doesNotMatch(route, /pilot_authorization_required/);
   assert.match(route, /deviceId/);
   assert.match(route, /issuanceRequestId/);
   assert.doesNotMatch(route, /learnerId|objectiveId|srsEpoch|revisionId|snapshotId/);

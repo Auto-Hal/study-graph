@@ -34,11 +34,12 @@ stored together with the terminal outbox state in one IndexedDB transaction.
 The UI reports `accepted` only after that transaction completes. A network,
 5xx, or 429 result returns the record to `pending`; a 401 uses
 `auth-required`. While `auth-required`, the transport first probes the
-authenticated read-only receipt route: a 401, network failure, 429, or 5xx
-keeps `auth-required`; a 404 proves the session and permits the transition
+read-only receipt route: a 401, network failure, 429, or 5xx
+keeps `auth-required`; a 404 confirms that no stored receipt exists and
+permits the transition
 back to `pending`; a complete stored receipt can finish the attempt without a
 POST. An `attempt_conflict` or an incomplete receipt is `blocked`.
-`instance_already_answered` first requires the authenticated receipt lookup;
+`instance_already_answered` first requires the server-derived receipt lookup;
 the lookup must include and match the immutable request hash and attempt ID.
 The current request is never used to repair or fill a stored receipt. The
 read-only `GET /api/review/pilot/receipt` route returns the server-derived
@@ -53,13 +54,15 @@ terminal and are never rewound or deleted.
 ## UI and rollback
 
 Pilot results distinguish terminal server acceptance from
-`端末保存済み・未同期`, `ログイン待ち`, and records requiring confirmation.
+`端末保存済み・未同期`, `端末保存済み・再送待ち`, and records requiring confirmation.
 The current attention counts shown during a session and on the completion
 screen are read from the durable IndexedDB outbox; a result's historical
 `syncStatus` describes what happened at answer time and never keeps a resolved
 record counted after the outbox reaches a terminal state.
-Auth-required results link to `/login`; blocked records remain durable and are
-reported as requiring confirmation without automatic retry. Non-pilot Review
+Auth-required is retained only as a durable transport state for an unexpected
+401; native Review does not link to `/login` or require a password. Blocked
+records remain durable and are reported as requiring confirmation without
+automatic retry. Non-pilot Review
 continues to use the existing legacy endpoint. A pending answer is never
 silently sent through that legacy endpoint.
 

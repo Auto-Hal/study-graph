@@ -12,7 +12,7 @@ const issueRoute = readFileSync(resolve(root, "app/api/review/pilot/issue/route.
 const attemptRoute = readFileSync(resolve(root, "app/api/review/pilot/attempt/route.ts"), "utf8");
 const envExample = readFileSync(resolve(root, ".env.example"), "utf8");
 
-test("Phase 4C-5 keeps the single-user session for 90 days", () => {
+test("Phase 4C-5 keeps the dormant compatibility session without making it native access", () => {
   assert.match(authCore, /PILOT_SESSION_TTL_SECONDS = 90 \* 24 \* 60 \* 60/);
   assert.match(authCore, /derivePilotSessionSecret/);
 });

@@ -14,15 +14,16 @@ const cache = read("src/lib/review/offline/snapshot-cache.ts");
 const serverSnapshots = read("src/lib/supabase/snapshots.ts");
 const browserHash = read("src/lib/review/offline/snapshot-browser.ts");
 
-test("snapshot distribution routes are authenticated, server-only, and do not read Notion", () => {
-  assert.match(currentRoute, /isPilotSessionRequestAuthenticated/);
+test("snapshot distribution is server-authoritative, no-login, and does not read Notion", () => {
+  assert.doesNotMatch(currentRoute, /isPilotSessionRequestAuthenticated|pilot_authorization_required/);
   assert.match(currentRoute, /getCurrentScopeKnowledgeSnapshotModel\("kuzushiji"\)/);
   assert.doesNotMatch(currentRoute, /notion|syncKuzushiji/i);
   assert.match(currentRoute, /Cache-Control.*private, no-store/);
   assert.match(currentRoute, /ETag/);
   assert.match(currentRoute, /if-none-match/);
 
-  assert.match(syncRoute, /pilotWriteAuthorizationFailure/);
+  assert.match(syncRoute, /pilotWriteSameOriginFailure/);
+  assert.doesNotMatch(syncRoute, /pilot_authorization_required/);
   assert.match(syncRoute, /syncKuzushijiScopeKnowledgeSnapshot/);
   assert.match(syncRoute, /export async function POST/);
   assert.doesNotMatch(syncRoute, /getKuzushijiDashboard|demoData/);

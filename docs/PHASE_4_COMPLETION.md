@@ -13,7 +13,7 @@ and local offline replicas at separate authority boundaries.
 - **4E-1–4E-2:** Offline contracts and immutable server Scope/knowledge
   snapshots are versioned, hashed, and synchronized with a monotonic project
   pointer.
-- **4E-3:** Authenticated current snapshot distribution and browser snapshot
+- **4E-3:** No-login current snapshot distribution and browser snapshot
   caching remove the normal dashboard's direct Notion dependency.
 - **4E-4:** Answers are durably committed to an IndexedDB outbox before
   transport; server receipts determine terminal acceptance.

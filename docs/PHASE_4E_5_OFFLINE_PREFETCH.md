@@ -18,7 +18,7 @@ prefetch path; historical v1 instances continue to resolve and retry.
 
 ## Server-only issuance
 
-The authenticated `POST /api/review/pilot/prefetch` route accepts only a
+The no-login, same-origin `POST /api/review/pilot/prefetch` route accepts only a
 durably generated `deviceId` and `issuanceRequestId`. The server supplies the
 fixed learner, v2 release/revision, Objective binding, epoch, presentation,
 feedback bundle, and asset descriptors. The Supabase RPC serializes issuance by

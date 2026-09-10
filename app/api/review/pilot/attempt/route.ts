@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { submitKuzushijiPilotAttempt, validatePilotAttemptInput } from "@/src/lib/review/pilot-runtime";
 import { PilotRpcError } from "@/src/lib/supabase/pilot";
-import { pilotWriteAuthorizationFailure } from "@/src/lib/review/pilot-auth";
+import { pilotWriteSameOriginFailure } from "@/src/lib/review/pilot-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const authorizationFailure = await pilotWriteAuthorizationFailure(request);
+  const authorizationFailure = pilotWriteSameOriginFailure(request);
   if (authorizationFailure) {
-    return NextResponse.json({ error: authorizationFailure }, { status: authorizationFailure === "cross_origin_request" ? 403 : 401 });
+    return NextResponse.json({ error: authorizationFailure }, { status: 403 });
   }
   if (Number(request.headers.get("content-length") ?? 0) > 16_384) return NextResponse.json({ error: "body_too_large" }, { status: 413 });
   let body: unknown;
