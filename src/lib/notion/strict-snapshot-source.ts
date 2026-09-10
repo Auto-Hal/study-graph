@@ -86,6 +86,51 @@ export function getStrictNotionToken() {
   return tokenOrThrow();
 }
 
+const NOTION_MAX_REQUEST_ATTEMPTS = 6;
+const NOTION_RETRYABLE_GET_STATUSES = new Set([500, 502, 503, 504]);
+
+function notionRetryDelayMs(response: Response, attempt: number) {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter !== null && /^\d+$/.test(retryAfter.trim())) {
+    const seconds = Number(retryAfter);
+    if (Number.isSafeInteger(seconds) && seconds >= 0) {
+      return seconds * 1000 + Math.floor(Math.random() * 250);
+    }
+  }
+  return Math.min(2 ** attempt, 30) * 1000 + Math.floor(Math.random() * 250);
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Notion explicitly requires bounded retry for 429/529 and Retry-After.
+ * Keep the policy centralized so data-source and property reads behave alike.
+ */
+async function fetchNotionWithRetry(input: string, init: RequestInit): Promise<Response> {
+  const method = (init.method ?? "GET").toUpperCase();
+  for (let attempt = 0; attempt < NOTION_MAX_REQUEST_ATTEMPTS; attempt += 1) {
+    const response = await fetch(input, init);
+    const retryable =
+      response.status === 429
+      || response.status === 529
+      || ((method === "GET" || method === "DELETE") && NOTION_RETRYABLE_GET_STATUSES.has(response.status));
+
+    if (!retryable || attempt === NOTION_MAX_REQUEST_ATTEMPTS - 1) return response;
+
+    // The retry response body is not part of snapshot semantics; discard it
+    // before waiting so the connection can be reused without exposing details.
+    try {
+      await response.arrayBuffer();
+    } catch {
+      // Retry timing remains authoritative even if the error body cannot be read.
+    }
+    await wait(notionRetryDelayMs(response, attempt));
+  }
+  throw new Error("unreachable");
+}
+
 function parsePage(value: unknown, label: string): StrictNotionPage {
   if (
     !isRecord(value)
@@ -139,7 +184,7 @@ export async function queryAllNotionDataSource(
   let startCursor: string | null = null;
 
   while (true) {
-    const response = await fetch(`https://api.notion.com/v1/data_sources/${encodeURIComponent(dataSourceId)}/query`, {
+    const response = await fetchNotionWithRetry(`https://api.notion.com/v1/data_sources/${encodeURIComponent(dataSourceId)}/query`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -302,7 +347,7 @@ export async function queryAllNotionRelationProperty(
 
   while (true) {
     const url = `https://api.notion.com/v1/pages/${encodeURIComponent(page.id)}/properties/${relationPropertyId}`;
-    const response = await fetch(`${url}?page_size=100${startCursor === null ? "" : `&start_cursor=${encodeURIComponent(startCursor)}`}`, {
+    const response = await fetchNotionWithRetry(`${url}?page_size=100${startCursor === null ? "" : `&start_cursor=${encodeURIComponent(startCursor)}`}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
