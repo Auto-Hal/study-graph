@@ -351,6 +351,114 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-deep-empty strong { color: var(--p5-text); }
 .phase5-deep-empty p { margin: 7px 0 0; }
 
+/* Shared workspace navigation for non-Kuzushiji projects. The workspace is
+   intentionally a reading surface: hierarchy comes from headings and rules,
+   while each row remains a single, clear destination. */
+.phase5-workspace-section { margin-top: 38px; }
+.phase5-workspace-overview { margin-bottom: 27px; }
+.phase5-workspace-section .phase5-section-heading { margin-bottom: 12px; }
+.phase5-workspace-links { border-top: 1px solid var(--p5-line); }
+.phase5-workspace-entry {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-workspace-entry-main { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-entry-main strong { color: var(--p5-text); font-size: 15px; }
+.phase5-workspace-entry-main span { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-entry-arrow { color: var(--p5-muted); font-size: 19px; }
+.phase5-workspace-entry:hover .phase5-workspace-entry-main strong,
+.phase5-workspace-entry:focus-visible .phase5-workspace-entry-main strong { color: var(--p5-accent); }
+.phase5-workspace-entry:focus-visible,
+.phase5-workspace-graph-link:focus-visible,
+.phase5-related-row:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
+.phase5-workspace-graph { margin-top: 42px; }
+.phase5-workspace-graph-summary {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 2px;
+  border-top: 2px solid var(--p5-text);
+  border-bottom: 1px solid var(--p5-line);
+  cursor: pointer;
+  list-style: none;
+}
+.phase5-workspace-graph-summary::-webkit-details-marker { display: none; }
+.phase5-workspace-graph-summary:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
+.phase5-workspace-graph-summary-main { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-graph-summary-main strong { color: var(--p5-text); font-size: 16px; }
+.phase5-workspace-graph-summary-main small { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-graph-toggle { color: var(--p5-accent); font-size: 20px; line-height: 1; }
+.phase5-workspace-graph[open] .phase5-workspace-graph-toggle { font-size: 0; }
+.phase5-workspace-graph[open] .phase5-workspace-graph-toggle::after { font-size: 20px; content: "−"; }
+.phase5-workspace-graph-content { display: grid; gap: 12px; padding: 14px 2px 0; }
+.phase5-workspace-graph-content p { margin: 0; color: var(--p5-muted); font-size: 13px; line-height: 1.6; }
+.phase5-workspace-graph-link {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 2px;
+  border-top: 2px solid var(--p5-text);
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-workspace-graph-link > span:first-child { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-graph-link strong { color: var(--p5-text); font-size: 16px; }
+.phase5-workspace-graph-link small { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-graph-link > span:last-child { color: var(--p5-accent); font-size: 20px; }
+.phase5-workspace-secondary-links { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 25px; }
+.phase5-workspace-secondary-links a { color: var(--p5-accent); font-size: 14px; font-weight: 700; }
+.phase5-workspace-secondary-links a::after { margin-left: 4px; content: "→"; }
+.phase5-workspace-secondary { margin-top: 32px; }
+.phase5-workspace-secondary-summary {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 2px;
+  border-top: 1px solid var(--p5-line);
+  border-bottom: 1px solid var(--p5-line);
+  cursor: pointer;
+  list-style: none;
+}
+.phase5-workspace-secondary-summary::-webkit-details-marker { display: none; }
+.phase5-workspace-secondary-summary:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 3px; }
+.phase5-workspace-secondary-summary > span:first-child { display: grid; min-width: 0; gap: 4px; }
+.phase5-workspace-secondary-summary strong { color: var(--p5-text); font-size: 15px; }
+.phase5-workspace-secondary-summary small { color: var(--p5-muted); font-size: 12px; }
+.phase5-workspace-secondary-toggle { color: var(--p5-accent); font-size: 20px; line-height: 1; }
+.phase5-workspace-secondary[open] .phase5-workspace-secondary-toggle { font-size: 0; }
+.phase5-workspace-secondary[open] .phase5-workspace-secondary-toggle::after { font-size: 20px; content: "−"; }
+.phase5-workspace-secondary-content { padding-top: 20px; }
+.phase5-workspace-secondary-content .phase5-focus { margin-bottom: 24px; }
+.phase5-snapshot-status { display: grid; gap: 10px; color: var(--p5-muted); font-size: 13px; line-height: 1.6; }
+.phase5-snapshot-status p { margin: 0; }
+.phase5-snapshot-status button { width: max-content; min-height: 40px; padding: 8px 13px; border: 1px solid var(--p5-line); border-radius: 9px; background: var(--p5-surface-soft); color: var(--p5-accent); font-size: 13px; font-weight: 700; }
+.phase5-snapshot-status button:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 2px; }
+.phase5-related-list { border-top: 1px solid var(--p5-line); }
+.phase5-related-row {
+  display: grid;
+  grid-template-columns: minmax(90px, .35fr) minmax(0, 1fr) auto;
+  gap: 14px;
+  min-height: 58px;
+  align-items: center;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--p5-line);
+}
+.phase5-related-label { color: var(--p5-muted); font-size: 12px; }
+.phase5-related-row strong { min-width: 0; overflow: hidden; color: var(--p5-text); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.phase5-related-row > span:last-child { color: var(--p5-muted); font-size: 18px; }
+.phase5-related-row:hover strong { color: var(--p5-accent); }
+.phase5-detail-copy { max-width: 760px; margin: 0; color: var(--p5-muted); font-size: 15px; line-height: 1.75; white-space: pre-wrap; }
+
 .phase5-detail-heading {
   display: flex;
   align-items: flex-start;
@@ -595,6 +703,7 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
   .phase5-detail-history-row { grid-template-columns: 82px minmax(0, 1fr); gap: 11px; }
   .phase5-detail-history-row em { grid-column: 2; }
   .phase5-detail-actions a:last-child { margin-left: 0; }
+  .phase5-related-row { grid-template-columns: 88px minmax(0, 1fr) auto; gap: 10px; }
   .phase5-progress-focus { display: block; }
   .phase5-progress-focus .phase5-action { margin-top: 18px; }
   .phase5-progress-row { grid-template-columns: 82px minmax(0, 1fr); gap: 11px; }

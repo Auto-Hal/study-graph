@@ -62,6 +62,20 @@ export function isSameOriginRequest(origin: string | null, host: string | null, 
   }
 }
 
+/**
+ * Native Study Graph mutations keep the request-boundary check without the
+ * dormant password-session requirement used by the legacy pilot login flow.
+ */
+export function pilotSameOriginFailure(input: {
+  origin: string | null;
+  host: string | null;
+  protocol?: string | null;
+}) {
+  return input.origin && isSameOriginRequest(input.origin, input.host, input.protocol)
+    ? null
+    : "cross_origin_request" as const;
+}
+
 export async function pilotAuthorizationFailure(input: {
   origin: string | null;
   host: string | null;

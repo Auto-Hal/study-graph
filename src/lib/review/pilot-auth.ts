@@ -3,6 +3,7 @@ import "server-only";
 import {
   derivePilotSessionSecret,
   pilotAuthorizationFailure,
+  pilotSameOriginFailure,
   verifyPilotSessionToken,
 } from "./pilot-auth-core";
 
@@ -44,5 +45,18 @@ export async function pilotWriteAuthorizationFailure(request: Request): Promise<
     protocol: new URL(request.url).protocol,
     sessionToken: cookieValue(request),
     secret: accessPassword() ? derivePilotSessionSecret(accessPassword()!) : null,
+  });
+}
+
+/**
+ * Study Graph-native mutations do not require the dormant pilot password
+ * session. They still reject an explicitly cross-origin request so browser
+ * CSRF protection remains independent from the learner access policy.
+ */
+export function pilotWriteSameOriginFailure(request: Request): "cross_origin_request" | null {
+  return pilotSameOriginFailure({
+    origin: request.headers.get("origin"),
+    host: request.headers.get("host"),
+    protocol: new URL(request.url).protocol,
   });
 }

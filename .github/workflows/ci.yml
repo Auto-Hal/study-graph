@@ -55,6 +55,9 @@ jobs:
       - name: Phase 5A-0 UI contract tests
         run: npm run test:phase5a-0
 
+      - name: Phase 5A-0-3c project workspace parity tests
+        run: npm run test:phase5a-0-3c
+
       - name: TypeScript noEmit
         run: npx tsc --noEmit
 

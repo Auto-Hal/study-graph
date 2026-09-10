@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pilotWriteAuthorizationFailure } from "@/src/lib/review/pilot-auth";
+import { pilotWriteSameOriginFailure } from "@/src/lib/review/pilot-auth";
 import { PilotRpcError } from "@/src/lib/supabase/pilot";
 import { prefetchKuzushijiOfflineInstance } from "@/src/lib/review/offline/pilot-prefetch";
 
@@ -23,13 +23,13 @@ function parsePrefetchInput(value: unknown): { deviceId: string; issuanceRequest
   return { deviceId: body.deviceId, issuanceRequestId: body.issuanceRequestId };
 }
 
-/** Authenticated server-issued prefetch; no browser content/identity fields are accepted. */
+/** Server-issued prefetch; no browser content/identity fields are accepted. */
 export async function POST(request: Request) {
-  const authorizationFailure = await pilotWriteAuthorizationFailure(request);
+  const authorizationFailure = pilotWriteSameOriginFailure(request);
   if (authorizationFailure) {
     return noStore(NextResponse.json(
       { error: authorizationFailure },
-      { status: authorizationFailure === "cross_origin_request" ? 403 : 401 },
+      { status: 403 },
     ));
   }
   if (Number(request.headers.get("content-length") ?? 0) > 8_192) {
@@ -55,4 +55,3 @@ export async function POST(request: Request) {
     return noStore(NextResponse.json({ error: pilotError?.code ?? "pilot_prefetch_unavailable" }, { status }));
   }
 }
-

@@ -67,3 +67,8 @@ the current pointer intact. The normal Review, Scope recheck, attempt, and
 SRS paths are unchanged. Reverting the dashboard/API/cache changes removes
 the distribution path without deleting immutable history. 4E-4 will address
 offline instance/attempt delivery and does not belong to this change.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.

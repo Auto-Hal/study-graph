@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  isPilotSessionRequestAuthenticated,
-} from "@/src/lib/review/pilot-auth";
-import {
   getKuzushijiPilotAttemptReceipt,
   PilotRpcError,
   resolveKuzushijiPilotInstance,
@@ -23,9 +20,6 @@ function noStore(response: NextResponse) {
  * Scope, or mutates Supabase.
  */
 export async function GET(request: Request) {
-  if (!await isPilotSessionRequestAuthenticated(request)) {
-    return noStore(NextResponse.json({ error: "pilot_authorization_required" }, { status: 401 }));
-  }
   const instanceId = new URL(request.url).searchParams.get("instanceId");
   if (!instanceId || !UUID_PATTERN.test(instanceId)) {
     return noStore(NextResponse.json({ error: "invalid_instance_id" }, { status: 400 }));

@@ -92,3 +92,8 @@ This phase does not add a service worker, PWA shell, cold-start offline mode,
 bulk prefetch, more than one card per device, Cache Storage for other assets,
 Background Sync, cron, multi-device merge, or local SRS authority. Those are
 future Phase 4E work after supervisor review.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.

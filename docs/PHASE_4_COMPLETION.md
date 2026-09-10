@@ -44,3 +44,8 @@ The offline pilot is one Objective and one prepared card per device. Storage
 eviction cannot be prevented. Offline feedback is provisional. Fresh Scope is
 rechecked at server acceptance. Background sync, full legacy Review offline,
 multi-device merge, and local SRS authority are not part of Phase 4.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.

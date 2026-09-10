@@ -93,7 +93,7 @@ export default function PilotBlockedAttemptDiagnostics() {
         : "サーバー保存が完了しました。今回の回答では復習予定は更新されませんでした。";
     }
     if (outcome.kind === "terminal") return "この回答は別の処理で確定済みです。保存済み状態を確認してください。";
-    if (outcome.failure === "auth-required") return "ログインが必要です。ログイン後にもう一度明示的に再送してください。";
+    if (outcome.failure === "auth-required") return "送信には追加の確認が必要です。保存済み回答は端末にそのまま残っています。";
     if (outcome.failure === "network" || outcome.failure === "rate-limit" || outcome.failure === "server") {
       return "送信できませんでした。回答は端末にそのまま保存されています。";
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { validatePilotAttemptInput } from "@/src/lib/review/pilot-attempt-contract";
-import { pilotWriteAuthorizationFailure } from "@/src/lib/review/pilot-auth";
+import { pilotWriteSameOriginFailure } from "@/src/lib/review/pilot-auth";
 
 export const runtime = "nodejs";
 
@@ -14,11 +14,11 @@ function noStore(response: NextResponse) {
  * grading, Scope, or SRS access and never changes a blocked outbox record.
  */
 export async function POST(request: Request) {
-  const authorizationFailure = await pilotWriteAuthorizationFailure(request);
+  const authorizationFailure = pilotWriteSameOriginFailure(request);
   if (authorizationFailure) {
     return noStore(NextResponse.json(
       { ok: false, error: authorizationFailure },
-      { status: authorizationFailure === "cross_origin_request" ? 403 : 401 },
+      { status: 403 },
     ));
   }
   if (Number(request.headers.get("content-length") ?? 0) > 16_384) {

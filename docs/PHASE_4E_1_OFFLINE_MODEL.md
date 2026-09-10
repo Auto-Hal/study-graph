@@ -93,3 +93,8 @@ prefetch of server-issued instances, asset verification/download, pending
 attempt transport, fresh Scope recheck, receipt APIs, UI/offline indicators,
 and multi-device delivery. This phase adds none of those mechanisms and does
 not change the 4C/4D runtime contracts.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.
