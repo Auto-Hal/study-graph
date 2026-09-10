@@ -51,6 +51,36 @@ test("due language is shown only from authoritative Supabase schedule state", ()
   assert.match(dashboard, /復習候補/);
 });
 
+test("Kuzushiji workspace remains usable while snapshot status is secondary", () => {
+  assert.match(dashboard, /phase5-workspace-overview/);
+  assert.match(dashboard, /phase5-workspace-secondary/);
+  for (const href of [
+    "/projects/kuzushiji/lectures",
+    "/projects/kuzushiji/characters",
+    "/projects/kuzushiji/mistakes",
+    "/projects/kuzushiji/sources",
+    "/projects/kuzushiji/expressions",
+  ]) {
+    assert.match(dashboard, new RegExp(`href="${href.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}"`));
+  }
+  assert.match(dashboard, /PrimaryNav active="learn"/);
+  assert.match(dashboard, /学習状況を読み込んでいます/);
+  assert.match(dashboard, /学習状況はまだ準備されていません/);
+  assert.match(dashboard, /学習状況を現在取得できません/);
+  assert.match(dashboard, /学習コンテンツは引き続き利用できます/);
+  assert.doesNotMatch(dashboard, /もう一度確認する/);
+  assert.doesNotMatch(dashboard, /phase5-review-focus/);
+
+  const dashboardView = dashboard.slice(dashboard.indexOf("function DashboardView"));
+  const secondaryIndex = dashboardView.indexOf('<details className="phase5-workspace-section phase5-workspace-secondary"');
+  const primaryMarkup = dashboardView.slice(dashboardView.indexOf("return ("), secondaryIndex);
+  assert.match(primaryMarkup, /phase5-workspace-overview/);
+  assert.match(primaryMarkup, /kuzushiji-learning-title/);
+  assert.match(primaryMarkup, /kuzushiji-knowledge-title/);
+  assert.match(primaryMarkup, /phase5-workspace-graph/);
+  assert.doesNotMatch(primaryMarkup, /完了講義|復習候補|最終同期|端末に保存/);
+});
+
 test("Learn project rows keep a shared structure without Kuzushiji-only state", () => {
   assert.match(projects, /studyProjects\.map/);
   assert.match(projects, /phase5-project-mark/);

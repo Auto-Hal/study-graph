@@ -439,6 +439,10 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-workspace-secondary[open] .phase5-workspace-secondary-toggle::after { font-size: 20px; content: "−"; }
 .phase5-workspace-secondary-content { padding-top: 20px; }
 .phase5-workspace-secondary-content .phase5-focus { margin-bottom: 24px; }
+.phase5-snapshot-status { display: grid; gap: 10px; color: var(--p5-muted); font-size: 13px; line-height: 1.6; }
+.phase5-snapshot-status p { margin: 0; }
+.phase5-snapshot-status button { width: max-content; min-height: 40px; padding: 8px 13px; border: 1px solid var(--p5-line); border-radius: 9px; background: var(--p5-surface-soft); color: var(--p5-accent); font-size: 13px; font-weight: 700; }
+.phase5-snapshot-status button:focus-visible { outline: 3px solid rgba(54,89,184,.28); outline-offset: 2px; }
 .phase5-related-list { border-top: 1px solid var(--p5-line); }
 .phase5-related-row {
   display: grid;
