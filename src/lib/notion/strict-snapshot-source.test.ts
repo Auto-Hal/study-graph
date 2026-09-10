@@ -83,6 +83,63 @@ function relationPage(): StrictNotionPage {
   };
 }
 
+test("relation property IDs are encoded exactly once for the property endpoint", async () => {
+  const requestedUrls: string[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    requestedUrls.push(String(input));
+    return response({
+      object: "list",
+      type: "property_item",
+      property_item: { type: "relation" },
+      results: [{ object: "property_item", type: "relation", relation: { id: "target" } }],
+      has_more: false,
+      next_cursor: null,
+    });
+  };
+  try {
+    await queryAllNotionRelationProperty({
+      ...page("owner"),
+      properties: { Related: { id: "f%5C%5C%3Ap", type: "relation", relation: [] } },
+    }, "Related", "token", "fixture");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requestedUrls.length, 1);
+  assert.ok(requestedUrls[0].includes("/properties/f%5C%5C%3Ap"));
+  assert.ok(!requestedUrls[0].includes("/properties/f%255C%255C%253Ap"));
+});
+
+test("plain relation property IDs remain valid and malformed percent encoding fails closed", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    requestedUrls.push(String(input));
+    return response({
+      object: "list",
+      type: "property_item",
+      property_item: { type: "relation" },
+      results: [],
+      has_more: false,
+      next_cursor: null,
+    });
+  };
+  try {
+    await queryAllNotionRelationProperty(relationPage(), "Related", "token", "fixture");
+    await assert.rejects(
+      queryAllNotionRelationProperty({
+        ...page("owner"),
+        properties: { Related: { id: "%ZZ", type: "relation", relation: [] } },
+      }, "Related", "token", "fixture"),
+      (error) => error instanceof StrictNotionSnapshotSourceError && error.code === "malformed-response",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requestedUrls.length, 1);
+  assert.ok(requestedUrls[0].includes("/properties/property-id"));
+});
+
 test("strict relation property reader paginates and deduplicates target IDs", async () => {
   await withFetch([
     {

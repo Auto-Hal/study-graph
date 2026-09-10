@@ -190,7 +190,25 @@ function propertyId(page: StrictNotionPage, propertyName: string, label: string)
       `${label} relation property ${propertyName} is missing or malformed on ${page.id}`,
     );
   }
-  return { property, id: property.id };
+  let id: string;
+  try {
+    // Notion can return property IDs already percent-encoded (for example
+    // `f%5C%5C%3Ap`). Decode the API value before encoding it for the URL so
+    // the path contains exactly one URL-encoded representation.
+    id = encodeURIComponent(decodeURIComponent(property.id));
+  } catch {
+    throw new StrictNotionSnapshotSourceError(
+      "malformed-response",
+      `${label} relation property ${propertyName} has an invalid property ID on ${page.id}`,
+    );
+  }
+  if (id.length === 0) {
+    throw new StrictNotionSnapshotSourceError(
+      "malformed-response",
+      `${label} relation property ${propertyName} has an empty property ID on ${page.id}`,
+    );
+  }
+  return { property, id };
 }
 
 function relationId(value: unknown, label: string): string {
@@ -272,7 +290,7 @@ export async function queryAllNotionRelationProperty(
   let startCursor: string | null = null;
 
   while (true) {
-    const url = `https://api.notion.com/v1/pages/${encodeURIComponent(page.id)}/properties/${encodeURIComponent(relationPropertyId)}`;
+    const url = `https://api.notion.com/v1/pages/${encodeURIComponent(page.id)}/properties/${relationPropertyId}`;
     const response = await fetch(`${url}?page_size=100${startCursor === null ? "" : `&start_cursor=${encodeURIComponent(startCursor)}`}`, {
       method: "GET",
       headers: {
