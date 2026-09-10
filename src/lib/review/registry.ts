@@ -20,7 +20,7 @@ export type ReviewProjectPayload = {
   projects: StudyProjectDefinition[];
   cards: ReviewCard[];
   persistence: ReviewPersistenceMode;
-  sourceMode: "notion" | "demo";
+  sourceMode: "notion" | "demo" | "snapshot";
   session: ReviewSessionContext;
 };
 

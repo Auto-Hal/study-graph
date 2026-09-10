@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
-import { loadProjectGraph } from "@/src/lib/graph/registry";
+import { isRenderableProjectReadState, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
 import {
   getWorkspaceProject,
   getWorkspaceSection,
@@ -26,8 +26,8 @@ export default async function ProjectWorkspaceDetailPage({
   const section = getWorkspaceSection(projectId, sectionSlug);
   if (!workspace || !section) notFound();
 
-  const graph = await loadProjectGraph(workspace.id);
-  if (graph.mode !== "notion" || graph.projectId !== workspace.id) {
+  const readState = await loadProjectReadState(workspace.id);
+  if (!isRenderableProjectReadState(readState)) {
     return (
       <main className="phase5-shell phase5-deep-shell phase5-workspace-shell">
         <AppHeader context={`${workspace.shortLabel} · ${section.label}`} backHref={`/projects/${workspace.id}/${section.slug}`} backLabel={section.label} />
@@ -40,13 +40,15 @@ export default async function ProjectWorkspaceDetailPage({
         </div>
         <section className="phase5-deep-unavailable" role="status" aria-live="polite">
           <h1 className="phase5-page-title">学習データを表示できません</h1>
-          <p>接続を確認できたあと、もう一度この項目を開いてください。</p>
+          <p>この項目は現在利用できません。学習状況を確認できたあと、もう一度開いてください。</p>
           <Link href={`/projects/${workspace.id}/${section.slug}`}>一覧へ戻る</Link>
         </section>
         <PrimaryNav active="learn" />
       </main>
     );
   }
+
+  const graph = projectReadStateToGraph(readState);
 
   const node = graph.nodes.find((candidate) => candidate.id === id && candidate.kind === section.kind);
   if (!node) notFound();
@@ -80,6 +82,8 @@ export default async function ProjectWorkspaceDetailPage({
           <h1 className="phase5-page-title">{node.label}</h1>
         </div>
       </header>
+
+      {readState.kind === "stale" && <p className="phase5-deep-freshness" role="status">表示中の学習データは少し前のものです。</p>}
 
       <section className="phase5-detail-section" aria-labelledby="workspace-detail-summary">
         <h2 id="workspace-detail-summary">概要</h2>

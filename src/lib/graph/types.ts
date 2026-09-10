@@ -1,5 +1,12 @@
-export type GraphMode = "notion" | "demo";
+/**
+ * Graph observations can come from the legacy live reader, a demo fixture,
+ * or the verified server snapshot read path.  `snapshot` is deliberately a
+ * separate mode so callers cannot mistake an immutable snapshot observation
+ * for a live Notion response.
+ */
+export type GraphMode = "notion" | "demo" | "snapshot";
 export type GraphSourceState = "ready" | "demo" | "unavailable";
+export type GraphSnapshotState = "ready" | "stale" | "missing" | "unavailable" | "invalid-candidate" | "conflict";
 
 export type GraphScopeAnchor = {
   id: string;
@@ -40,6 +47,8 @@ export type GraphEdge = {
 export type GraphData = {
   projectId: string;
   mode: GraphMode;
+  /** Present for snapshot-backed observations; freshness is display-only. */
+  snapshotState?: GraphSnapshotState;
   scope?: GraphScopeEvidence;
   nodes: GraphNode[];
   edges: GraphEdge[];

@@ -120,3 +120,27 @@ No Production snapshot was published in this PR. No Objective/SRS capability,
 immutable Review asset ingestion, or Notion write was added. Display/reference
 media remains distinct from immutable Review assets. Initial Production
 bootstrap is a separate Supervisor-approved operational step.
+
+## Art/Philosophy snapshot read cutover (5A-0-4a-3)
+
+Western Art History and Western Philosophy learner workspaces, lists, details,
+and contextual Graph views now read the verified current `ProjectReadSnapshot`
+through the server snapshot boundary. The flow validates the historical
+`ScopeKnowledgeSnapshot` hash, adapts it to the neutral contract, strictly
+decodes the project/version pair, and converts that same immutable observation
+to learner Graph data. The old live Notion Graph readers remain only for
+compatibility and are not a learner display fallback for these projects.
+
+Ready and stale snapshots render real content; missing, unavailable, and
+invalid candidates show a local unavailable region without inventing a zero
+count or synthetic data. Art's neutral blank-title placeholders remain in the
+immutable projection and are hidden only when they have no meaningful learner
+metadata, preserving the previous learner behavior. Graph learning metrics are
+shown only when the authoritative overlay is available; unavailable state is
+shown as unknown.
+
+Kuzushiji continues to use its existing snapshot, Objective mirror, review,
+offline, and cache semantics. This cutover changes no Scope/SRS authority,
+grading, receipts, attempts, request hashes, service-worker behavior, or
+Notion write policy. Snapshot refresh and broader read-path performance work
+remain deferred to Phase 5A-0-4.

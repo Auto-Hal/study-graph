@@ -85,6 +85,7 @@ export default function GraphExplorer({
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [query, setQuery] = useState("");
   const [copied, setCopied] = useState(false);
+  const learningAvailable = learning.mode === "supabase";
 
   const counts = useMemo(() => {
     const result: Record<string, number> = {};
@@ -98,7 +99,9 @@ export default function GraphExplorer({
   const selectedEdges = selected ? filteredEdges.filter((edge) => edge.source === selected.id || edge.target === selected.id) : [];
   const connectedIds = useMemo(() => new Set(selectedEdges.flatMap((edge) => edge.source === selectedId ? [edge.target] : [edge.source])), [selectedEdges, selectedId]);
   const connectedNodes = useMemo(() => nodes.filter((node) => connectedIds.has(node.id)), [connectedIds, nodes]);
-  const selectedWeakNeighborCount = connectedNodes.filter((node) => learning.byNodeId[node.id]?.weak).length;
+  const selectedWeakNeighborCount = learningAvailable
+    ? connectedNodes.filter((node) => learning.byNodeId[node.id]?.weak).length
+    : 0;
 
   const denseLevel = nodes.length > 100 ? 2 : nodes.length > 40 ? 1 : 0;
   const overviewHeight = useMemo(() => {
@@ -139,6 +142,7 @@ export default function GraphExplorer({
   const displayEdges = viewMode === "focus" && selected ? selectedEdges : filteredEdges;
   const normalizedQuery = query.trim().toLocaleLowerCase("ja-JP");
   const learningMatches = (node: GraphNode) => {
+    if (!learningAvailable) return true;
     const signal = learning.byNodeId[node.id];
     if (learningFilter === "all") return true;
     if (learningFilter === "tracked") return Boolean(signal);
@@ -190,11 +194,13 @@ export default function GraphExplorer({
 
       <div className="graph-learning-filters" aria-label="学習状態フィルター">
         <span>学習状態</span>
-        <button className={learningFilter === "all" ? "active" : undefined} onClick={() => setLearningFilter("all")} type="button">すべて</button>
-        <button className={learningFilter === "tracked" ? "active" : undefined} onClick={() => setLearningFilter("tracked")} type="button">履歴あり <b>{learning.summary.tracked}</b></button>
-        <button className={learningFilter === "due" ? "active due" : "due"} onClick={() => setLearningFilter("due")} type="button">期限到来 <b>{learning.summary.due}</b></button>
-        <button className={learningFilter === "weak" ? "active weak" : "weak"} onClick={() => setLearningFilter("weak")} type="button">苦手 <b>{learning.summary.weak}</b></button>
-        <button className={learningFilter === "recent" ? "active recent" : "recent"} onClick={() => setLearningFilter("recent")} type="button">最近復習 <b>{learning.summary.recent}</b></button>
+        {learningAvailable ? <>
+          <button className={learningFilter === "all" ? "active" : undefined} onClick={() => setLearningFilter("all")} type="button">すべて</button>
+          <button className={learningFilter === "tracked" ? "active" : undefined} onClick={() => setLearningFilter("tracked")} type="button">履歴あり <b>{learning.summary.tracked}</b></button>
+          <button className={learningFilter === "due" ? "active due" : "due"} onClick={() => setLearningFilter("due")} type="button">期限到来 <b>{learning.summary.due}</b></button>
+          <button className={learningFilter === "weak" ? "active weak" : "weak"} onClick={() => setLearningFilter("weak")} type="button">苦手 <b>{learning.summary.weak}</b></button>
+          <button className={learningFilter === "recent" ? "active recent" : "recent"} onClick={() => setLearningFilter("recent")} type="button">最近復習 <b>{learning.summary.recent}</b></button>
+        </> : <p>復習状態は現在表示できません。</p>}
       </div>
 
       <div className="graph-main-grid">
@@ -226,11 +232,11 @@ export default function GraphExplorer({
               </g>
             </svg>
           </div>
-          <div className="graph-legend" aria-label="凡例">{orderedKinds.map((kind) => <span className={kindClass(kind.id)} key={kind.id}><i />{kind.label}</span>)}<span className="learning-legend due"><i />期限到来</span><span className="learning-legend weak"><i />苦手</span><span className="learning-legend recent"><i />最近復習</span></div>
+          <div className="graph-legend" aria-label="凡例">{orderedKinds.map((kind) => <span className={kindClass(kind.id)} key={kind.id}><i />{kind.label}</span>)}{learningAvailable && <><span className="learning-legend due"><i />期限到来</span><span className="learning-legend weak"><i />苦手</span><span className="learning-legend recent"><i />最近復習</span></>}</div>
         </div>
 
         <aside className="graph-detail-card" aria-live="polite">
-          {selected ? <><p className="eyebrow">選択中</p><span className={`graph-detail-kind ${kindClass(selected.kind)}`}>{kindLabels.get(selected.kind) ?? selected.kind}</span><h2>{selected.label}</h2><p className="graph-detail-meta">{selected.meta || "補足情報は未登録です。"}</p>{selectedLearning ? <div className="graph-learning-detail"><div className="graph-learning-detail-heading"><span className={`learning-badge ${primaryLearningStatus(selectedLearning)}`}>{learningStatusLabel(selectedLearning)}</span><strong>{gradeLabels[selectedLearning.lastGrade]}</strong></div><dl><div><dt>最終復習</dt><dd>{formatDateTime(selectedLearning.lastReviewedAt)}</dd></div><div><dt>次回復習</dt><dd>{formatDateTime(selectedLearning.dueAt)}</dd></div><div><dt>反復</dt><dd>{selectedLearning.repetitions}回</dd></div><div><dt>弱点近傍</dt><dd>{selectedWeakNeighborCount}件</dd></div></dl></div> : <div className="graph-learning-detail empty"><span className="learning-badge untracked">未追跡</span><p>このノードにはまだ復習履歴がありません。</p>{selectedWeakNeighborCount > 0 && <strong>ただし、直接つながる苦手ノードが {selectedWeakNeighborCount} 件あります。</strong>}</div>}<dl className="graph-detail-stats"><div><dt>接続ノード</dt><dd>{connectedNodes.length}</dd></div><div><dt>表示中のつながり</dt><dd>{selectedEdges.length}</dd></div></dl>{selectedEdges.length > 0 && <div className="graph-relation-labels">{unique(selectedEdges.map((edge) => edge.label)).map((label) => <button key={label} onClick={() => setRelationFilter(label)} type="button">{label}</button>)}</div>}<div className="graph-connected-list"><h3>つながっている知識</h3>{connectedNodes.length > 0 ? connectedNodes.map((node) => { const signal = learning.byNodeId[node.id]; return <button key={node.id} onClick={() => setSelectedId(node.id)} type="button"><span className={`graph-connected-kind ${kindClass(node.kind)}`}>{kindLabels.get(node.kind) ?? node.kind}</span><strong>{node.label}</strong>{signal && <em className={`graph-connected-learning ${primaryLearningStatus(signal)}`}>{learningStatusLabel(signal)}</em>}</button>; }) : <p>{relationFilter === "all" ? "つながりはまだありません。" : "このつながりでは接続がありません。"}</p>}</div><div className="graph-detail-actions">{selected.href && <Link className="graph-primary-action" href={selected.href}>Study Graphで詳細を見る</Link>}{selected.notionUrl !== "#" && <a href={selected.notionUrl} target="_blank" rel="noreferrer">元の資料を開く</a>}</div></> : <p className="graph-detail-empty">ノードを選択すると、つながりと詳細がここに表示されます。</p>}
+          {selected ? <><p className="eyebrow">選択中</p><span className={`graph-detail-kind ${kindClass(selected.kind)}`}>{kindLabels.get(selected.kind) ?? selected.kind}</span><h2>{selected.label}</h2><p className="graph-detail-meta">{selected.meta || "補足情報は未登録です。"}</p>{learningAvailable ? selectedLearning ? <div className="graph-learning-detail"><div className="graph-learning-detail-heading"><span className={`learning-badge ${primaryLearningStatus(selectedLearning)}`}>{learningStatusLabel(selectedLearning)}</span><strong>{gradeLabels[selectedLearning.lastGrade]}</strong></div><dl><div><dt>最終復習</dt><dd>{formatDateTime(selectedLearning.lastReviewedAt)}</dd></div><div><dt>次回復習</dt><dd>{formatDateTime(selectedLearning.dueAt)}</dd></div><div><dt>反復</dt><dd>{selectedLearning.repetitions}回</dd></div><div><dt>弱点近傍</dt><dd>{selectedWeakNeighborCount}件</dd></div></dl></div> : <div className="graph-learning-detail empty"><span className="learning-badge untracked">未追跡</span><p>このノードにはまだ復習履歴がありません。</p>{selectedWeakNeighborCount > 0 && <strong>ただし、直接つながる苦手ノードが {selectedWeakNeighborCount} 件あります。</strong>}</div> : <div className="graph-learning-detail empty"><p>復習状態は現在表示できません。</p></div>}<dl className="graph-detail-stats"><div><dt>接続ノード</dt><dd>{connectedNodes.length}</dd></div><div><dt>表示中のつながり</dt><dd>{selectedEdges.length}</dd></div></dl>{selectedEdges.length > 0 && <div className="graph-relation-labels">{unique(selectedEdges.map((edge) => edge.label)).map((label) => <button key={label} onClick={() => setRelationFilter(label)} type="button">{label}</button>)}</div>}<div className="graph-connected-list"><h3>つながっている知識</h3>{connectedNodes.length > 0 ? connectedNodes.map((node) => { const signal = learning.byNodeId[node.id]; return <button key={node.id} onClick={() => setSelectedId(node.id)} type="button"><span className={`graph-connected-kind ${kindClass(node.kind)}`}>{kindLabels.get(node.kind) ?? node.kind}</span><strong>{node.label}</strong>{learningAvailable && signal && <em className={`graph-connected-learning ${primaryLearningStatus(signal)}`}>{learningStatusLabel(signal)}</em>}</button>; }) : <p>{relationFilter === "all" ? "つながりはまだありません。" : "このつながりでは接続がありません。"}</p>}</div><div className="graph-detail-actions">{selected.href && <Link className="graph-primary-action" href={selected.href}>Study Graphで詳細を見る</Link>}{selected.notionUrl !== "#" && <a href={selected.notionUrl} target="_blank" rel="noreferrer">元の資料を開く</a>}</div></> : <p className="graph-detail-empty">ノードを選択すると、つながりと詳細がここに表示されます。</p>}
         </aside>
       </div>
     </section>

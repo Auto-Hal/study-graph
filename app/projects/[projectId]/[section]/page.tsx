@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
-import { loadProjectGraph } from "@/src/lib/graph/registry";
+import { isRenderableProjectReadState, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
 import { getWorkspaceProject, getWorkspaceSection, learnerGraphMeta } from "@/src/lib/projects/workspace";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +17,10 @@ export default async function ProjectWorkspaceSectionPage({
   const section = getWorkspaceSection(projectId, sectionSlug);
   if (!workspace || !section) notFound();
 
-  const graph = await loadProjectGraph(workspace.id);
-  const trusted = graph.mode === "notion" && graph.projectId === workspace.id;
-  const nodes = trusted ? graph.nodes.filter((node) => node.kind === section.kind) : [];
+  const readState = await loadProjectReadState(workspace.id);
+  const renderable = isRenderableProjectReadState(readState);
+  const graph = renderable ? projectReadStateToGraph(readState) : null;
+  const nodes = graph?.nodes.filter((node) => node.kind === section.kind) ?? [];
 
   return (
     <main className="phase5-shell phase5-deep-shell phase5-workspace-shell">
@@ -39,17 +40,17 @@ export default async function ProjectWorkspaceSectionPage({
           <h1 className="phase5-page-title">{section.label}</h1>
           <p className="phase5-context">{workspace.context}</p>
         </div>
-        {trusted && <span className="phase5-deep-count">{nodes.length}件</span>}
+        {renderable && <span className="phase5-deep-count">{nodes.length}件</span>}
       </section>
 
-      {!trusted ? (
+      {!renderable ? (
         <section className="phase5-deep-unavailable" role="status" aria-live="polite">
           <h2>学習データを表示できません</h2>
-          <p>接続を確認できたあと、もう一度この一覧を開いてください。</p>
-          <Link href="/settings/advanced/diagnostics">接続を確認する</Link>
+          <p>この一覧は現在利用できません。学習状況を確認できたあと、もう一度開いてください。</p>
         </section>
       ) : (
         <section className="phase5-deep-list" aria-label={`${section.label}一覧`}>
+          {readState.kind === "stale" && <p className="phase5-deep-freshness" role="status">表示中の学習データは少し前のものです。</p>}
           {nodes.length > 0 ? nodes.map((node) => (
             <Link className="phase5-deep-row" href={`/projects/${workspace.id}/${section.slug}/${encodeURIComponent(node.id)}`} key={node.id}>
               <span className="phase5-deep-row-leading" aria-hidden="true">{section.label.slice(0, 1)}</span>

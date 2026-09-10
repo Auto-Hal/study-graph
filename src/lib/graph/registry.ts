@@ -2,35 +2,13 @@ import { unstable_cache } from "next/cache";
 import type { GraphAdapter, GraphData } from "@/src/lib/graph/types";
 import { defaultStudyProjectId, getStudyProject, studyProjects } from "@/src/lib/projects/registry";
 import { getKuzushijiGraph } from "@/src/lib/notion/kuzushiji-graph";
-import { getWesternArtHistoryGraph } from "@/src/lib/notion/western-art-history-graph";
-import { getPhilosophyGraph } from "@/src/lib/notion/philosophy-graph";
-import { workspaceNodeHref } from "@/src/lib/projects/workspace";
+import { loadSnapshotProjectGraph } from "@/src/lib/projects/read-runtime";
 
-const westernArtPlaceholderLabels = new Set([
-  "芸術家",
-  "作品",
-  "様式・運動",
-  "用語",
-  "時代",
-  "文化・歴史",
-  "美術館・建築",
-]);
-
-function removeWesternArtPlaceholderNodes(graph: GraphData): GraphData {
-  if (graph.mode !== "notion") return graph;
-
-  const nodes = graph.nodes.filter(
-    (node) => !(node.meta === "" && westernArtPlaceholderLabels.has(node.label)),
-  );
-  const nodeIds = new Set(nodes.map((node) => node.id));
-
-  return {
-    ...graph,
-    nodes,
-    edges: graph.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)),
-  };
-}
-
+/**
+ * The legacy live reader remains the Kuzushiji compatibility path.  Art and
+ * Philosophy are loaded by the neutral snapshot runtime below, so this
+ * registry must never dispatch them to their old Notion Graph adapters.
+ */
 const kuzushijiAdapter: GraphAdapter = {
   projectId: "kuzushiji",
   async load(): Promise<GraphData> {
@@ -54,51 +32,26 @@ const kuzushijiAdapter: GraphAdapter = {
   },
 };
 
-const westernArtHistoryAdapter: GraphAdapter = {
-  projectId: "western-art-history",
-  async load(): Promise<GraphData> {
-    const graph = removeWesternArtPlaceholderNodes(await getWesternArtHistoryGraph());
-    return graph.mode === "notion"
-      ? { ...graph, nodes: graph.nodes.map((node) => ({ ...node, href: node.href ?? workspaceNodeHref("western-art-history", node.kind, node.id) })) }
-      : graph;
-  },
-};
-
-const philosophyAdapter: GraphAdapter = {
-  projectId: "philosophy",
-  async load(): Promise<GraphData> {
-    const graph = await getPhilosophyGraph();
-    return graph.mode === "notion"
-      ? { ...graph, nodes: graph.nodes.map((node) => ({ ...node, href: node.href ?? workspaceNodeHref("philosophy", node.kind, node.id) })) }
-      : graph;
-  },
-};
-
-const graphAdapters: Record<string, GraphAdapter> = {
+const legacyGraphAdapters: Record<string, GraphAdapter> = {
   kuzushiji: kuzushijiAdapter,
-  "western-art-history": westernArtHistoryAdapter,
-  philosophy: philosophyAdapter,
 };
 
-const cachedGraphLoaders = Object.fromEntries(
-  Object.entries(graphAdapters).map(([projectId, adapter]) => [
-    projectId,
-    unstable_cache(
-      () => adapter.load(),
-      [`study-graph:notion-graph:${projectId}:v1`],
-      { revalidate: 300 },
-    ),
-  ]),
-) as Record<string, () => Promise<GraphData>>;
+const graphProjectIds = new Set(["kuzushiji", "western-art-history", "philosophy"]);
+
+const cachedKuzushijiGraph = unstable_cache(
+  () => kuzushijiAdapter.load(),
+  ["study-graph:notion-graph:kuzushiji:v1"],
+  { revalidate: 300 },
+);
 
 export function getGraphProject(projectId: string | undefined | null) {
   const requested = getStudyProject(projectId ?? defaultStudyProjectId);
-  if (requested?.status === "active" && graphAdapters[requested.id]) return requested;
+  if (requested?.status === "active" && graphProjectIds.has(requested.id)) return requested;
   return getStudyProject(defaultStudyProjectId)!;
 }
 
 export function listGraphProjects() {
-  return studyProjects.map((project) => ({ ...project, graphAvailable: Boolean(graphAdapters[project.id]) }));
+  return studyProjects.map((project) => ({ ...project, graphAvailable: project.status === "active" && graphProjectIds.has(project.id) }));
 }
 
 export async function loadProjectGraph(
@@ -106,6 +59,13 @@ export async function loadProjectGraph(
   options: { cache?: boolean } = {},
 ): Promise<GraphData> {
   const project = getGraphProject(projectId);
-  if (options.cache === false) return graphAdapters[project.id].load();
-  return cachedGraphLoaders[project.id]();
+  if (project.id === "western-art-history" || project.id === "philosophy") {
+    // Snapshot-backed projects intentionally bypass the legacy GraphData
+    // adapters.  This remains a read-only GET path and performs no refresh.
+    return loadSnapshotProjectGraph(project.id);
+  }
+  const adapter = legacyGraphAdapters[project.id];
+  if (!adapter) return { projectId: project.id, mode: "demo", nodes: [], edges: [] };
+  if (options.cache === false) return adapter.load();
+  return cachedKuzushijiGraph();
 }

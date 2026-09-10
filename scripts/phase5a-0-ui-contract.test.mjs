@@ -141,8 +141,10 @@ test("Graph uses the Phase 5 learner shell while preserving graph state links", 
   assert.match(graphPage, /AppHeader/);
   assert.match(graphPage, /phase5-graph-shell/);
   assert.match(graphPage, /PrimaryNav active="learn"/);
-  assert.match(graphPage, /const graphIsTrusted = graph\.mode === "notion"/);
-  assert.match(graphPage, /graphIsTrusted \? \(/);
+  assert.match(graphPage, /loadProjectReadState/);
+  assert.match(graphPage, /projectReadStateToGraph/);
+  assert.match(graphPage, /graphIsAvailable/);
+  assert.match(graphPage, /project\.id === "kuzushiji"/);
   assert.match(graphPage, /phase5-deep-unavailable/);
   assert.match(graphPage, /\/graph\?project=/);
   assert.match(graphPage, /initialNodeId/);

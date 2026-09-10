@@ -1,8 +1,9 @@
 import Link from "next/link";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
-import { getGraphLearningOverlay } from "@/src/lib/graph/learning";
+import { getGraphLearningOverlay, unavailableGraphLearningOverlay } from "@/src/lib/graph/learning";
 import { getGraphProject, listGraphProjects, loadProjectGraph } from "@/src/lib/graph/registry";
+import { isRenderableProjectReadState, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
 import GraphExplorer from "./GraphExplorer";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +15,21 @@ export default async function KnowledgeGraphPage({
 }) {
   const query = await searchParams;
   const project = getGraphProject(query.project);
-  const [graph, graphProjects] = await Promise.all([
-    loadProjectGraph(project.id),
-    Promise.resolve(listGraphProjects()),
-  ]);
-  const graphIsTrusted = graph.mode === "notion";
-  const learning = graphIsTrusted ? await getGraphLearningOverlay(graph.nodes, graph.edges) : null;
-  const initialNodeId = query.node && graph.nodes.some((node) => node.id === query.node) ? query.node : undefined;
-  const initialRelation = query.relation && graph.edges.some((edge) => edge.label === query.relation) ? query.relation : undefined;
+  const graphProjects = listGraphProjects();
+  const snapshotState = project.id === "kuzushiji" ? null : await loadProjectReadState(project.id);
+  const graph = project.id === "kuzushiji"
+    ? await loadProjectGraph(project.id)
+    : snapshotState && isRenderableProjectReadState(snapshotState)
+      ? projectReadStateToGraph(snapshotState)
+      : null;
+  const graphIsAvailable = Boolean(graph && (project.id !== "kuzushiji" || graph.mode === "notion"));
+  const displayGraph = graphIsAvailable ? graph : null;
+  const graphIsStale = snapshotState?.kind === "stale";
+  const learning = displayGraph ? await getGraphLearningOverlay(displayGraph.nodes, displayGraph.edges) : null;
+  const graphNodes = displayGraph?.nodes ?? [];
+  const graphEdges = displayGraph?.edges ?? [];
+  const initialNodeId = query.node && graphNodes.some((node) => node.id === query.node) ? query.node : undefined;
+  const initialRelation = query.relation && graphEdges.some((edge) => edge.label === query.relation) ? query.relation : undefined;
   const initialView = query.view === "focus" ? "focus" as const : "overview" as const;
   const graphContext = project.id === "kuzushiji"
     ? "講義・文字・資料の関係を見る"
@@ -56,10 +64,11 @@ export default async function KnowledgeGraphPage({
         ))}
       </nav>
 
-      {graphIsTrusted ? (
+      {graphIsAvailable ? (
         <>
+          {graphIsStale && <p className="phase5-deep-freshness" role="status">表示中の知識データは少し前のものです。</p>}
           <p className="phase5-deep-meta" aria-label="表示中の知識量">
-            {graph.nodes.length}項目 · {graph.edges.length}のつながり
+            {graphNodes.length}項目 · {graphEdges.length}のつながり
           </p>
 
           <section className="phase5-deep-learning" aria-label="学習状態">
@@ -67,20 +76,20 @@ export default async function KnowledgeGraphPage({
               <span className="phase5-deep-label">復習の手がかり</span>
               <p>{learning?.mode === "supabase" ? "知識の地図に、これまでの復習状態を重ねています。" : "復習状態は現在表示できません。"}</p>
             </div>
-            <dl>
-              <div><dt>学習済み</dt><dd>{learning?.summary.tracked ?? 0}</dd></div>
-              <div><dt>復習時期</dt><dd>{learning?.summary.due ?? 0}</dd></div>
-              <div><dt>要確認</dt><dd>{learning?.summary.weak ?? 0}</dd></div>
-              <div><dt>最近復習</dt><dd>{learning?.summary.recent ?? 0}</dd></div>
-            </dl>
+            {learning?.mode === "supabase" && <dl>
+              <div><dt>学習済み</dt><dd>{learning.summary.tracked}</dd></div>
+              <div><dt>復習時期</dt><dd>{learning.summary.due}</dd></div>
+              <div><dt>要確認</dt><dd>{learning.summary.weak}</dd></div>
+              <div><dt>最近復習</dt><dd>{learning.summary.recent}</dd></div>
+            </dl>}
           </section>
 
           <GraphExplorer
             projectId={project.id}
             kindDefinitions={project.graphNodeKinds}
-            nodes={graph.nodes}
-            edges={graph.edges}
-            learning={learning!}
+            nodes={graphNodes}
+            edges={graphEdges}
+            learning={learning ?? unavailableGraphLearningOverlay()}
             initialNodeId={initialNodeId}
             initialRelation={initialRelation}
             initialView={initialView}
@@ -90,8 +99,7 @@ export default async function KnowledgeGraphPage({
         <section className="phase5-deep-unavailable" role="status" aria-live="polite">
           <p className="phase5-eyebrow">{project.shortLabel}</p>
           <h2>知識のつながりを表示できません</h2>
-          <p>学習データを確認できないため、つながりの地図は表示していません。</p>
-          <Link href="/settings/advanced/diagnostics">接続を確認する</Link>
+          <p>知識データを確認できないため、つながりの地図は表示していません。</p>
         </section>
       )}
 

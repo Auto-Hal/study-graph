@@ -42,12 +42,11 @@ test("generic workspace routes use the shared learner shell", () => {
     assert.match(source, /phase5-shell/);
     assert.match(source, /getWorkspaceProject/);
   }
-  assert.match(projectHome, /loadProjectGraph/);
-  assert.match(sectionPage, /loadProjectGraph/);
-  assert.match(detailPage, /loadProjectGraph/);
-  assert.match(projectHome, /graph\.mode === "notion"/);
-  assert.match(sectionPage, /graph\.mode === "notion"/);
-  assert.match(detailPage, /graph\.mode !== "notion"/);
+  assert.match(projectHome, /loadProjectReadState/);
+  assert.match(sectionPage, /loadProjectReadState/);
+  assert.match(detailPage, /loadProjectReadState/);
+  assert.match(sectionPage, /isRenderableProjectReadState/);
+  assert.match(detailPage, /projectReadStateToGraph/);
 });
 
 test("lectures and knowledge sections are first-class workspace links", () => {
@@ -132,13 +131,15 @@ test("detail pages preserve graph focus and source links", () => {
   assert.match(detailPage, /graph\.edges\.flatMap/);
 });
 
-test("trusted GraphData is the only source rendered by generic workspaces", () => {
-  assert.match(projectHome, /const trusted = graph\.mode === "notion"/);
-  assert.match(projectHome, /!trusted \?/);
-  assert.match(sectionPage, /const nodes = trusted \? graph\.nodes\.filter/);
-  assert.match(sectionPage, /!trusted \?/);
-  assert.match(detailPage, /if \(graph\.mode !== "notion" \|\| graph\.projectId !== workspace\.id\)/);
-  assert.match(graphRegistry, /workspaceNodeHref/);
+test("verified snapshot data is the only source rendered by generic workspaces", () => {
+  for (const source of [projectHome, sectionPage, detailPage]) {
+    assert.match(source, /loadProjectReadState/);
+    assert.doesNotMatch(source, /getWesternArtHistoryGraph|getPhilosophyGraph/);
+  }
+  assert.match(sectionPage, /projectReadStateToGraph/);
+  assert.match(detailPage, /projectReadStateToGraph/);
+  assert.match(graphRegistry, /loadSnapshotProjectGraph/);
+  assert.doesNotMatch(graphRegistry, /getWesternArtHistoryGraph|getPhilosophyGraph/);
 });
 
 test("generic learner markup does not expose technical dashboard or fake progress state", () => {
