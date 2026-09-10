@@ -81,6 +81,14 @@ test("Kuzushiji workspace remains usable while snapshot status is secondary", ()
   assert.doesNotMatch(primaryMarkup, /完了講義|復習候補|最終同期|端末に保存/);
 });
 
+test("Objective mirror reconciliation is independent of snapshot readiness", () => {
+  const dashboardView = dashboard.slice(dashboard.indexOf("function DashboardView"));
+  const mirrorMount = dashboardView.indexOf("<ObjectiveStateMirrorSync />");
+  const shellStart = dashboardView.indexOf("return (");
+  assert.ok(mirrorMount > shellStart, "Objective mirror should mount inside the shared workspace shell");
+  assert.doesNotMatch(dashboardView.slice(Math.max(0, mirrorMount - 80), mirrorMount), /dashboard\s*&&|snapshotState/);
+});
+
 test("Learn project rows keep a shared structure without Kuzushiji-only state", () => {
   assert.match(projects, /studyProjects\.map/);
   assert.match(projects, /phase5-project-mark/);

@@ -137,7 +137,7 @@ function DashboardView({ dashboard, cached, snapshotState, syncing, syncError, o
 
   return (
     <main className="phase5-shell phase5-deep-shell phase5-workspace-shell">
-      {dashboard && <ObjectiveStateMirrorSync />}
+      <ObjectiveStateMirrorSync />
       <AppHeader context="くずし字 · 学ぶ" backHref="/projects" backLabel="学ぶ" />
       <div className="phase5-context-nav" aria-label="現在地"><Link href="/projects">学ぶ</Link><span aria-hidden="true">›</span><span>くずし字</span></div>
 
