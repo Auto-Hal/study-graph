@@ -78,6 +78,18 @@ server grading, fresh Scope acceptance, request hashes, receipts, Objective
 identity or epoch semantics, blocked automatic retry behavior, or offline
 instance issuance.
 
+## Current access policy (effective 2026-09-10)
+
+Study Graph-native learning data and native reads/writes use no interactive
+login. This includes Objective/SRS/review, snapshot distribution and sync,
+receipts, and offline prefetch/replay. Native mutations still enforce
+same-origin protection and all existing server-owned domain invariants.
+
+Explicit authentication is reserved for future sensitive external-account or
+private-data access and external-system writes, including a future Notion
+write boundary. Notion remains read-only from the current Study Graph
+runtime.
+
 ## Deferred work
 
 The following are deliberately outside Phase 5A-0:

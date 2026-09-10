@@ -90,7 +90,7 @@ screen therefore exposes a read-only structural diagnostic view: field types,
 string lengths, versions, UUID validity, transport status/code metadata, and
 retry count are shown without answer text or credentials. The optional
 “保存済み入力を検証” action sends the exact immutable six-field tuple to
-`/api/review/pilot/attempt/validate`; that same-origin route
+`/api/review/pilot/attempt/validate`; that authenticated, same-origin route
 only calls the shared validator and never submits, grades, reads/writes
 Supabase, or changes the blocked record. Validation results are diagnostic
 metadata only and never enter the request hash, receipt, or SRS state.
@@ -122,8 +122,8 @@ state mirror; it does not use that mirror to grade, schedule, or authorize SRS.
 
 ## Objective state mirror
 
-`GET /api/review/pilot/objective-state` is a no-login, server-only read of the
-existing Objective state RPC. Learner, project, Objective, and epoch
+`GET /api/review/pilot/objective-state` is an authenticated, server-only read
+of the existing Objective state RPC. Learner, project, Objective, and epoch
 are fixed on the server. The independent
 `study-graph-objective-state-mirror` database adopts only a higher
 `stateRevision`; an older revision is ignored, an identical revision is
@@ -156,3 +156,8 @@ offline eligibility, Scope checks, attempt payloads, or local SRS calculation.
   legacy Review experience.
 - The existing production prepared instance is reserved for a supervisor-led
   iPhone Safari validation after merge; this change does not access it.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.

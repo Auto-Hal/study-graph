@@ -4,18 +4,18 @@
 
 Phase 4C-5 hardens the already-merged Kuzushiji pilot runtime without changing its persistence model, scheduler semantics, archive schema, learner identity, or grading authority.
 
-## Native no-login access
+## Long-lived single-user session
 
-The current Study Graph runtime is a single-learner personal workspace. Native
-reads and mutations do not require an interactive password session. Native
-mutation routes retain same-origin checking and all existing server-owned
-learner, instance, request-hash, grading, receipt, Scope, and SRS invariants.
+Study Graph is a single-user personal application. After one explicit password login, the signed HttpOnly session cookie remains valid for 90 days.
 
-The signed session cookie and `/login` compatibility routes remain dormant for
-future sensitive external-account access or external-system writes. Study
-Graph currently performs no Notion writes, so normal learner use does not ask
-for a password. `STUDY_GRAPH_ACCESS_PASSWORD` is still server-only and is not
-used as a prerequisite for native Review or snapshot access.
+- `STUDY_GRAPH_ACCESS_PASSWORD` remains server-only.
+- The cookie contains no plaintext password.
+- The cookie is signed from a domain-separated secret derived from the access password.
+- Changing `STUDY_GRAPH_ACCESS_PASSWORD` invalidates existing sessions automatically because their signatures no longer verify.
+- Explicit logout removes the cookie immediately.
+- Pilot write APIs continue to require both a valid session and same-origin request.
+
+This is intended to make normal use feel like a personal app rather than a website that requires daily login.
 
 ## Pilot issuance rollback switch
 
@@ -76,3 +76,8 @@ Run:
 - `git diff --check`
 
 The Next.js middleware deprecation warning is non-blocking for Phase 4C-5 unless it becomes a runtime failure.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.

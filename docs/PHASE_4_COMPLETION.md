@@ -13,7 +13,7 @@ and local offline replicas at separate authority boundaries.
 - **4E-1–4E-2:** Offline contracts and immutable server Scope/knowledge
   snapshots are versioned, hashed, and synchronized with a monotonic project
   pointer.
-- **4E-3:** No-login current snapshot distribution and browser snapshot
+- **4E-3:** Authenticated current snapshot distribution and browser snapshot
   caching remove the normal dashboard's direct Notion dependency.
 - **4E-4:** Answers are durably committed to an IndexedDB outbox before
   transport; server receipts determine terminal acceptance.
@@ -44,3 +44,8 @@ The offline pilot is one Objective and one prepared card per device. Storage
 eviction cannot be prevented. Offline feedback is provisional. Fresh Scope is
 rechecked at server acceptance. Background sync, full legacy Review offline,
 multi-device merge, and local SRS authority are not part of Phase 4.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.

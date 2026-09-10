@@ -38,19 +38,23 @@ for the same attempt ID and request hash, rejects a changed body as
 available). Client `isCorrect`, normalized answers, scope flags, SRS fields,
 and learner identity are never trusted.
 
-Study Graph-native reads and mutations do not require an interactive password
-session. The snapshot, Objective state, receipt, issue, prefetch, validation,
-and attempt routes keep the learner and Objective fixed on the server while
-native POST routes retain an explicit same-origin check as the CSRF boundary.
-The browser cannot choose a learner, grade, Scope result, SRS fields, or
-instance identity. Cross-origin requests remain rejected; a missing pilot
-session is no longer a reason to reject a native learner request.
+The pilot write routes use a short-lived, server-signed HttpOnly session cookie
+issued only after an explicit password login at `/login`. The login verifies
+the server-only `STUDY_GRAPH_ACCESS_PASSWORD`; it is deliberately separate
+from the legacy `STUDY_GRAPH_APP_TOKEN` used for Supabase RPCs. The access
+password is never placed in a `NEXT_PUBLIC_*` variable, client component, URL,
+cookie, or local storage. The password is submitted only to the same-origin
+login endpoint and is discarded after verification. Same-origin is still
+checked as a CSRF boundary, but Origin alone is not authentication: a missing
+or invalid pilot session is rejected with `401`, and a cross-origin request
+with `403`. The learner UUID remains fixed in server configuration and cannot
+be supplied by the browser.
 
-`/login`, `/api/auth/session`, and the signed session cookie remain dormant
-compatibility code for a future sensitive external-account or external-system
-write boundary. Normal Study Graph learner routes do not link to or redirect
-to them. Notion remains read-only from Study Graph, so the current runtime has
-no normal flow that asks the learner for a password.
+Review-page middleware never mints a session. It redirects an unauthenticated
+visit to `/login`; the pilot API routes independently verify the signed session
+cookie. Logout expires the cookie and returns to `/login`. Use a strong random
+access password in server configuration. This is a single-user write boundary
+for the pilot, not a replacement for a future full authentication system.
 
 Receipt restoration is receipt-first. A retry or an
 `instance_already_answered` response is reconstructed only from a complete
@@ -92,3 +96,8 @@ This phase does not implement a full authentication/session system, offline repl
 Objective SRS, server route cutover for other domains, or production archive
 registration. Production Supabase application and deployment remain separate
 supervisor actions.
+
+
+## Phase 5 access-policy override (2026-09-10)
+
+The Phase 4 design and acceptance recorded above are historical. Phase 5A-0-3c changed the current runtime access policy: Study Graph-native learning data and native reads/writes no longer require interactive login. Same-origin mutation protection and the server-owned instance, requestHash, immutable attempt, Scope, grading, receipt, SRS, and offline invariants remain unchanged. Notion remains read-only; explicit authentication is reserved for future sensitive external-account access or external-system writes.
