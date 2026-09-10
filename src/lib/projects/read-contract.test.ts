@@ -88,6 +88,12 @@ test("historical Kuzushiji v1 snapshot adapts and dispatches through the neutral
   const neutral = adaptScopeKnowledgeSnapshot(legacy);
   const decoded = decodeProjectReadSnapshot(neutral);
 
+  // The decoder now returns a discriminated union for all supported project
+  // projections.  This fixture exercises the historical Kuzushiji branch.
+  if (decoded.projectId !== "kuzushiji" || decoded.projectionVersion !== "kuzushiji-v1") {
+    throw new Error("expected a Kuzushiji v1 snapshot");
+  }
+
   assert.equal(neutral.projectId, "kuzushiji");
   assert.equal(neutral.projectionVersion, "kuzushiji-v1");
   assert.equal(decoded.projection.lectures[0]?.title, "講義");
