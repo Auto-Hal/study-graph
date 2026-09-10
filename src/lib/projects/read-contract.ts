@@ -14,6 +14,7 @@ import type {
   ScopeKnowledgeSnapshotSourceEvidence,
 } from "../review/offline/snapshot-content.ts";
 import { assertValidScopeKnowledgeSnapshot } from "../review/offline/snapshot-content.ts";
+import { isScopeKnowledgeSnapshotHashValid } from "../review/offline/snapshot.ts";
 
 /**
  * Application-layer envelope version.  The persisted name
@@ -90,6 +91,7 @@ export type SupportedProjectReadSnapshot = ProjectReadSnapshot<KuzushijiV1Projec
 
 export type ProjectReadValidationCode =
   | "invalid-envelope"
+  | "invalid-content-hash"
   | "unsupported-project"
   | "unsupported-projection-version"
   | "project-projection-mismatch"
@@ -253,11 +255,29 @@ function readNullableNumber(value: Record<string, unknown>, field: string, error
   return value[field] as number | null;
 }
 
+function rejectUnexpectedKeys(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  field: string,
+  errors: string[],
+) {
+  const allowed = new Set(allowedKeys);
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) errors.push(`${field}.${key} is not supported in this projection version`);
+  }
+}
+
 function decodeLecture(value: unknown, index: number, errors: string[]): Lecture | null {
   if (!isRecord(value)) {
     errors.push(`projection.lectures[${index}] must be an object`);
     return null;
   }
+  rejectUnexpectedKeys(
+    value,
+    ["id", "url", "title", "sequence", "theme", "status", "completedAt", "reviewAccuracy", "newCharactersCount"],
+    `projection.lectures[${index}]`,
+    errors,
+  );
   return {
     id: readString(value, "id", errors),
     url: readString(value, "url", errors),
@@ -276,6 +296,12 @@ function decodeCharacter(value: unknown, index: number, errors: string[]): Chara
     errors.push(`projection.characters[${index}] must be an object`);
     return null;
   }
+  rejectUnexpectedKeys(
+    value,
+    ["id", "url", "glyph", "reading", "mother", "category", "mastery", "importance", "errorCount", "lastReviewedAt"],
+    `projection.characters[${index}]`,
+    errors,
+  );
   return {
     id: readString(value, "id", errors),
     url: readString(value, "url", errors),
@@ -295,6 +321,12 @@ function decodeMistake(value: unknown, index: number, errors: string[]): Mistake
     errors.push(`projection.mistakes[${index}] must be an object`);
     return null;
   }
+  rejectUnexpectedKeys(
+    value,
+    ["id", "url", "title", "answer", "correctAnswer", "cause", "retry", "resolved", "errorDate"],
+    `projection.mistakes[${index}]`,
+    errors,
+  );
   if (typeof value.retry !== "boolean") errors.push(`projection.mistakes[${index}].retry must be boolean`);
   if (typeof value.resolved !== "boolean") errors.push(`projection.mistakes[${index}].resolved must be boolean`);
   return {
@@ -315,6 +347,7 @@ function decodeReviewItem(value: unknown, index: number, errors: string[]): Revi
     errors.push(`projection.reviewQueue[${index}] must be an object`);
     return null;
   }
+  rejectUnexpectedKeys(value, ["id", "kind", "label", "reason"], `projection.reviewQueue[${index}]`, errors);
   if (value.kind !== "character" && value.kind !== "mistake") errors.push(`projection.reviewQueue[${index}].kind is invalid`);
   return {
     id: readString(value, "id", errors),
@@ -328,6 +361,7 @@ function decodeReviewItem(value: unknown, index: number, errors: string[]): Revi
 export function decodeKuzushijiV1Projection(value: unknown): KuzushijiV1Projection {
   const errors: string[] = [];
   if (!isRecord(value)) throw new ProjectReadContractError("invalid-kuzushiji-v1-projection", "Kuzushiji v1 projection must be an object");
+  rejectUnexpectedKeys(value, ["lectures", "characters", "mistakes", "reviewQueue"], "projection", errors);
   if (!Array.isArray(value.lectures)) errors.push("projection.lectures must be an array");
   if (!Array.isArray(value.characters)) errors.push("projection.characters must be an array");
   if (!Array.isArray(value.mistakes)) errors.push("projection.mistakes must be an array");
@@ -350,8 +384,9 @@ export function decodeKuzushijiV1Projection(value: unknown): KuzushijiV1Projecti
 
 /**
  * Wrap the historical storage model without changing its bytes, hash, or
- * adoption metadata.  Hash verification remains the responsibility of the
- * existing snapshot/hash boundary.
+ * adoption metadata.  The existing Phase 4E hash boundary is reused when a
+ * neutral snapshot is decoded; no new canonicalization or hash participants
+ * are introduced here.
  */
 export function adaptScopeKnowledgeSnapshot(snapshot: ScopeKnowledgeSnapshot): ProjectReadSnapshot {
   assertValidScopeKnowledgeSnapshot(snapshot);
@@ -377,7 +412,7 @@ export function adaptScopeKnowledgeSnapshot(snapshot: ScopeKnowledgeSnapshot): P
 export const toProjectReadSnapshot = adaptScopeKnowledgeSnapshot;
 
 /** Reverse adapter used only when a legacy snapshot consumer is required. */
-export function toScopeKnowledgeSnapshot(snapshot: ProjectReadSnapshot): ScopeKnowledgeSnapshot {
+export function toScopeKnowledgeSnapshot<TProjection>(snapshot: ProjectReadSnapshot<TProjection>): ScopeKnowledgeSnapshot {
   return {
     snapshotId: snapshot.snapshotId,
     schemaVersion: snapshot.schemaVersion,
@@ -391,7 +426,7 @@ export function toScopeKnowledgeSnapshot(snapshot: ProjectReadSnapshot): ScopeKn
     knowledgeProjectionVersion: snapshot.projectionVersion,
     sourceEvidence: snapshot.sourceEvidence as ScopeKnowledgeSnapshotSourceEvidence,
     scopeDecisions: snapshot.subjectObservations as readonly ScopeKnowledgeSnapshotDecision[],
-    knowledgeProjection: snapshot.projection,
+    knowledgeProjection: snapshot.projection as JsonValue,
     contentHash: snapshot.contentHash,
   };
 }
@@ -400,7 +435,18 @@ export function toScopeKnowledgeSnapshot(snapshot: ProjectReadSnapshot): ScopeKn
 export function validateProjectReadSnapshot(value: unknown): string[] {
   const { errors, envelope } = validateEnvelope(value);
   if (!envelope) return errors;
-  return validateProjectReadProjection(envelope.projectId, envelope.projectionVersion, envelope.projection);
+  try {
+    decodeSupportedProjectReadSnapshot(envelope);
+    return [];
+  } catch (error) {
+    if (error instanceof ProjectReadContractError) {
+      if (error.code === "unsupported-project") return ["unsupported projectId"];
+      if (error.code === "unsupported-projection-version") return ["unsupported projectionVersion"];
+      if (error.code === "project-projection-mismatch") return ["project/projection version mismatch"];
+      return [error.message];
+    }
+    return ["invalid project read snapshot"];
+  }
 }
 
 /** Validate a projection only after the explicit project/version pair is selected. */
@@ -441,15 +487,9 @@ export function decodeProjectReadProjection(
   return decodeKuzushijiV1Projection(value);
 }
 
-/**
- * Strict project/version dispatch.  Adding another project requires an
- * explicit branch/decoder; unknown pairs cannot be silently interpreted.
- */
-export function decodeProjectReadSnapshot(value: unknown): SupportedProjectReadSnapshot {
-  const { errors, envelope } = validateEnvelope(value);
-  if (!envelope) throw new ProjectReadContractError("invalid-envelope", errors.join("; "));
+function decodeSupportedProjectReadSnapshot(envelope: ProjectReadEnvelope): SupportedProjectReadSnapshot {
   const projection = decodeProjectReadProjection(envelope.projectId, envelope.projectionVersion, envelope.projection);
-  return Object.freeze({
+  const decoded = Object.freeze({
     schemaVersion: envelope.schemaVersion,
     snapshotId: envelope.snapshotId,
     projectId: KUZUSHIJI_PROJECT_ID,
@@ -464,7 +504,25 @@ export function decodeProjectReadSnapshot(value: unknown): SupportedProjectReadS
     subjectObservations: envelope.subjectObservations,
     projection,
     contentHash: envelope.contentHash,
-  });
+  }) as SupportedProjectReadSnapshot;
+
+  if (!isScopeKnowledgeSnapshotHashValid(toScopeKnowledgeSnapshot(decoded))) {
+    throw new ProjectReadContractError(
+      "invalid-content-hash",
+      "contentHash does not match the canonical semantic snapshot content",
+    );
+  }
+  return decoded;
+}
+
+/**
+ * Strict project/version dispatch.  Adding another project requires an
+ * explicit branch/decoder; unknown pairs cannot be silently interpreted.
+ */
+export function decodeProjectReadSnapshot(value: unknown): SupportedProjectReadSnapshot {
+  const { errors, envelope } = validateEnvelope(value);
+  if (!envelope) throw new ProjectReadContractError("invalid-envelope", errors.join("; "));
+  return decodeSupportedProjectReadSnapshot(envelope);
 }
 
 /** Alias for callers that prefer a parse verb. */

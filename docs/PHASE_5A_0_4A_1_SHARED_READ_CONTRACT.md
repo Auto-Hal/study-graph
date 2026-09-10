@@ -22,6 +22,15 @@ only `kuzushiji` + `kuzushiji-v1`; unknown projects, unsupported versions, and
 malformed projections fail closed. Adding Art History or Philosophy requires a
 new typed, versioned decoder and does not coerce an existing projection.
 
+The neutral decoder also reuses the existing Phase 4E
+`isScopeKnowledgeSnapshotHashValid` boundary before returning a supported
+snapshot. A valid-looking but incorrect 64-character hash is rejected, and
+the versioned `kuzushiji-v1` projection rejects unknown semantic fields at its
+top level and within its supported entities. This keeps the decoded
+projection exactly aligned with the canonical semantic content covered by the
+historical hash; the canonicalization, hash participants, and archive bytes
+are unchanged.
+
 The shared read state distinguishes loading, ready, stale, verified local
 replica, missing/not-yet-published, unavailable, invalid candidate, and
 conflict. A ready observation may explicitly be authoritative-empty; missing

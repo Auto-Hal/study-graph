@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   adaptScopeKnowledgeSnapshot,
   decodeProjectReadSnapshot,
+  validateProjectReadSnapshot,
   validateProjectReadProjection,
   type ProjectCapability,
   type ProjectReadState,
@@ -15,6 +16,7 @@ import {
 import {
   createScopeKnowledgeSnapshot,
   hashScopeKnowledgeSnapshotContent,
+  isScopeKnowledgeSnapshotHashValid,
 } from "../review/offline/snapshot.ts";
 
 function snapshot(overrides: Partial<Omit<ScopeKnowledgeSnapshot, "schemaVersion" | "contentHash">> = {}) {
@@ -75,6 +77,12 @@ function snapshot(overrides: Partial<Omit<ScopeKnowledgeSnapshot, "schemaVersion
   });
 }
 
+function snapshotWithProjection(projection: ScopeKnowledgeSnapshot["knowledgeProjection"]) {
+  const base = snapshot();
+  const { contentHash: _contentHash, ...input } = base;
+  return createScopeKnowledgeSnapshot({ ...input, knowledgeProjection: projection });
+}
+
 test("historical Kuzushiji v1 snapshot adapts and dispatches through the neutral read contract", () => {
   const legacy = snapshot();
   const neutral = adaptScopeKnowledgeSnapshot(legacy);
@@ -85,10 +93,95 @@ test("historical Kuzushiji v1 snapshot adapts and dispatches through the neutral
   assert.equal(decoded.projection.lectures[0]?.title, "講義");
   assert.equal(decoded.projection.characters[0]?.glyph, "あ");
   assert.equal(decoded.contentHash, legacy.contentHash);
-  assert.equal(hashScopeKnowledgeSnapshotContent(toScopeKnowledgeSnapshot(neutral)), legacy.contentHash);
-  assert.equal(canonicalizeScopeKnowledgeSnapshotContent(toScopeKnowledgeSnapshot(neutral)), canonicalizeScopeKnowledgeSnapshotContent(legacy));
+  const roundTripped = toScopeKnowledgeSnapshot(decoded);
+  assert.equal(hashScopeKnowledgeSnapshotContent(roundTripped), legacy.contentHash);
+  assert.equal(isScopeKnowledgeSnapshotHashValid(roundTripped), true);
+  assert.equal(canonicalizeScopeKnowledgeSnapshotContent(roundTripped), canonicalizeScopeKnowledgeSnapshotContent(legacy));
   assert.deepEqual(validateProjectReadProjection("kuzushiji", "kuzushiji-v1", neutral.projection), []);
   assert.deepEqual(Object.keys(neutral.sourceEvidence).sort(), ["paginationComplete", "relationCompleteness", "sourceIdentifiers"]);
+});
+
+test("a valid-shaped but incorrect content hash fails closed", () => {
+  const candidate = { ...adaptScopeKnowledgeSnapshot(snapshot()), contentHash: "0".repeat(64) };
+  assert.throws(
+    () => decodeProjectReadSnapshot(candidate),
+    (error) => error instanceof Error && "code" in error && error.code === "invalid-content-hash",
+  );
+  assert.match(validateProjectReadSnapshot(candidate).join("; "), /contentHash does not match/);
+});
+
+test("Kuzushiji v1 rejects unknown semantic projection fields instead of dropping them", () => {
+  const base = snapshot();
+  const projection = base.knowledgeProjection as Record<string, unknown>;
+  const candidate = adaptScopeKnowledgeSnapshot(snapshotWithProjection({
+    ...projection,
+    futureItems: [],
+  } as ScopeKnowledgeSnapshot["knowledgeProjection"]));
+
+  assert.throws(
+    () => decodeProjectReadSnapshot(candidate),
+    /projection\.futureItems is not supported in this projection version/,
+  );
+});
+
+test("Kuzushiji v1 rejects unknown fields nested in a lecture", () => {
+  const base = snapshot();
+  const projection = base.knowledgeProjection as Record<string, unknown>;
+  const lectures = projection.lectures as readonly Record<string, unknown>[];
+  const candidate = adaptScopeKnowledgeSnapshot(snapshotWithProjection({
+    ...projection,
+    lectures: [{ ...lectures[0], futureLabel: "追加情報" }],
+  } as ScopeKnowledgeSnapshot["knowledgeProjection"]));
+
+  assert.throws(
+    () => decodeProjectReadSnapshot(candidate),
+    /projection\.lectures\[0\]\.futureLabel is not supported in this projection version/,
+  );
+});
+
+test("Kuzushiji v1 rejects unknown fields in every supported entity shape", () => {
+  const base = snapshot();
+  const projection = base.knowledgeProjection as Record<string, unknown>;
+  const character = (projection.characters as readonly Record<string, unknown>[])[0];
+  const reviewItem = (projection.reviewQueue as readonly Record<string, unknown>[])[0];
+  const cases = [
+    {
+      path: "characters[0].futureLabel",
+      value: { ...projection, characters: [{ ...character, futureLabel: "追加情報" }] },
+    },
+    {
+      path: "mistakes[0].futureLabel",
+      value: {
+        ...projection,
+        mistakes: [{
+          id: "mistake-a",
+          url: "https://example.test/mistake-a",
+          title: "誤読",
+          answer: "い",
+          correctAnswer: "あ",
+          cause: "字形",
+          retry: false,
+          resolved: false,
+          errorDate: null,
+          futureLabel: "追加情報",
+        }],
+      },
+    },
+    {
+      path: "reviewQueue[0].futureLabel",
+      value: { ...projection, reviewQueue: [{ ...reviewItem, futureLabel: "追加情報" }] },
+    },
+  ] as const;
+
+  for (const { path, value } of cases) {
+    const candidate = adaptScopeKnowledgeSnapshot(
+      snapshotWithProjection(value as unknown as ScopeKnowledgeSnapshot["knowledgeProjection"]),
+    );
+    assert.throws(
+      () => decodeProjectReadSnapshot(candidate),
+      new RegExp(`projection\\.${path.replace("[", "\\[").replace("]", "\\]")} is not supported`),
+    );
+  }
 });
 
 test("unknown and mismatched project/version pairs fail closed", () => {
