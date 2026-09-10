@@ -505,6 +505,32 @@ export function readNotionCheckbox(page: StrictNotionPage, propertyName: string,
   return property.checkbox;
 }
 
+/**
+ * Read a learner-facing title while preserving the neutral fallback semantics
+ * of the existing trusted Graph readers. An empty title value is valid source
+ * data, but a missing or mistyped title property is schema drift and therefore
+ * still fails closed.
+ */
+export function readNotionDisplayLabel(
+  page: StrictNotionPage,
+  propertyName: string,
+  label: string,
+  fallback: string,
+): string {
+  const property = page.properties[propertyName];
+  if (!property) {
+    throw new StrictNotionSnapshotSourceError("malformed-response", `${label} title property ${propertyName} is missing`);
+  }
+  if (property.type !== "title") {
+    throw new StrictNotionSnapshotSourceError("malformed-response", `${label} title property ${propertyName} has an invalid type`);
+  }
+  if (fallback.trim().length === 0) {
+    throw new StrictNotionSnapshotSourceError("malformed-response", `${label} title fallback is empty`);
+  }
+  const value = readNotionText(page, propertyName, label);
+  return value.trim().length > 0 ? value : fallback;
+}
+
 export function requiredNotionText(page: StrictNotionPage, propertyName: string, label: string): string {
   const value = readNotionText(page, propertyName, label);
   if (value.trim().length === 0) throw new StrictNotionSnapshotSourceError("malformed-response", `${label} ${propertyName} is empty`);
