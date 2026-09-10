@@ -133,6 +133,77 @@ function relationPage(id = "owner"): StrictNotionPage {
   };
 }
 
+test("strict Notion reads retry 429/529 with Retry-After without weakening final validation", async () => {
+  const originalFetch = globalThis.fetch;
+  let relationCalls = 0;
+  globalThis.fetch = async () => {
+    relationCalls += 1;
+    if (relationCalls === 1) {
+      return new Response(JSON.stringify({ code: "rate_limited" }), {
+        status: 429,
+        headers: { "retry-after": "0", "content-type": "application/json" },
+      });
+    }
+    return response({
+      object: "list",
+      type: "property_item",
+      property_item: { type: "relation" },
+      results: [{ object: "property_item", type: "relation", relation: { id: "target" } }],
+      has_more: false,
+      next_cursor: null,
+    });
+  };
+  try {
+    assert.deepEqual(
+      await queryAllNotionRelationProperty(relationPage(), "Related", "token", "fixture"),
+      ["target"],
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(relationCalls, 2);
+
+  let queryCalls = 0;
+  globalThis.fetch = async () => {
+    queryCalls += 1;
+    if (queryCalls === 1) {
+      return new Response(JSON.stringify({ code: "service_overload" }), {
+        status: 529,
+        headers: { "retry-after": "0", "content-type": "application/json" },
+      });
+    }
+    return response({ results: [page("page-a")], has_more: false, next_cursor: null });
+  };
+  try {
+    const pages = await queryAllNotionDataSource("source", "token", "fixture");
+    assert.deepEqual(pages.map((item) => item.id), ["page-a"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(queryCalls, 2);
+});
+
+test("non-retryable Notion errors remain fail closed without extra requests", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ code: "validation_error" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    await assert.rejects(
+      queryAllNotionDataSource("source", "token", "fixture"),
+      (error) => error instanceof StrictNotionSnapshotSourceError && error.code === "http-error",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(calls, 1);
+});
+
 test("relation property IDs are encoded exactly once for the property endpoint", async () => {
   const requestedUrls: string[] = [];
   const originalFetch = globalThis.fetch;
