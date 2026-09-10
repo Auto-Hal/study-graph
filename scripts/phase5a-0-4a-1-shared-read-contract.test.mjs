@@ -31,6 +31,10 @@ test("project and projection dispatch is explicit and fail closed", () => {
   assert.match(contract, /isScopeKnowledgeSnapshotHashValid/);
   assert.match(contract, /invalid-content-hash/);
   assert.match(contract, /not supported in this projection version/);
+  assert.match(contract, /sourceEvidence/);
+  assert.match(contract, /subjectObservations/);
+  assert.match(contract, /relationCompleteness/);
+  assert.match(contract, /anchorReferences/);
   assert.doesNotMatch(contract, /as\s+SomeProjection/);
 });
 

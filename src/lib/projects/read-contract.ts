@@ -166,6 +166,12 @@ function validateSourceEvidence(value: unknown, errors: string[]) {
     errors.push("sourceEvidence is required");
     return;
   }
+  rejectUnexpectedKeys(
+    value,
+    ["sourceIdentifiers", "paginationComplete", "relationCompleteness"],
+    "sourceEvidence",
+    errors,
+  );
   validateStringArray(value.sourceIdentifiers, "sourceEvidence.sourceIdentifiers", errors);
   if (typeof value.paginationComplete !== "boolean") errors.push("sourceEvidence.paginationComplete is required");
   if (typeof value.relationCompleteness !== "boolean") errors.push("sourceEvidence.relationCompleteness is required");
@@ -182,6 +188,12 @@ function validateSubjectObservations(value: unknown, errors: string[]) {
       errors.push(`subjectObservations[${index}] must be an object`);
       continue;
     }
+    rejectUnexpectedKeys(
+      item,
+      ["subjectId", "status", "reasonCodes", "anchorReferences"],
+      `subjectObservations[${index}]`,
+      errors,
+    );
     if (!nonEmptyString(item.subjectId)) errors.push(`subjectObservations[${index}].subjectId is required`);
     else if (subjectIds.has(item.subjectId)) errors.push(`subjectObservations[${index}].subjectId must be unique`);
     else subjectIds.add(item.subjectId);

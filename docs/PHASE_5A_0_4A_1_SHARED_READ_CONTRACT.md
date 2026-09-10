@@ -31,6 +31,13 @@ projection exactly aligned with the canonical semantic content covered by the
 historical hash; the canonicalization, hash participants, and archive bytes
 are unchanged.
 
+The envelope substructures are strict as well: `sourceEvidence` accepts only
+`sourceIdentifiers`, `paginationComplete`, and `relationCompleteness`, while
+each `subjectObservations` entry accepts only `subjectId`, `status`,
+`reasonCodes`, and `anchorReferences`. Candidates with additional fields are
+rejected even when the historical canonicalizer would otherwise ignore those
+fields, so unprotected metadata cannot become trusted decoded data.
+
 The shared read state distinguishes loading, ready, stale, verified local
 replica, missing/not-yet-published, unavailable, invalid candidate, and
 conflict. A ready observation may explicitly be authoritative-empty; missing

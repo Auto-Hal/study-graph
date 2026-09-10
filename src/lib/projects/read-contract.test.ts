@@ -110,6 +110,40 @@ test("a valid-shaped but incorrect content hash fails closed", () => {
   assert.match(validateProjectReadSnapshot(candidate).join("; "), /contentHash does not match/);
 });
 
+test("source evidence extra fields are rejected even when the historical hash still validates", () => {
+  const base = adaptScopeKnowledgeSnapshot(snapshot());
+  const candidate = {
+    ...base,
+    sourceEvidence: {
+      ...base.sourceEvidence,
+      relationCoverageDetails: { crawledPages: 3 },
+    },
+  };
+
+  assert.equal(isScopeKnowledgeSnapshotHashValid(toScopeKnowledgeSnapshot(candidate)), true);
+  assert.throws(
+    () => decodeProjectReadSnapshot(candidate),
+    /sourceEvidence\.relationCoverageDetails is not supported in this projection version/,
+  );
+});
+
+test("subject observation extra fields are rejected even when the historical hash still validates", () => {
+  const base = adaptScopeKnowledgeSnapshot(snapshot());
+  const candidate = {
+    ...base,
+    subjectObservations: base.subjectObservations.map((observation) => ({
+      ...observation,
+      currentAuthority: true,
+    })),
+  };
+
+  assert.equal(isScopeKnowledgeSnapshotHashValid(toScopeKnowledgeSnapshot(candidate)), true);
+  assert.throws(
+    () => decodeProjectReadSnapshot(candidate),
+    /subjectObservations\[0\]\.currentAuthority is not supported in this projection version/,
+  );
+});
+
 test("Kuzushiji v1 rejects unknown semantic projection fields instead of dropping them", () => {
   const base = snapshot();
   const projection = base.knowledgeProjection as Record<string, unknown>;
