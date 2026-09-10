@@ -1,6 +1,5 @@
 import "server-only";
 
-import { loadProjectGraph } from "@/src/lib/graph/registry";
 import type { GraphNode } from "@/src/lib/graph/types";
 import { getKuzushijiDashboard, type ReviewItem } from "@/src/lib/notion/kuzushiji";
 import { defaultStudyProjectId, getActiveStudyProjects, getStudyProject, type StudyProjectDefinition } from "@/src/lib/projects/registry";
@@ -14,13 +13,14 @@ import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds }
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
 import { getKuzushijiPilotObjectiveState, getPilotRuntimeConfig } from "@/src/lib/supabase/pilot";
+import { loadReviewGraphPracticeSource } from "./graph-practice-source";
 
 export type ReviewProjectPayload = {
   project: StudyProjectDefinition;
   projects: StudyProjectDefinition[];
   cards: ReviewCard[];
   persistence: ReviewPersistenceMode;
-  sourceMode: "notion" | "demo" | "snapshot";
+  sourceMode: "notion" | "demo";
   session: ReviewSessionContext;
 };
 
@@ -126,7 +126,7 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
 }
 
 async function loadGraphPractice(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
-  const graph = await loadProjectGraph(project.id, { cache: false });
+  const graph = await loadReviewGraphPracticeSource(project.id as "philosophy" | "western-art-history");
   const scope = buildGraphScopeSnapshot(project.id as "philosophy" | "western-art-history", graph);
   const eligibleIds = eligibleNodeIds(scope);
   const eligibleKinds = new Set(project.review.eligibleKinds);
