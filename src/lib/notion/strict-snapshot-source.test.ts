@@ -6,6 +6,7 @@ import {
   materializeStrictRelations,
   queryAllNotionDataSource,
   queryAllNotionRelationProperty,
+  readNotionDisplayLabel,
   type StrictNotionPage,
 } from "./strict-snapshot-source.ts";
 
@@ -24,6 +25,54 @@ function page(id: string): StrictNotionPage {
     properties: {},
   };
 }
+
+test("display labels preserve trusted fallback semantics without hiding schema drift", () => {
+  const emptyTitle: StrictNotionPage = {
+    ...page("empty-title"),
+    properties: {
+      名前: { id: "title", type: "title", title: [] },
+    },
+  };
+  assert.equal(
+    readNotionDisplayLabel(emptyTitle, "名前", "fixture artist", "芸術家"),
+    "芸術家",
+  );
+
+  assert.throws(
+    () => readNotionDisplayLabel(page("missing-title"), "名前", "fixture artist", "芸術家"),
+    (error) =>
+      error instanceof StrictNotionSnapshotSourceError &&
+      error.code === "malformed-response" &&
+      /is missing/.test(error.message),
+  );
+
+  const wrongType: StrictNotionPage = {
+    ...page("wrong-type"),
+    properties: {
+      名前: { id: "name", type: "rich_text", rich_text: [] },
+    },
+  };
+  assert.throws(
+    () => readNotionDisplayLabel(wrongType, "名前", "fixture artist", "芸術家"),
+    (error) =>
+      error instanceof StrictNotionSnapshotSourceError &&
+      error.code === "malformed-response" &&
+      /invalid type/.test(error.message),
+  );
+
+  const malformedTitle: StrictNotionPage = {
+    ...page("malformed-title"),
+    properties: {
+      名前: { id: "title", type: "title", title: [{}] },
+    },
+  };
+  assert.throws(
+    () => readNotionDisplayLabel(malformedTitle, "名前", "fixture artist", "芸術家"),
+    (error) =>
+      error instanceof StrictNotionSnapshotSourceError &&
+      error.code === "malformed-response",
+  );
+});
 
 async function withFetch(responses: unknown[], run: () => Promise<void>) {
   const originalFetch = globalThis.fetch;

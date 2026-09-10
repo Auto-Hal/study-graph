@@ -42,6 +42,19 @@ test("project projections are typed, exact-key, and completeness protected", () 
   assert.match(projections, /unresolvedTargets\.length > 0/);
 });
 
+test("project snapshot labels preserve current learner fallback semantics", () => {
+  for (const source of [artSource, philosophySource]) {
+    assert.match(source, /readNotionDisplayLabel/);
+    assert.doesNotMatch(source, /requiredNotionText/);
+  }
+  for (const label of ["講義", "芸術家", "作品", "様式・運動", "用語", "時代", "文化・歴史", "美術館・建築"]) {
+    assert.ok(artSource.includes(`"${label}"`), `Art source should preserve fallback label ${label}`);
+  }
+  for (const label of ["講義", "哲学者", "用語", "哲学的問題", "原典・著作", "文化", "時代", "思考ノート"]) {
+    assert.ok(philosophySource.includes(`"${label}"`), `Philosophy source should preserve fallback label ${label}`);
+  }
+});
+
 test("strict source readers use all eight declared sources and never demo fallback", () => {
   for (const source of [artSource, philosophySource]) {
     assert.match(source, /queryAllNotionDataSource/);
