@@ -55,6 +55,14 @@ test("project snapshot labels preserve current learner fallback semantics", () =
   }
 });
 
+test("strict Notion source centralizes bounded rate-limit retry", () => {
+  assert.match(strictSource, /fetchNotionWithRetry/);
+  assert.match(strictSource, /NOTION_MAX_REQUEST_ATTEMPTS = 6/);
+  assert.match(strictSource, /response\.status === 429/);
+  assert.match(strictSource, /response\.status === 529/);
+  assert.match(strictSource, /retry-after/);
+});
+
 test("strict source readers use all eight declared sources and never demo fallback", () => {
   for (const source of [artSource, philosophySource]) {
     assert.match(source, /queryAllNotionDataSource/);
