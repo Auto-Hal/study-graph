@@ -100,3 +100,23 @@ The following are deliberately outside Phase 5A-0:
 - Consolidation Set persistence or new SRS semantics
 - structural read-path/performance redesign beyond low-risk presentation work
 - deeper Graph interaction and data-model redesign
+
+## Shared project snapshot publishers (5A-0-4a-2)
+
+Western Art History and Western Philosophy now have server-only publisher and
+typed projection support behind the existing `ScopeKnowledgeSnapshot` storage
+and publication RPCs. Their learner routes still use the current read-only
+Graph readers; this slice does not cut over any route or UI.
+
+Each publisher uses a strict, no-demo Notion source reader with complete data
+source and relation-property pagination, deterministic projection ordering,
+and a versioned projection decoder. Detailed relation completeness is stored
+inside the hash-covered `knowledgeProjection`; the historical envelope's
+`sourceEvidence` fields remain unchanged. Both projections explicitly use
+`not-applicable-no-objective-v1` with an empty `scopeDecisions` array. That
+marker grants no Scope or SRS authority.
+
+No Production snapshot was published in this PR. No Objective/SRS capability,
+immutable Review asset ingestion, or Notion write was added. Display/reference
+media remains distinct from immutable Review assets. Initial Production
+bootstrap is a separate Supervisor-approved operational step.

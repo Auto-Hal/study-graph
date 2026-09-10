@@ -15,6 +15,23 @@ import type {
 } from "../review/offline/snapshot-content.ts";
 import { assertValidScopeKnowledgeSnapshot } from "../review/offline/snapshot-content.ts";
 import { isScopeKnowledgeSnapshotHashValid } from "../review/offline/snapshot.ts";
+import {
+  decodePhilosophyV1Projection,
+  decodeWesternArtHistoryV1Projection,
+  type PhilosophyV1Projection,
+  type WesternArtHistoryV1Projection,
+} from "./project-projections.ts";
+
+export {
+  decodePhilosophyV1Projection,
+  decodeWesternArtHistoryV1Projection,
+} from "./project-projections.ts";
+export type {
+  PhilosophyV1Projection,
+  WesternArtHistoryV1Projection,
+  ProjectKnowledgeRelation,
+  ProjectProjectionCompleteness,
+} from "./project-projections.ts";
 
 /**
  * Application-layer envelope version.  The persisted name
@@ -23,11 +40,22 @@ import { isScopeKnowledgeSnapshotHashValid } from "../review/offline/snapshot.ts
  */
 export const PROJECT_READ_SCHEMA_VERSION = 1 as const;
 
-/** The only projection currently understood by this foundation slice. */
+/** Explicitly supported project/projection pairs in this foundation slice. */
 export const KUZUSHIJI_PROJECT_ID = "kuzushiji" as const;
 export const KUZUSHIJI_V1_PROJECTION_VERSION = "kuzushiji-v1" as const;
+export const WESTERN_ART_HISTORY_PROJECT_ID = "western-art-history" as const;
+export const WESTERN_ART_HISTORY_V1_PROJECTION_VERSION = "western-art-history-v1" as const;
+export const PHILOSOPHY_PROJECT_ID = "philosophy" as const;
+export const PHILOSOPHY_V1_PROJECTION_VERSION = "philosophy-v1" as const;
+/** Explicit non-participation marker for projects without Objective Scope in v1. */
+export const NO_OBJECTIVE_SCOPE_POLICY_VERSION = "not-applicable-no-objective-v1" as const;
 const KNOWN_PROJECT_IDS = [KUZUSHIJI_PROJECT_ID, "western-art-history", "philosophy"] as const;
 type KnownProjectId = (typeof KNOWN_PROJECT_IDS)[number];
+const KNOWN_PROJECTION_VERSIONS = [
+  KUZUSHIJI_V1_PROJECTION_VERSION,
+  WESTERN_ART_HISTORY_V1_PROJECTION_VERSION,
+  PHILOSOPHY_V1_PROJECTION_VERSION,
+] as const;
 
 /**
  * Keep the three historical hash-covered evidence fields unchanged. In
@@ -87,6 +115,12 @@ export type KuzushijiV1Projection = Readonly<{
 export type SupportedProjectReadSnapshot = ProjectReadSnapshot<KuzushijiV1Projection> & Readonly<{
   projectId: typeof KUZUSHIJI_PROJECT_ID;
   projectionVersion: typeof KUZUSHIJI_V1_PROJECTION_VERSION;
+}> | ProjectReadSnapshot<WesternArtHistoryV1Projection> & Readonly<{
+  projectId: typeof WESTERN_ART_HISTORY_PROJECT_ID;
+  projectionVersion: typeof WESTERN_ART_HISTORY_V1_PROJECTION_VERSION;
+}> | ProjectReadSnapshot<PhilosophyV1Projection> & Readonly<{
+  projectId: typeof PHILOSOPHY_PROJECT_ID;
+  projectionVersion: typeof PHILOSOPHY_V1_PROJECTION_VERSION;
 }>;
 
 export type ProjectReadValidationCode =
@@ -95,7 +129,9 @@ export type ProjectReadValidationCode =
   | "unsupported-project"
   | "unsupported-projection-version"
   | "project-projection-mismatch"
-  | "invalid-kuzushiji-v1-projection";
+  | "invalid-kuzushiji-v1-projection"
+  | "invalid-western-art-history-v1-projection"
+  | "invalid-philosophy-v1-projection";
 
 export class ProjectReadContractError extends Error {
   readonly code: ProjectReadValidationCode;
@@ -486,39 +522,80 @@ export function decodeProjectReadProjection(
   projectId: string,
   projectionVersion: string,
   value: unknown,
-): KuzushijiV1Projection {
+): KuzushijiV1Projection | WesternArtHistoryV1Projection | PhilosophyV1Projection {
   if (!isKnownProjectId(projectId)) {
     throw new ProjectReadContractError("unsupported-project", `unsupported projectId: ${projectId}`);
   }
-  if (projectId !== KUZUSHIJI_PROJECT_ID && projectionVersion === KUZUSHIJI_V1_PROJECTION_VERSION) {
-    throw new ProjectReadContractError("project-projection-mismatch", `project ${projectId} cannot use ${projectionVersion}`);
-  }
-  if (projectionVersion !== KUZUSHIJI_V1_PROJECTION_VERSION) {
+  const expectedVersion = projectId === KUZUSHIJI_PROJECT_ID
+    ? KUZUSHIJI_V1_PROJECTION_VERSION
+    : projectId === WESTERN_ART_HISTORY_PROJECT_ID
+      ? WESTERN_ART_HISTORY_V1_PROJECTION_VERSION
+      : PHILOSOPHY_V1_PROJECTION_VERSION;
+  if (projectionVersion !== expectedVersion) {
+    if ((KNOWN_PROJECTION_VERSIONS as readonly string[]).includes(projectionVersion)) {
+      throw new ProjectReadContractError("project-projection-mismatch", `project ${projectId} cannot use ${projectionVersion}`);
+    }
     throw new ProjectReadContractError("unsupported-projection-version", `unsupported projectionVersion: ${projectionVersion}`);
   }
-  return decodeKuzushijiV1Projection(value);
+  if (projectId === KUZUSHIJI_PROJECT_ID) return decodeKuzushijiV1Projection(value);
+  if (projectId === WESTERN_ART_HISTORY_PROJECT_ID) {
+    try {
+      return decodeWesternArtHistoryV1Projection(value);
+    } catch (error) {
+      throw new ProjectReadContractError(
+        "invalid-western-art-history-v1-projection",
+        error instanceof Error ? error.message : "Western Art History v1 projection is invalid",
+      );
+    }
+  }
+  try {
+    return decodePhilosophyV1Projection(value);
+  } catch (error) {
+    throw new ProjectReadContractError(
+      "invalid-philosophy-v1-projection",
+      error instanceof Error ? error.message : "Philosophy v1 projection is invalid",
+    );
+  }
 }
 
 function decodeSupportedProjectReadSnapshot(envelope: ProjectReadEnvelope): SupportedProjectReadSnapshot {
   const projection = decodeProjectReadProjection(envelope.projectId, envelope.projectionVersion, envelope.projection);
+  if (envelope.projectId !== KUZUSHIJI_PROJECT_ID) {
+    if (envelope.policyVersion !== NO_OBJECTIVE_SCOPE_POLICY_VERSION) {
+      throw new ProjectReadContractError(
+        envelope.projectId === WESTERN_ART_HISTORY_PROJECT_ID
+          ? "invalid-western-art-history-v1-projection"
+          : "invalid-philosophy-v1-projection",
+        `${envelope.projectId} v1 snapshots must use ${NO_OBJECTIVE_SCOPE_POLICY_VERSION}`,
+      );
+    }
+    if (envelope.subjectObservations.length !== 0) {
+      throw new ProjectReadContractError(
+        envelope.projectId === WESTERN_ART_HISTORY_PROJECT_ID
+          ? "invalid-western-art-history-v1-projection"
+          : "invalid-philosophy-v1-projection",
+        `${envelope.projectId} v1 snapshots must not contain Scope decisions`,
+      );
+    }
+  }
   const decoded = Object.freeze({
     schemaVersion: envelope.schemaVersion,
     snapshotId: envelope.snapshotId,
-    projectId: KUZUSHIJI_PROJECT_ID,
+    projectId: envelope.projectId,
     generation: envelope.generation,
     sourceReadStartedAt: envelope.sourceReadStartedAt,
     sourceReadCompletedAt: envelope.sourceReadCompletedAt,
     publishedAt: envelope.publishedAt,
     validUntil: envelope.validUntil,
     policyVersion: envelope.policyVersion,
-    projectionVersion: KUZUSHIJI_V1_PROJECTION_VERSION,
+    projectionVersion: envelope.projectionVersion,
     sourceEvidence: envelope.sourceEvidence,
     subjectObservations: envelope.subjectObservations,
     projection,
     contentHash: envelope.contentHash,
   }) as SupportedProjectReadSnapshot;
 
-  if (!isScopeKnowledgeSnapshotHashValid(toScopeKnowledgeSnapshot(decoded))) {
+  if (!isScopeKnowledgeSnapshotHashValid(toScopeKnowledgeSnapshot(decoded as ProjectReadSnapshot<unknown>))) {
     throw new ProjectReadContractError(
       "invalid-content-hash",
       "contentHash does not match the canonical semantic snapshot content",
