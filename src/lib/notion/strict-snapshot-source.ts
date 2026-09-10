@@ -528,7 +528,7 @@ export function readNotionDisplayLabel(
     throw new StrictNotionSnapshotSourceError("malformed-response", `${label} title fallback is empty`);
   }
   const value = readNotionText(page, propertyName, label);
-  return value.trim().length > 0 ? value : fallback;
+  return value.length > 0 ? value : fallback;
 }
 
 export function requiredNotionText(page: StrictNotionPage, propertyName: string, label: string): string {
