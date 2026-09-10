@@ -19,7 +19,7 @@ import {
   readNotionNumber,
   readNotionSelect,
   readNotionText,
-  requiredNotionText,
+  readNotionDisplayLabel,
   type StrictNotionPage,
   type StrictNotionRelationDeclaration,
 } from "./strict-snapshot-source.ts";
@@ -92,15 +92,15 @@ function join(values: readonly string[]) {
   return values.filter((value) => value.trim().length > 0).join("・");
 }
 
-function pageLabel(page: StrictNotionPage, propertyName: string, kind: string) {
-  return requiredNotionText(page, propertyName, `${LABEL} ${kind}`);
+function pageLabel(page: StrictNotionPage, propertyName: string, kind: string, fallback: string) {
+  return readNotionDisplayLabel(page, propertyName, `${LABEL} ${kind}`, fallback);
 }
 
 function mapLecture(page: StrictNotionPage): WesternArtHistoryLecture {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "講義名", "lecture"),
+    label: pageLabel(page, "講義名", "lecture", "講義"),
     sequence: readNotionNumber(page, "回数", `${LABEL} lecture`),
     phase: readNotionSelect(page, "フェーズ", `${LABEL} lecture`),
     status: readNotionSelect(page, "理解度", `${LABEL} lecture`),
@@ -114,7 +114,7 @@ function mapArtist(page: StrictNotionPage): WesternArtHistoryArtist {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "名前", "artist"),
+    label: pageLabel(page, "名前", "artist", "芸術家"),
     lifespan: readNotionText(page, "生没年", `${LABEL} artist`),
     region: readNotionSelect(page, "国・地域", `${LABEL} artist`),
     importance: readNotionSelect(page, "重要度", `${LABEL} artist`),
@@ -128,7 +128,7 @@ function mapArtwork(page: StrictNotionPage): WesternArtHistoryArtwork {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "作品名", "artwork"),
+    label: pageLabel(page, "作品名", "artwork", "作品"),
     productionYear: readNotionText(page, "制作年", `${LABEL} artwork`),
     genre: readNotionSelect(page, "ジャンル", `${LABEL} artwork`),
     country: readNotionSelect(page, "国", `${LABEL} artwork`),
@@ -143,7 +143,7 @@ function mapMovement(page: StrictNotionPage): WesternArtHistoryMovement {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "名称", "movement"),
+    label: pageLabel(page, "名称", "movement", "様式・運動"),
     region: readNotionSelect(page, "地域", `${LABEL} movement`),
     importance: readNotionSelect(page, "重要度", `${LABEL} movement`),
     features,
@@ -156,7 +156,7 @@ function mapTerm(page: StrictNotionPage): WesternArtHistoryTerm {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "用語", "term"),
+    label: pageLabel(page, "用語", "term", "用語"),
     category: readNotionSelect(page, "分類", `${LABEL} term`),
     importance: readNotionSelect(page, "重要度", `${LABEL} term`),
     meaning,
@@ -169,7 +169,7 @@ function mapPeriod(page: StrictNotionPage): WesternArtHistoryPeriod {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "時代名", "period"),
+    label: pageLabel(page, "時代名", "period", "時代"),
     years: readNotionText(page, "年代", `${LABEL} period`),
     region: readNotionSelect(page, "地域", `${LABEL} period`),
     features,
@@ -182,7 +182,7 @@ function mapCulture(page: StrictNotionPage): WesternArtHistoryCulture {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "出来事", "culture"),
+    label: pageLabel(page, "出来事", "culture", "文化・歴史"),
     years: readNotionText(page, "年代", `${LABEL} culture`),
     type: readNotionSelect(page, "種類", `${LABEL} culture`),
     region: readNotionSelect(page, "地域", `${LABEL} culture`),
@@ -196,7 +196,7 @@ function mapMuseum(page: StrictNotionPage): WesternArtHistoryMuseum {
   return {
     id: page.id,
     url: page.url,
-    label: pageLabel(page, "名前", "museum"),
+    label: pageLabel(page, "名前", "museum", "美術館・建築"),
     type: readNotionSelect(page, "種類", `${LABEL} museum`),
     city: readNotionSelect(page, "都市", `${LABEL} museum`),
     country: readNotionSelect(page, "国", `${LABEL} museum`),
