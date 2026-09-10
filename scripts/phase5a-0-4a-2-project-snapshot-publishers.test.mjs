@@ -69,6 +69,9 @@ test("relation completeness is read property-by-property and resolved before pub
   assert.match(artSource, /WESTERN_ART_HISTORY_RELATION_DECLARATIONS/);
   assert.match(philosophySource, /PHILOSOPHY_RELATION_DECLARATIONS/);
   assert.match(projections, /relationProperties/);
+  assert.match(projections, /sourceEntityId/);
+  assert.match(strictSource, /sourceEntityId: page\.id/);
+  assert.match(model, /sourceEntityId/);
   assert.match(projections, /unresolvedTargets/);
 });
 

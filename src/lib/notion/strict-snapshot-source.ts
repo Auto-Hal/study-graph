@@ -28,6 +28,7 @@ export type StrictRelationObservation = Readonly<{
 }>;
 
 export type StrictRelationPropertyEvidence = Readonly<{
+  sourceEntityId: string;
   ownerKind: string;
   propertyName: string;
   relationKind: string;
@@ -63,6 +64,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function relationEvidenceKey(value: Pick<StrictRelationPropertyEvidence, "ownerKind" | "sourceEntityId" | "propertyName" | "relationKind">) {
+  return [value.ownerKind, value.sourceEntityId, value.propertyName, value.relationKind].join("\u0000");
+}
+
+function compareRelationEvidence(left: StrictRelationPropertyEvidence, right: StrictRelationPropertyEvidence) {
+  const leftKey = relationEvidenceKey(left);
+  const rightKey = relationEvidenceKey(right);
+  return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
 }
 
 function tokenOrThrow() {
@@ -348,17 +359,25 @@ export async function collectStrictRelationObservations(
 ): Promise<{ observations: StrictRelationObservation[]; evidence: StrictRelationPropertyEvidence[] }> {
   const observations: StrictRelationObservation[] = [];
   const evidence: StrictRelationPropertyEvidence[] = [];
+  const evidenceKeys = new Set<string>();
   for (const { page, kind } of pages) {
     for (const declaration of declarations) {
       if (declaration.ownerKind !== kind) continue;
       const targets = await queryAllNotionRelationProperty(page, declaration.propertyName, token, `${label} ${kind}.${declaration.propertyName}`);
-      evidence.push({
+      const evidenceItem: StrictRelationPropertyEvidence = {
+        sourceEntityId: page.id,
         ownerKind: declaration.ownerKind,
         propertyName: declaration.propertyName,
         relationKind: declaration.relationKind,
         itemCount: targets.length,
         paginationComplete: true,
-      });
+      };
+      const evidenceKey = relationEvidenceKey(evidenceItem);
+      if (evidenceKeys.has(evidenceKey)) {
+        throw new StrictNotionSnapshotSourceError("malformed-response", `${label} relation completeness evidence is duplicated`);
+      }
+      evidenceKeys.add(evidenceKey);
+      evidence.push(evidenceItem);
       for (const targetEntityId of targets) {
         observations.push({
           sourceEntityId: page.id,
@@ -371,7 +390,7 @@ export async function collectStrictRelationObservations(
       }
     }
   }
-  return { observations, evidence };
+  return { observations, evidence: evidence.sort(compareRelationEvidence) };
 }
 
 /**

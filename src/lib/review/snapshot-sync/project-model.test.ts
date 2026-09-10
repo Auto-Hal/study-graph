@@ -11,6 +11,10 @@ import type {
   WesternArtHistorySnapshotSource,
 } from "../../notion/western-art-history-snapshot-source.ts";
 import {
+  collectStrictRelationObservations,
+  type StrictNotionPage,
+} from "../../notion/strict-snapshot-source.ts";
+import {
   createPhilosophyScopeKnowledgeSnapshot,
   createWesternArtHistoryScopeKnowledgeSnapshot,
 } from "./project-model.ts";
@@ -82,6 +86,54 @@ function philosophySource(projection = philosophyProjection()): PhilosophySnapsh
     paginationComplete: true,
     relationCompleteness: true,
   };
+}
+
+function relationPage(id: string): StrictNotionPage {
+  return {
+    object: "page",
+    id,
+    url: `https://notion.test/${id}`,
+    properties: { Related: { id: "property-id", type: "relation", relation: [] } },
+  };
+}
+
+async function collectArtRelationEvidence(order: readonly string[]) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    const ids = url.includes("/pages/page-a/") ? ["target-a"] : ["target-b-1", "target-b-2"];
+    return new Response(JSON.stringify({
+      object: "list",
+      type: "property_item",
+      property_item: { type: "relation" },
+      results: ids.map((id) => ({ object: "property_item", type: "relation", relation: { id } })),
+      has_more: false,
+      next_cursor: null,
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    return await collectStrictRelationObservations(
+      order.map((id) => ({ page: relationPage(id), kind: "artist" })),
+      [{ ownerKind: "artist", propertyName: "Related", relationKind: "artist-related", relationLabel: "Related" }],
+      "token",
+      "fixture",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+function artist(id: string) {
+  return {
+    id,
+    url: `https://notion.test/${id}`,
+    label: id,
+    lifespan: "",
+    region: "",
+    importance: "",
+    technique: "",
+    reviewText: null,
+  } as const;
 }
 
 function buildArt(projection = artProjection()) {
@@ -159,6 +211,30 @@ test("project builders normalize source ordering before the historical content h
   assert.deepEqual(first.knowledgeProjection, second.knowledgeProjection);
 });
 
+test("page-identifiable relation completeness is stable when Notion page order changes", async () => {
+  const firstRead = await collectArtRelationEvidence(["page-a", "page-b"]);
+  const secondRead = await collectArtRelationEvidence(["page-b", "page-a"]);
+  assert.deepEqual(firstRead.evidence.map((item) => item.sourceEntityId), ["page-a", "page-b"]);
+  assert.deepEqual(secondRead.evidence.map((item) => item.sourceEntityId), ["page-a", "page-b"]);
+  assert.deepEqual(firstRead.evidence.map((item) => item.itemCount), [1, 2]);
+  assert.deepEqual(secondRead.evidence.map((item) => item.itemCount), [1, 2]);
+
+  const projection = (evidence: typeof firstRead.evidence) => artProjection({
+    artists: [artist("page-b"), artist("page-a")],
+    completeness: {
+      dataSources: [],
+      relationProperties: evidence,
+      unresolvedTargets: [],
+    },
+  });
+  const first = buildArt(projection(firstRead.evidence));
+  const second = buildArt(projection(secondRead.evidence));
+  assert.deepEqual(first.knowledgeProjection, second.knowledgeProjection);
+  assert.equal(first.contentHash, second.contentHash);
+  assert.equal(isScopeKnowledgeSnapshotHashValid(first), true);
+  assert.equal(isScopeKnowledgeSnapshotHashValid(second), true);
+});
+
 test("version dispatch rejects a known project with another project's projection", () => {
   const art = adaptScopeKnowledgeSnapshot(buildArt());
   assert.throws(
@@ -208,6 +284,46 @@ test("unknown projection fields and completeness fields fail closed", () => {
   assert.throws(
     () => decodeProjectReadSnapshot(adaptScopeKnowledgeSnapshot(withUnknownCompleteness)),
     /futureEvidence is not supported/,
+  );
+});
+
+test("relation completeness requires a valid sourceEntityId", () => {
+  const snapshot = buildArt();
+  const projection = snapshot.knowledgeProjection as Record<string, unknown>;
+  const baseRelation = {
+    ownerKind: "artist",
+    propertyName: "Related",
+    relationKind: "artist-related",
+    itemCount: 1,
+    paginationComplete: true,
+  };
+  const missingSourceEntityId = createScopeKnowledgeSnapshot({
+    ...snapshot,
+    contentHash: undefined,
+    knowledgeProjection: {
+      ...projection,
+      completeness: { ...projection.completeness as object, relationProperties: [baseRelation] },
+    },
+  } as unknown as Omit<ScopeKnowledgeSnapshot, "contentHash">);
+  assert.throws(
+    () => decodeProjectReadSnapshot(adaptScopeKnowledgeSnapshot(missingSourceEntityId)),
+    /sourceEntityId must be a non-empty string/,
+  );
+
+  const invalidSourceEntityId = createScopeKnowledgeSnapshot({
+    ...snapshot,
+    contentHash: undefined,
+    knowledgeProjection: {
+      ...projection,
+      completeness: {
+        ...projection.completeness as object,
+        relationProperties: [{ ...baseRelation, sourceEntityId: 42 }],
+      },
+    },
+  } as unknown as Omit<ScopeKnowledgeSnapshot, "contentHash">);
+  assert.throws(
+    () => decodeProjectReadSnapshot(adaptScopeKnowledgeSnapshot(invalidSourceEntityId)),
+    /sourceEntityId must be a non-empty string/,
   );
 });
 

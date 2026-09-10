@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   StrictNotionSnapshotSourceError,
+  collectStrictRelationObservations,
   materializeStrictRelations,
   queryAllNotionDataSource,
   queryAllNotionRelationProperty,
@@ -76,9 +77,9 @@ test("strict data-source reader rejects duplicate page IDs", async () => {
   });
 });
 
-function relationPage(): StrictNotionPage {
+function relationPage(id = "owner"): StrictNotionPage {
   return {
-    ...page("owner"),
+    ...page(id),
     properties: { Related: { id: "property-id", type: "relation", relation: [] } },
   };
 }
@@ -138,6 +139,40 @@ test("plain relation property IDs remain valid and malformed percent encoding fa
   }
   assert.equal(requestedUrls.length, 1);
   assert.ok(requestedUrls[0].includes("/properties/property-id"));
+});
+
+test("relation completeness evidence identifies each source page and sorts deterministically", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    const ids = url.includes("/pages/page-a/") ? ["target-a"] : ["target-b-1", "target-b-2"];
+    return response({
+      object: "list",
+      type: "property_item",
+      property_item: { type: "relation" },
+      results: ids.map((id) => ({ object: "property_item", type: "relation", relation: { id } })),
+      has_more: false,
+      next_cursor: null,
+    });
+  };
+  try {
+    const result = await collectStrictRelationObservations(
+      [
+        { page: relationPage("page-b"), kind: "artist" },
+        { page: relationPage("page-a"), kind: "artist" },
+      ],
+      [{ ownerKind: "artist", propertyName: "Related", relationKind: "artist-related", relationLabel: "Related" }],
+      "token",
+      "fixture",
+    );
+    assert.deepEqual(result.evidence.map((item) => ({ sourceEntityId: item.sourceEntityId, itemCount: item.itemCount })), [
+      { sourceEntityId: "page-a", itemCount: 1 },
+      { sourceEntityId: "page-b", itemCount: 2 },
+    ]);
+    assert.deepEqual(result.observations.map((item) => item.sourceEntityId).sort(), ["page-a", "page-b", "page-b"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("strict relation property reader paginates and deduplicates target IDs", async () => {

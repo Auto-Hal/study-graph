@@ -14,6 +14,7 @@ export type DataSourceCompleteness = Readonly<{
 }>;
 
 export type RelationPropertyCompleteness = Readonly<{
+  sourceEntityId: string;
   ownerKind: string;
   propertyName: string;
   relationKind: string;
@@ -330,11 +331,12 @@ function decodeCompleteness(value: unknown): ProjectProjectionCompleteness {
   const relationProperties = record.relationProperties.map((item, index) => {
     const path = `projection.completeness.relationProperties[${index}]`;
     const relation = object(item, path);
-    exactKeys(relation, ["ownerKind", "propertyName", "relationKind", "itemCount", "paginationComplete"], path);
+    exactKeys(relation, ["sourceEntityId", "ownerKind", "propertyName", "relationKind", "itemCount", "paginationComplete"], path);
     const itemCount = relation.itemCount;
     if (typeof itemCount !== "number" || !Number.isSafeInteger(itemCount) || itemCount < 0) fail(`${path}.itemCount`, "must be a non-negative integer");
     if (relation.paginationComplete !== true) fail(`${path}.paginationComplete`, "must be true for a published projection");
     return {
+      sourceEntityId: requiredString(relation.sourceEntityId, `${path}.sourceEntityId`),
       ownerKind: requiredString(relation.ownerKind, `${path}.ownerKind`),
       propertyName: requiredString(relation.propertyName, `${path}.propertyName`),
       relationKind: requiredString(relation.relationKind, `${path}.relationKind`),
@@ -342,6 +344,12 @@ function decodeCompleteness(value: unknown): ProjectProjectionCompleteness {
       paginationComplete: true as const,
     };
   });
+  const relationKeys = new Set<string>();
+  for (const [index, relation] of relationProperties.entries()) {
+    const key = [relation.ownerKind, relation.sourceEntityId, relation.propertyName, relation.relationKind].join("\u0000");
+    if (relationKeys.has(key)) fail(`projection.completeness.relationProperties[${index}]`, "duplicates another relation property evidence record");
+    relationKeys.add(key);
+  }
   const unresolvedTargets = stringArray(record.unresolvedTargets, "projection.completeness.unresolvedTargets");
   return { dataSources, relationProperties, unresolvedTargets };
 }

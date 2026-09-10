@@ -263,8 +263,8 @@ export async function readPhilosophySnapshotSource(): Promise<PhilosophySnapshot
         })).sort((left, right) => compare(left.sourceIdentifier, right.sourceIdentifier)),
         relationProperties: relationRead.evidence
           .sort((left, right) => compare(
-            `${left.ownerKind}:${left.propertyName}:${left.relationKind}`,
-            `${right.ownerKind}:${right.propertyName}:${right.relationKind}`,
+            `${left.ownerKind}\u0000${left.sourceEntityId}\u0000${left.propertyName}\u0000${left.relationKind}`,
+            `${right.ownerKind}\u0000${right.sourceEntityId}\u0000${right.propertyName}\u0000${right.relationKind}`,
           )),
         unresolvedTargets: [],
       },

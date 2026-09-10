@@ -69,18 +69,26 @@ function sortStrings(items: readonly string[]) {
   return [...items].sort(compareStrings);
 }
 
+function relationCompletenessKey(value: Pick<ProjectProjectionCompleteness["relationProperties"][number], "ownerKind" | "sourceEntityId" | "propertyName" | "relationKind">) {
+  return [value.ownerKind, value.sourceEntityId, value.propertyName, value.relationKind].join("\u0000");
+}
+
 function sortRelations(items: readonly ProjectKnowledgeRelation[]) {
   return [...items].sort((left, right) => compareStrings(left.id, right.id));
 }
 
 function sortCompleteness(value: ProjectProjectionCompleteness): ProjectProjectionCompleteness {
+  const relationProperties = [...value.relationProperties];
+  const relationKeys = new Set<string>();
+  for (const relation of relationProperties) {
+    const key = relationCompletenessKey(relation);
+    if (relationKeys.has(key)) throw new Error("relation completeness evidence is duplicated");
+    relationKeys.add(key);
+  }
+  relationProperties.sort((left, right) => compareStrings(relationCompletenessKey(left), relationCompletenessKey(right)));
   return {
     dataSources: [...value.dataSources].sort((left, right) => compareStrings(left.sourceIdentifier, right.sourceIdentifier)),
-    relationProperties: [...value.relationProperties].sort((left, right) =>
-      compareStrings(
-        `${left.ownerKind}:${left.propertyName}:${left.relationKind}`,
-        `${right.ownerKind}:${right.propertyName}:${right.relationKind}`,
-      )),
+    relationProperties,
     unresolvedTargets: sortStrings(value.unresolvedTargets),
   };
 }
