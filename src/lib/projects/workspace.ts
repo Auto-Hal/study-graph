@@ -1,4 +1,4 @@
-import { getStudyProject, type StudyProjectDefinition } from "@/src/lib/projects/registry";
+import { getStudyProject, type StudyProjectDefinition } from "./registry.ts";
 
 export type WorkspaceProjectId = "western-art-history" | "philosophy";
 export type WorkspaceSectionGroup = "learning" | "knowledge";

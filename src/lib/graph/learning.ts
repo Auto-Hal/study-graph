@@ -5,7 +5,7 @@ import { getReviewStates, isReviewPersistenceConfigured } from "@/src/lib/supaba
 
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-function emptyOverlay(): GraphLearningOverlay {
+export function unavailableGraphLearningOverlay(): GraphLearningOverlay {
   return {
     mode: "unavailable",
     byNodeId: {},
@@ -20,7 +20,7 @@ function emptyOverlay(): GraphLearningOverlay {
 }
 
 export async function getGraphLearningOverlay(nodes: GraphNode[], edges: GraphEdge[]): Promise<GraphLearningOverlay> {
-  if (!isReviewPersistenceConfigured()) return emptyOverlay();
+  if (!isReviewPersistenceConfigured()) return unavailableGraphLearningOverlay();
 
   try {
     const states = await getReviewStates();
@@ -71,6 +71,6 @@ export async function getGraphLearningOverlay(nodes: GraphNode[], edges: GraphEd
     };
   } catch (error) {
     console.error("Study Graph: learning overlay fetch failed", error);
-    return emptyOverlay();
+    return unavailableGraphLearningOverlay();
   }
 }

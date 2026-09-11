@@ -1,4 +1,4 @@
-import type { GraphNodeKindDefinition } from "@/src/lib/graph/types";
+import type { GraphNodeKindDefinition } from "../graph/types.ts";
 
 export type StudyProjectStatus = "active" | "planned";
 
