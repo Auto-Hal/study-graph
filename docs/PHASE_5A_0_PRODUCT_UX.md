@@ -144,3 +144,17 @@ offline, and cache semantics. This cutover changes no Scope/SRS authority,
 grading, receipts, attempts, request hashes, service-worker behavior, or
 Notion write policy. Snapshot refresh and broader read-path performance work
 remain deferred to Phase 5A-0-4.
+
+## Kuzushiji learner snapshot read cutover (5A-0-4a-5)
+
+Kuzushiji normal learner display now uses the verified `kuzushiji-v2`
+ProjectReadSnapshot for its workspace, lists, details, contextual Graph, and
+knowledge labels in Progress. Historical `kuzushiji-v1` observations remain
+readable by the global decoder and existing browser cache so older devices can
+continue to display their last verified copy; the normal shared learner runtime
+requires v2 and never repairs an invalid observation from live Notion.
+
+Review keeps its separate live Notion path and fresh Character-based Scope
+calculation. Snapshot scope decisions remain observational and do not authorize
+Objective/SRS work. This cutover adds no migration, snapshot publication,
+IndexedDB or service-worker change, or learner-facing authority change.

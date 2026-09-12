@@ -55,10 +55,10 @@ test("normal Art and Philosophy routes use one decoded snapshot observation", ()
   assert.doesNotMatch(graphPage, /getWesternArtHistoryGraph|getPhilosophyGraph/);
 });
 
-test("Graph registry keeps Kuzushiji compatibility while removing live Art/Philosophy dispatch", () => {
-  assert.match(graphRegistry, /getKuzushijiGraph/);
+test("Graph registry uses the shared snapshot runtime for all active projects", () => {
+  assert.doesNotMatch(graphRegistry, /getKuzushijiGraph/);
   assert.match(graphRegistry, /loadSnapshotProjectGraph/);
-  assert.match(graphRegistry, /project\.id === "western-art-history" \|\| project\.id === "philosophy"/);
+  assert.match(graphRegistry, /graphProjectIds = new Set\(\["kuzushiji", "western-art-history", "philosophy"\]\)/);
   assert.doesNotMatch(graphRegistry, /getWesternArtHistoryGraph|getPhilosophyGraph/);
 });
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
-import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
+import { isKuzushijiV2ProjectReadState, loadProjectReadState } from "@/src/lib/projects/read-runtime";
+import type { KuzushijiV2Projection } from "@/src/lib/projects/project-projections";
 import {
   getKuzushijiPilotObjectiveState,
   getPilotRuntimeConfig,
@@ -43,10 +44,10 @@ function isKuzushijiAttempt(attempt: ReviewAttempt): attempt is KuzushijiReviewA
 function itemMeta(
   id: string,
   kind: KuzushijiReviewKind,
-  data: Awaited<ReturnType<typeof getKuzushijiDashboard>>,
+  projection: KuzushijiV2Projection | null,
 ) {
   if (kind === "character") {
-    const character = data.characters.find((item) => item.id === id);
+    const character = projection?.characters.find((item) => item.id === id);
     return {
       label: character?.glyph || "未登録の文字",
       detail: character ? [character.reading, character.mother ? `字母 ${character.mother}` : ""].filter(Boolean).join("・") : "学習項目",
@@ -54,7 +55,7 @@ function itemMeta(
     };
   }
 
-  const mistake = data.mistakes.find((item) => item.id === id);
+  const mistake = projection?.mistakes.find((item) => item.id === id);
   return {
     label: mistake?.title || "誤読記録",
     detail: mistake?.cause || "原因未設定",
@@ -87,11 +88,12 @@ async function objectiveReviewData(): Promise<{ state: PilotObjectiveReviewState
 }
 
 export default async function KuzushijiProgressPage() {
-  const [data, review, objective] = await Promise.all([
-    getKuzushijiDashboard(),
+  const [readState, review, objective] = await Promise.all([
+    loadProjectReadState("kuzushiji"),
     reviewData(),
     objectiveReviewData(),
   ]);
+  const projection = isKuzushijiV2ProjectReadState(readState) ? readState.data.projection : null;
   const counts: Record<ReviewGrade, number> = { again: 0, hard: 0, good: 0, easy: 0 };
   for (const attempt of review.history) counts[attempt.grade] += 1;
 
@@ -127,9 +129,15 @@ export default async function KuzushijiProgressPage() {
         </p>
       )}
 
-      {!review.connected && (
+  {!review.connected && (
         <p className="phase5-deep-notice" role="status">
           過去の復習記録を取得できませんでした。時間をおいてもう一度確認してください。
+      </p>
+      )}
+
+      {!projection && (
+        <p className="phase5-deep-notice" role="status">
+          学習項目の詳細を現在表示できません。復習の記録と予定は引き続き確認できます。
         </p>
       )}
 
@@ -154,7 +162,7 @@ export default async function KuzushijiProgressPage() {
         {review.history.length > 0 ? (
           <div className="phase5-progress-list">
             {review.history.slice(0, 20).map((attempt) => {
-              const meta = itemMeta(attempt.item_id, attempt.item_kind, data);
+              const meta = itemMeta(attempt.item_id, attempt.item_kind, projection);
               return (
                 <Link className="phase5-progress-row" href={meta.href} key={attempt.id}>
                   <span className="phase5-progress-time">{formatDateTime(attempt.reviewed_at)}</span>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
 import { getGraphLearningOverlay, unavailableGraphLearningOverlay } from "@/src/lib/graph/learning";
-import { getGraphProject, listGraphProjects, loadProjectGraph } from "@/src/lib/graph/registry";
+import { getGraphProject, listGraphProjects } from "@/src/lib/graph/registry";
 import { isRenderableProjectReadState, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
 import GraphExplorer from "./GraphExplorer";
 
@@ -16,14 +16,11 @@ export default async function KnowledgeGraphPage({
   const query = await searchParams;
   const project = getGraphProject(query.project);
   const graphProjects = listGraphProjects();
-  const snapshotState = project.id === "kuzushiji" ? null : await loadProjectReadState(project.id);
-  const graph = project.id === "kuzushiji"
-    ? await loadProjectGraph(project.id)
-    : snapshotState && isRenderableProjectReadState(snapshotState)
-      ? projectReadStateToGraph(snapshotState)
-      : null;
-  const graphIsAvailable = Boolean(graph && (project.id !== "kuzushiji" || graph.mode === "notion"));
-  const displayGraph = graphIsAvailable ? graph : null;
+  const snapshotState = await loadProjectReadState(project.id);
+  const displayGraph = isRenderableProjectReadState(snapshotState)
+    ? projectReadStateToGraph(snapshotState)
+    : null;
+  const graphIsAvailable = Boolean(displayGraph);
   const graphIsStale = snapshotState?.kind === "stale";
   const learning = displayGraph ? await getGraphLearningOverlay(displayGraph.nodes, displayGraph.edges) : null;
   const graphNodes = displayGraph?.nodes ?? [];

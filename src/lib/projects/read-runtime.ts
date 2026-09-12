@@ -5,14 +5,20 @@ import { projectReadSnapshotToGraph } from "./project-graph.ts";
 import { getCurrentScopeKnowledgeSnapshotModel, SnapshotRpcError } from "../supabase/snapshots.ts";
 import {
   decodeStoredProjectReadState,
+  isKuzushijiV2ProjectReadState,
   isRenderableProjectReadState,
   isSnapshotBackedProjectId,
   type SnapshotBackedProjectId,
   type SnapshotBackedProjectReadState,
 } from "./read-runtime-core.ts";
 
-export { isRenderableProjectReadState } from "./read-runtime-core.ts";
-export type { SnapshotBackedProjectId, SnapshotBackedProjectReadState } from "./read-runtime-core.ts";
+export { isKuzushijiV2ProjectReadState, isRenderableProjectReadState } from "./read-runtime-core.ts";
+export type {
+  KuzushijiV2ProjectReadSnapshot,
+  KuzushijiV2ProjectReadState,
+  SnapshotBackedProjectId,
+  SnapshotBackedProjectReadState,
+} from "./read-runtime-core.ts";
 
 function errorCode(error: unknown) {
   if (error instanceof SnapshotRpcError && error.code) return error.code;
@@ -21,8 +27,10 @@ function errorCode(error: unknown) {
 }
 
 /**
- * Server-only current snapshot read boundary for the two projects that have
- * published v1 projections.  No Notion fallback is attempted here.
+ * Server-only current snapshot read boundary for projects with a published
+ * learner projection. No Notion fallback is attempted here. Kuzushiji accepts
+ * only v2 on this normal learner path; its historical v1 remains available to
+ * the global decoder and browser Home cache compatibility layer.
  */
 export async function loadProjectReadState(projectId: string): Promise<SnapshotBackedProjectReadState> {
   if (!isSnapshotBackedProjectId(projectId)) return { kind: "unavailable", errorCode: "unsupported-project" };

@@ -161,13 +161,15 @@ test("Graph uses the Phase 5 learner shell while preserving graph state links", 
   }
 });
 
-test("untrusted Kuzushiji readers render controlled states instead of synthetic data", () => {
-  assert.match(kuzushijiSection, /const sourceIsTrusted =/);
-  assert.match(kuzushijiSection, /!sourceIsTrusted \?/);
+test("Kuzushiji learner routes use the verified v2 snapshot runtime", () => {
+  assert.match(kuzushijiSection, /loadProjectReadState\("kuzushiji"\)/);
+  assert.match(kuzushijiSection, /isKuzushijiV2ProjectReadState/);
   assert.match(kuzushijiSection, /phase5-deep-unavailable/);
-  assert.match(kuzushijiDetail, /const sourceIsTrusted =/);
-  assert.match(kuzushijiDetail, /if \(!sourceIsTrusted\)/);
+  assert.match(kuzushijiDetail, /loadProjectReadState\("kuzushiji"\)/);
+  assert.match(kuzushijiDetail, /isKuzushijiV2ProjectReadState/);
   assert.match(kuzushijiDetail, /phase5-deep-unavailable/);
+  assert.doesNotMatch(kuzushijiSection, /getKuzushijiDashboard|getKuzushijiReferenceData/);
+  assert.doesNotMatch(kuzushijiDetail, /getKuzushijiDashboard|getKuzushijiReferenceData/);
 });
 
 test("Kuzushiji section routes use compact editorial rows", () => {
@@ -179,14 +181,14 @@ test("Kuzushiji section routes use compact editorial rows", () => {
   assert.match(kuzushijiSection, /\/projects\/kuzushiji\/mistakes\//);
   assert.doesNotMatch(kuzushijiSection, /learn-shell|learn-header|sync-pill/);
   assert.doesNotMatch(kuzushijiSection, /LECTURES|CHARACTERS|MISTAKES|SOURCES|EXPRESSIONS/);
-  assert.doesNotMatch(kuzushijiSection, /\bitems\b/);
+  assert.match(kuzushijiSection, /projection\.(lectures|characters|mistakes|sources|expressions)/);
 });
 
 test("Kuzushiji detail and progress routes keep learner language and deep links", () => {
   assert.match(kuzushijiDetail, /AppHeader/);
   assert.match(kuzushijiDetail, /phase5-info-list/);
   assert.match(kuzushijiDetail, /PrimaryNav active="learn"/);
-  assert.match(kuzushijiDetail, /\/graph\?node=/);
+  assert.match(kuzushijiDetail, /\/graph\?project=kuzushiji&node=/);
   assert.match(kuzushijiDetail, /\/projects\/kuzushiji\/progress/);
   assert.doesNotMatch(kuzushijiDetail, /learn-shell|learn-header|sync-pill/);
   assert.doesNotMatch(kuzushijiDetail, /Notion誤読回数|Notion最終復習日/);

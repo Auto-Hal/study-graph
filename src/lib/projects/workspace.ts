@@ -1,6 +1,6 @@
 import { getStudyProject, type StudyProjectDefinition } from "./registry.ts";
 
-export type WorkspaceProjectId = "western-art-history" | "philosophy";
+export type WorkspaceProjectId = "kuzushiji" | "western-art-history" | "philosophy";
 export type WorkspaceSectionGroup = "learning" | "knowledge";
 
 export type WorkspaceSectionDefinition = {
@@ -22,6 +22,13 @@ export type WorkspaceProjectDefinition = {
 };
 
 const workspaceSections: Record<WorkspaceProjectId, readonly WorkspaceSectionDefinition[]> = {
+  kuzushiji: [
+    { slug: "lectures", kind: "lecture", label: "講義", group: "learning" },
+    { slug: "characters", kind: "character", label: "文字", group: "knowledge" },
+    { slug: "mistakes", kind: "mistake", label: "誤読記録", group: "knowledge" },
+    { slug: "sources", kind: "source", label: "資料", group: "knowledge" },
+    { slug: "expressions", kind: "expression", label: "頻出表現", group: "knowledge" },
+  ],
   "western-art-history": [
     { slug: "lectures", kind: "lecture", label: "講義", group: "learning" },
     { slug: "artists", kind: "artist", label: "作家", group: "knowledge" },
@@ -45,17 +52,19 @@ const workspaceSections: Record<WorkspaceProjectId, readonly WorkspaceSectionDef
 };
 
 const workspaceContexts: Record<WorkspaceProjectId, string> = {
+  kuzushiji: "講義と文字を読む",
   "western-art-history": "作品と時代の関係を学ぶ",
   philosophy: "思想・人物・著作のつながりを学ぶ",
 };
 
 const workspaceGraphContexts: Record<WorkspaceProjectId, string> = {
+  kuzushiji: "講義・文字・資料の関係を見る",
   "western-art-history": "作品・人物・時代の関係を見る",
   philosophy: "思想・人物・著作の関係を見る",
 };
 
 function isWorkspaceProjectId(value: string | undefined | null): value is WorkspaceProjectId {
-  return value === "western-art-history" || value === "philosophy";
+  return value === "kuzushiji" || value === "western-art-history" || value === "philosophy";
 }
 
 export function getWorkspaceProject(projectId: string | undefined | null): WorkspaceProjectDefinition | null {

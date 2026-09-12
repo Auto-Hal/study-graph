@@ -9,7 +9,15 @@ import {
   assertValidScopeKnowledgeSnapshot,
   type ScopeKnowledgeSnapshot,
 } from "../offline/snapshot-content.ts";
-import { KUZUSHIJI_KNOWLEDGE_PROJECTION_VERSION } from "./model.ts";
+import {
+  decodeKuzushijiV2Projection,
+} from "../../projects/project-projections.ts";
+
+// Keep this browser-facing adapter free of the server hash implementation.
+// The current endpoint and IndexedDB cache verify the historical hash before
+// this strict projection decoder is called.
+const KUZUSHIJI_V1_PROJECTION_VERSION = "kuzushiji-v1";
+const KUZUSHIJI_V2_PROJECTION_VERSION = "kuzushiji-v2";
 
 export type KuzushijiSnapshotDashboard = Omit<KuzushijiDashboard, "mode" | "sourceState"> & {
   mode: "snapshot";
@@ -131,11 +139,29 @@ function readReviewItem(value: unknown, index: number): ReviewItem {
 /** Convert the immutable projection to the screen view model without Notion fallback. */
 export function dashboardFromScopeKnowledgeSnapshot(snapshot: ScopeKnowledgeSnapshot): KuzushijiSnapshotDashboard {
   assertValidScopeKnowledgeSnapshot(snapshot);
-  if (
-    snapshot.projectId !== "kuzushiji" ||
-    snapshot.knowledgeProjectionVersion !== KUZUSHIJI_KNOWLEDGE_PROJECTION_VERSION ||
-    !record(snapshot.knowledgeProjection)
-  ) {
+  if (snapshot.projectId !== "kuzushiji" || !record(snapshot.knowledgeProjection)) {
+    throw new Error("Kuzushiji snapshot projection is invalid");
+  }
+  if (snapshot.knowledgeProjectionVersion === KUZUSHIJI_V2_PROJECTION_VERSION) {
+    // v2 is a strict, hash-covered projection. The browser hash check happens
+    // at the fetch/cache boundary; this parser validates the exact projection
+    // shape without pulling the server-only hash implementation into a client
+    // bundle. Sources, expressions, and relations remain in the snapshot.
+    const projection = decodeKuzushijiV2Projection(snapshot.knowledgeProjection);
+    return {
+      mode: "snapshot",
+      sourceState: "ready",
+      snapshotId: snapshot.snapshotId,
+      generation: snapshot.generation,
+      publishedAt: snapshot.publishedAt,
+      validUntil: snapshot.validUntil,
+      lectures: [...projection.lectures],
+      characters: [...projection.characters],
+      mistakes: [...projection.mistakes],
+      reviewQueue: [...projection.reviewQueue],
+    };
+  }
+  if (snapshot.knowledgeProjectionVersion !== KUZUSHIJI_V1_PROJECTION_VERSION || !record(snapshot.knowledgeProjection)) {
     throw new Error("Kuzushiji snapshot projection is invalid");
   }
   const projection = snapshot.knowledgeProjection;
