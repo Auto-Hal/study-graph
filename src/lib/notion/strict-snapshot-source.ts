@@ -338,6 +338,7 @@ export async function queryAllNotionRelationProperty(
   propertyName: string,
   token: string,
   label: string,
+  options: { preserveDuplicateTargets?: boolean } = {},
 ): Promise<string[]> {
   const { id: relationPropertyId } = propertyId(page, propertyName, label);
   const ids: string[] = [];
@@ -366,6 +367,10 @@ export async function queryAllNotionRelationProperty(
     }
     const pageResult = parseRelationPropertyResponse(raw, label);
     for (const id of pageResult.ids) {
+      if (options.preserveDuplicateTargets) {
+        ids.push(id);
+        continue;
+      }
       if (!seenIds.has(id)) {
         seenIds.add(id);
         ids.push(id);
@@ -401,6 +406,7 @@ export async function collectStrictRelationObservations(
   declarations: readonly StrictNotionRelationDeclaration[],
   token: string,
   label: string,
+  options: { preserveDuplicateTargets?: boolean } = {},
 ): Promise<{ observations: StrictRelationObservation[]; evidence: StrictRelationPropertyEvidence[] }> {
   const observations: StrictRelationObservation[] = [];
   const evidence: StrictRelationPropertyEvidence[] = [];
@@ -408,7 +414,13 @@ export async function collectStrictRelationObservations(
   for (const { page, kind } of pages) {
     for (const declaration of declarations) {
       if (declaration.ownerKind !== kind) continue;
-      const targets = await queryAllNotionRelationProperty(page, declaration.propertyName, token, `${label} ${kind}.${declaration.propertyName}`);
+      const targets = await queryAllNotionRelationProperty(
+        page,
+        declaration.propertyName,
+        token,
+        `${label} ${kind}.${declaration.propertyName}`,
+        options,
+      );
       const evidenceItem: StrictRelationPropertyEvidence = {
         sourceEntityId: page.id,
         ownerKind: declaration.ownerKind,
@@ -475,6 +487,47 @@ export function materializeStrictRelations(
     });
   }
   return relations.sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+}
+
+/**
+ * Materialize directional relations for projections whose identity includes
+ * the source endpoint.  The historical Art/Philosophy helper intentionally
+ * keeps its undirected pair behavior; Kuzushiji v2 uses the existing
+ * directional Graph contract instead.
+ */
+export function materializeStrictDirectionalRelations(
+  observations: readonly StrictRelationObservation[],
+  nodeIds: ReadonlySet<string>,
+  label: string,
+) {
+  const relations: Array<{ id: string; sourceEntityId: string; targetEntityId: string; kind: string; label: string }> = [];
+  const relationKeys = new Set<string>();
+  const orderedObservations = [...observations].sort((left, right) => {
+    const leftKey = `${left.sourceEntityId}\u0000${left.targetEntityId}\u0000${left.relationKind}\u0000${left.relationLabel}\u0000${left.ownerKind}\u0000${left.propertyName}`;
+    const rightKey = `${right.sourceEntityId}\u0000${right.targetEntityId}\u0000${right.relationKind}\u0000${right.relationLabel}\u0000${right.ownerKind}\u0000${right.propertyName}`;
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  });
+  for (const observation of orderedObservations) {
+    if (!nodeIds.has(observation.sourceEntityId)) {
+      throw new StrictNotionSnapshotSourceError("relation-target-unresolved", `${label} relation source is outside the projection`);
+    }
+    if (!nodeIds.has(observation.targetEntityId)) {
+      throw new StrictNotionSnapshotSourceError("relation-target-unresolved", `${label} relation target ${observation.targetEntityId} is unresolved`);
+    }
+    const id = `${observation.sourceEntityId}:${observation.targetEntityId}:${observation.relationKind}`;
+    if (relationKeys.has(id)) {
+      throw new StrictNotionSnapshotSourceError("malformed-response", `${label} relation ${id} is duplicated`);
+    }
+    relationKeys.add(id);
+    relations.push({
+      id,
+      sourceEntityId: observation.sourceEntityId,
+      targetEntityId: observation.targetEntityId,
+      kind: observation.relationKind,
+      label: observation.relationLabel,
+    });
+  }
+  return relations;
 }
 
 export function readNotionText(page: StrictNotionPage, propertyName: string, label: string): string {
@@ -548,6 +601,15 @@ export function readNotionCheckbox(page: StrictNotionPage, propertyName: string,
     throw new StrictNotionSnapshotSourceError("malformed-response", `${label} checkbox property ${propertyName} is malformed`);
   }
   return property.checkbox;
+}
+
+export function readNotionUrl(page: StrictNotionPage, propertyName: string, label: string): string {
+  const property = page.properties[propertyName];
+  if (!property) throw new StrictNotionSnapshotSourceError("malformed-response", `${label} url property ${propertyName} is missing`);
+  if (property.type !== "url" || (property.url !== null && typeof property.url !== "string")) {
+    throw new StrictNotionSnapshotSourceError("malformed-response", `${label} url property ${propertyName} is malformed`);
+  }
+  return property.url ?? "";
 }
 
 /**

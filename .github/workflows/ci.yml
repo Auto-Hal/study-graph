@@ -67,6 +67,9 @@ jobs:
       - name: Phase 5A-0-4a-3 snapshot read cutover tests
         run: npm run test:phase5a-0-4a-3
 
+      - name: Phase 5A-0-4a-4 Kuzushiji v2 projection tests
+        run: npm run test:phase5a-0-4a-4
+
       - name: TypeScript noEmit
         run: npx tsc --noEmit
 
