@@ -31,7 +31,7 @@ test("workspace configuration has explicit domain sections", () => {
   for (const slug of ["lectures", "philosophers", "works", "terms", "problems", "periods", "culture", "thought-notes"]) {
     assert.match(workspace, new RegExp(`slug: "${slug}"`));
   }
-  assert.match(workspace, /WorkspaceProjectId = "western-art-history" \| "philosophy"/);
+  assert.match(workspace, /WorkspaceProjectId = "kuzushiji" \| "western-art-history" \| "philosophy"/);
   assert.match(workspace, /graphHref: `\/graph\?project=/);
 });
 

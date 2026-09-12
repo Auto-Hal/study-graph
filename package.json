@@ -29,7 +29,8 @@
     "test:phase5a-0-4a-1": "node --experimental-strip-types --test src/lib/projects/read-contract.test.ts && node --test scripts/phase5a-0-4a-1-shared-read-contract.test.mjs",
     "test:phase5a-0-4a-2": "node --experimental-strip-types --test src/lib/projects/read-contract.test.ts src/lib/notion/strict-snapshot-source.test.ts src/lib/review/snapshot-sync/project-model.test.ts && node --test scripts/phase5a-0-4a-2-project-snapshot-publishers.test.mjs",
     "test:phase5a-0-4a-3": "node --experimental-strip-types --test src/lib/projects/read-runtime-core.test.ts && node --test scripts/phase5a-0-4a-3-snapshot-read-cutover.test.mjs scripts/phase5a-0-4a-3-review-compatibility.test.mjs",
-    "test:phase5a-0-4a-4": "node --experimental-strip-types --test src/lib/projects/read-contract.test.ts src/lib/notion/kuzushiji-snapshot-source.test.ts src/lib/notion/strict-snapshot-source.test.ts src/lib/notion/kuzushiji-v2-snapshot-source.test.ts src/lib/review/snapshot-sync/model.test.ts src/lib/review/snapshot-sync/kuzushiji-v2.test.ts && node --test scripts/phase5a-0-4a-4-kuzushiji-v2-projection.test.mjs"
+    "test:phase5a-0-4a-4": "node --experimental-strip-types --test src/lib/projects/read-contract.test.ts src/lib/notion/kuzushiji-snapshot-source.test.ts src/lib/notion/strict-snapshot-source.test.ts src/lib/notion/kuzushiji-v2-snapshot-source.test.ts src/lib/review/snapshot-sync/model.test.ts src/lib/review/snapshot-sync/kuzushiji-v2.test.ts && node --test scripts/phase5a-0-4a-4-kuzushiji-v2-projection.test.mjs",
+    "test:phase5a-0-4a-5": "node --experimental-strip-types --test src/lib/projects/kuzushiji-snapshot-cutover.test.ts src/lib/projects/read-runtime-core.test.ts src/lib/review/snapshot-sync/dashboard.test.ts && node --test scripts/phase5a-0-4a-5-kuzushiji-snapshot-cutover.test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",

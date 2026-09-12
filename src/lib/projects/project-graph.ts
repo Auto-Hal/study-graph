@@ -1,5 +1,6 @@
 import type { GraphData, GraphEdge, GraphNode } from "../graph/types.ts";
 import type {
+  KuzushijiV2Projection,
   PhilosophyCulture,
   PhilosophyLecture,
   PhilosophyPeriod,
@@ -31,7 +32,7 @@ function joinMeta(values: readonly (string | null | undefined)[]) {
 
 function node(
   projectId: string,
-  entity: { id: string; url: string; label: string; reviewText: string | null },
+  entity: { id: string; url: string; label: string; reviewText?: string | null },
   kind: string,
   meta: string,
 ): GraphNode {
@@ -225,7 +226,67 @@ export function philosophyProjectionToGraph(projection: PhilosophyV1Projection):
   };
 }
 
+function kuzushijiEntityMeta(entity:
+  | KuzushijiV2Projection["lectures"][number]
+  | KuzushijiV2Projection["characters"][number]
+  | KuzushijiV2Projection["mistakes"][number]
+  | KuzushijiV2Projection["sources"][number]
+  | KuzushijiV2Projection["expressions"][number]) {
+  if ("sequence" in entity) return joinMeta([
+    entity.sequence === null ? null : `第${entity.sequence}回`,
+    entity.theme,
+    entity.status,
+  ]);
+  if ("glyph" in entity) return joinMeta([
+    entity.reading,
+    entity.mother ? `字母 ${entity.mother}` : null,
+    entity.category,
+    entity.mastery,
+    entity.importance ? `重要度 ${entity.importance}` : null,
+  ]);
+  if ("correctAnswer" in entity) return joinMeta([
+    entity.cause,
+    entity.errorDate,
+    entity.resolved ? "克服済み" : entity.retry ? "再出題" : "記録中",
+  ]);
+  if ("usage" in entity) return joinMeta([
+    entity.usage,
+    entity.materialType,
+    entity.difficulty,
+    entity.period,
+    entity.era,
+    entity.institution,
+  ]);
+  return joinMeta([
+    entity.reading,
+    entity.category,
+    entity.meaning,
+    entity.mastery,
+    entity.importance ? `重要度 ${entity.importance}` : null,
+  ]);
+}
+
+/** Convert the strict Kuzushiji v2 observation without consulting live Notion. */
+export function kuzushijiV2ProjectionToGraph(projection: KuzushijiV2Projection): GraphData {
+  const nodes: GraphNode[] = [
+    ...projection.lectures.map((entry) => node("kuzushiji", { ...entry, label: entry.title || "講義" }, "lecture", kuzushijiEntityMeta(entry))),
+    ...projection.characters.map((entry) => node("kuzushiji", { ...entry, label: entry.glyph || entry.reading || "文字" }, "character", kuzushijiEntityMeta(entry))),
+    ...projection.mistakes.map((entry) => node("kuzushiji", { ...entry, label: entry.title || entry.correctAnswer || "誤読記録" }, "mistake", kuzushijiEntityMeta(entry))),
+    ...projection.sources.map((entry) => node("kuzushiji", { ...entry, label: entry.title || "資料" }, "source", kuzushijiEntityMeta(entry))),
+    ...projection.expressions.map((entry) => node("kuzushiji", { ...entry, label: entry.expression || entry.reading || "表現" }, "expression", kuzushijiEntityMeta(entry))),
+  ];
+  return {
+    projectId: "kuzushiji",
+    mode: "snapshot",
+    nodes,
+    edges: edgesFromProjection(projection.relations, nodes),
+  };
+}
+
 export function projectReadSnapshotToGraph(snapshot: SupportedProjectReadSnapshot): GraphData {
+  if (snapshot.projectId === "kuzushiji" && snapshot.projectionVersion === "kuzushiji-v2") {
+    return kuzushijiV2ProjectionToGraph(snapshot.projection);
+  }
   if (snapshot.projectId === "western-art-history" && snapshot.projectionVersion === "western-art-history-v1") {
     return westernArtHistoryProjectionToGraph(snapshot.projection);
   }
