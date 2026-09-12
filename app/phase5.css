@@ -158,6 +158,10 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-freshness { margin: 10px 0 0; color: var(--p5-warning); font-size: 12px; }
 .phase5-sync-line { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; color: var(--p5-muted); font-size: 12px; }
 .phase5-sync-line button { min-height: 36px; padding: 6px 10px; border: 0; border-radius: 8px; background: var(--p5-surface-soft); color: var(--p5-accent); font-size: 12px; font-weight: 700; }
+.phase5-refresh-control { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.phase5-refresh-control button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--p5-line); border-radius: 10px; background: var(--p5-surface); color: var(--p5-accent); font: inherit; cursor: pointer; }
+.phase5-refresh-control button:disabled { cursor: wait; opacity: .65; }
+.phase5-refresh-status { color: var(--p5-muted); font-size: 13px; }
 
 .phase5-review-options { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(240px, .7fr); gap: 36px; align-items: start; }
 .phase5-review-focus { padding: 24px 0; border-top: 2px solid var(--p5-text); border-bottom: 1px solid var(--p5-line); }

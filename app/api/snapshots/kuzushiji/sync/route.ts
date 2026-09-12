@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pilotWriteSameOriginFailure } from "@/src/lib/review/pilot-auth";
-import { syncKuzushijiScopeKnowledgeSnapshot } from "@/src/lib/review/snapshot-sync/kuzushiji";
+import { runProjectSnapshotRefresh } from "@/src/lib/projects/foreground-refresh";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,15 +16,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await syncKuzushijiScopeKnowledgeSnapshot();
+    // Historical /api/snapshots/kuzushiji/sync remains a compatibility alias;
+    // the shared dispatcher ultimately invokes syncKuzushijiScopeKnowledgeSnapshot().
+    const result = await runProjectSnapshotRefresh("kuzushiji", "manual");
+    const status = result.kind === "unavailable"
+      ? 503
+      : result.kind === "busy" || result.kind === "blocked" ? 409 : 200;
     return NextResponse.json(
-      {
-        snapshotId: result.snapshotId,
-        projectId: "kuzushiji",
-        generation: result.generation,
-        contentHash: result.contentHash,
-      },
-      { status: 200, headers: { "Cache-Control": "no-store" } },
+      { status: result.kind, projectId: "kuzushiji" },
+      { status, headers: { "Cache-Control": "no-store" } },
     );
   } catch {
     // Do not expose Notion, Supabase, or credential details to the browser.

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import ProjectSnapshotRefreshCoordinator, { ProjectSnapshotRefreshControl } from "@/src/components/ProjectSnapshotRefresh";
 import { loadProjectReadState } from "@/src/lib/projects/read-runtime";
 import { getWorkspaceProject } from "@/src/lib/projects/workspace";
 
@@ -22,6 +23,7 @@ export default async function ProjectWorkspacePage({
 
   return (
     <main className="phase5-shell phase5-deep-shell phase5-workspace-shell">
+      <ProjectSnapshotRefreshCoordinator projectId={workspace.id} />
       <AppHeader context={`${workspace.shortLabel} · 学ぶ`} backHref="/projects" backLabel="学ぶ" />
 
       <div className="phase5-context-nav" aria-label="現在地">
@@ -87,6 +89,17 @@ export default async function ProjectWorkspacePage({
             <span>つながりを見る</span>
             <span aria-hidden="true">→</span>
           </Link>
+        </div>
+      </details>
+
+      <details className="phase5-workspace-section phase5-workspace-secondary">
+        <summary className="phase5-workspace-secondary-summary">
+          <span><strong>表示を更新</strong><small>最新の学習内容を確認する</small></span>
+          <span className="phase5-workspace-secondary-toggle" aria-hidden="true">＋</span>
+        </summary>
+        <div className="phase5-workspace-secondary-content">
+          <p>現在の内容を保ったまま、更新を確認できます。</p>
+          <ProjectSnapshotRefreshControl projectId={workspace.id} />
         </div>
       </details>
 

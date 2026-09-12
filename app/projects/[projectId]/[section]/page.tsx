@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import ProjectSnapshotRefreshCoordinator from "@/src/components/ProjectSnapshotRefresh";
 import { isRenderableProjectReadState, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
 import { getWorkspaceProject, getWorkspaceSection, learnerGraphMeta } from "@/src/lib/projects/workspace";
 
@@ -24,6 +25,7 @@ export default async function ProjectWorkspaceSectionPage({
 
   return (
     <main className="phase5-shell phase5-deep-shell phase5-workspace-shell">
+      <ProjectSnapshotRefreshCoordinator projectId={workspace.id} />
       <AppHeader context={`${workspace.shortLabel} · ${section.label}`} backHref={`/projects/${workspace.id}`} backLabel={workspace.shortLabel} />
 
       <div className="phase5-context-nav" aria-label="現在地">

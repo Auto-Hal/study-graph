@@ -1,9 +1,10 @@
 import Link from "next/link";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import ProjectSnapshotRefreshCoordinator from "@/src/components/ProjectSnapshotRefresh";
 import { getGraphLearningOverlay, unavailableGraphLearningOverlay } from "@/src/lib/graph/learning";
 import { getGraphProject, listGraphProjects } from "@/src/lib/graph/registry";
-import { isRenderableProjectReadState, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
+import { isRenderableProjectReadState, isSnapshotBackedProjectId, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
 import GraphExplorer from "./GraphExplorer";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function KnowledgeGraphPage({
 
   return (
     <main className="phase5-shell phase5-graph-shell">
+      {isSnapshotBackedProjectId(project.id) && <ProjectSnapshotRefreshCoordinator projectId={project.id} />}
       <AppHeader context={`${project.shortLabel} · 学ぶ`} backHref="/projects" backLabel="学ぶ" />
 
       <section className="phase5-page-heading phase5-deep-heading">

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "./AppHeader";
 import PrimaryNav from "./PrimaryNav";
 import ObjectiveStateMirrorSync from "./ObjectiveStateMirrorSync";
+import ProjectSnapshotRefreshCoordinator from "./ProjectSnapshotRefresh";
 import { getStudyProject } from "@/src/lib/projects/registry";
 import { cacheScopeKnowledgeSnapshot, getCachedCurrentScopeKnowledgeSnapshot } from "@/src/lib/review/offline/snapshot-cache";
 import { isScopeKnowledgeSnapshotHashValidBrowser } from "@/src/lib/review/offline/snapshot-browser";
@@ -109,10 +110,15 @@ export default function KuzushijiSnapshotDashboard() {
       setState((current) => current.kind === "ready" ? current : { kind: "unavailable", message: "学習状況を現在取得できません。" });
     };
     try {
-      const response = await fetch("/api/snapshots/kuzushiji/sync", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" });
+      // The historical /api/snapshots/kuzushiji/sync endpoint remains a
+      // compatibility alias; learner controls use the shared refresh policy.
+      const response = await fetch("/api/projects/kuzushiji/snapshot/refresh", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ intent: "manual" }), cache: "no-store" });
       if (response.status === 401) { keepWorkspace("同期できませんでした。"); return; }
       if (response.status === 403) { keepWorkspace("この操作は同じサイトから実行してください。"); return; }
-      if (!response.ok) { keepWorkspace("同期できませんでした。"); return; }
+      const payload = await response.json().catch(() => null) as { status?: unknown } | null;
+      if (payload?.status === "busy") { keepWorkspace("別の更新処理が進行中です。"); return; }
+      if (payload?.status === "cooldown" || payload?.status === "fresh") { setSyncError("最新の内容です。"); return; }
+      if (!response.ok || payload?.status !== "refreshed") { keepWorkspace("同期できませんでした。"); return; }
       await loadCurrent();
     } catch {
       keepWorkspace("同期できませんでした。");
@@ -122,12 +128,12 @@ export default function KuzushijiSnapshotDashboard() {
   }, [loadCurrent]);
 
   if (state.kind === "ready") {
-    return <DashboardView dashboard={state.dashboard} cached={state.cached} snapshotState="ready" syncing={syncing} syncError={syncError} onSync={manualSync} />;
+    return <DashboardView dashboard={state.dashboard} cached={state.cached} snapshotState="ready" syncing={syncing} syncError={syncError} onSync={manualSync} onRefreshComplete={loadCurrent} />;
   }
-  return <DashboardView dashboard={null} snapshotState={state.kind} syncing={syncing} syncError={syncError} onSync={manualSync} />;
+  return <DashboardView dashboard={null} snapshotState={state.kind} syncing={syncing} syncError={syncError} onSync={manualSync} onRefreshComplete={loadCurrent} />;
 }
 
-function DashboardView({ dashboard, cached, snapshotState, syncing, syncError, onSync }: { dashboard: SnapshotDashboard | null; cached?: boolean; snapshotState: SnapshotState; syncing: boolean; syncError: string | null; onSync: () => Promise<void> }) {
+function DashboardView({ dashboard, cached, snapshotState, syncing, syncError, onSync, onRefreshComplete }: { dashboard: SnapshotDashboard | null; cached?: boolean; snapshotState: SnapshotState; syncing: boolean; syncError: string | null; onSync: () => Promise<void>; onRefreshComplete: () => Promise<void> }) {
   const completedLectures = dashboard?.lectures.filter((lecture) => lecture.status === "完了").length ?? 0;
   const weakCharacters = dashboard?.characters.filter((character) => character.mastery !== "即読").length ?? 0;
   const openMistakes = dashboard?.mistakes.filter((mistake) => !mistake.resolved).length ?? 0;
@@ -137,6 +143,7 @@ function DashboardView({ dashboard, cached, snapshotState, syncing, syncError, o
 
   return (
     <main className="phase5-shell phase5-deep-shell phase5-workspace-shell">
+      <ProjectSnapshotRefreshCoordinator projectId="kuzushiji" onRefreshed={onRefreshComplete} />
       <ObjectiveStateMirrorSync />
       <AppHeader context="くずし字 · 学ぶ" backHref="/projects" backLabel="学ぶ" />
       <div className="phase5-context-nav" aria-label="現在地"><Link href="/projects">学ぶ</Link><span aria-hidden="true">›</span><span>くずし字</span></div>
