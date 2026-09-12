@@ -249,11 +249,36 @@ test("source and relation response ordering does not change v2 projection or con
   assert.equal(reversed.contentHash, first.contentHash);
 });
 
-test("changing hash-covered completeness changes content hash", () => {
+test("v2 decoder requires relation completeness itemCount to match decoded directional relations", () => {
+  for (const itemCount of [0, 2]) {
+    const candidate = projection({
+      completeness: completeness({
+        relationProperties: relationProperties.map((item, index) => index === 0 ? { ...item, itemCount } : item),
+      }),
+    });
+    assert.throws(
+      () => decodeKuzushijiV2Projection(candidate),
+      /does not match the decoded directional relations/,
+    );
+  }
+});
+
+test("v2 decoder accepts an empty relation property when evidence is zero", () => {
+  const candidate = projection({
+    relations: relations.slice(1),
+    completeness: completeness({
+      relationProperties: relationProperties.map((item, index) => index === 0 ? { ...item, itemCount: 0 } : item),
+    }),
+  });
+  assert.doesNotThrow(() => decodeKuzushijiV2Projection(candidate));
+});
+
+test("changing valid hash-covered relation completeness changes content hash", () => {
   const first = build();
   const second = build(projection({
+    relations: relations.slice(1),
     completeness: completeness({
-      relationProperties: relationProperties.map((item, index) => index === 0 ? { ...item, itemCount: 2 } : item),
+      relationProperties: relationProperties.map((item, index) => index === 0 ? { ...item, itemCount: 0 } : item),
     }),
   }));
   assert.notEqual(second.contentHash, first.contentHash);

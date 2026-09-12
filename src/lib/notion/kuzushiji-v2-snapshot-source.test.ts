@@ -5,12 +5,17 @@ import {
   KUZUSHIJI_V2_RELATION_DECLARATIONS,
   readKuzushijiV2SnapshotSource,
 } from "./kuzushiji-v2-snapshot-source.ts";
+import { StrictNotionSnapshotSourceError } from "./strict-snapshot-source.ts";
 
 const originalFetch = globalThis.fetch;
 const originalToken = process.env.NOTION_TOKEN;
 
 function text(value: string, type: "title" | "rich_text" = "rich_text") {
   return { type, [type]: [{ plain_text: value }] };
+}
+
+function emptyText(type: "title" | "rich_text") {
+  return { type, [type]: [] };
 }
 
 function select(value: string) {
@@ -69,7 +74,7 @@ function page(kind: string, id: string) {
   if (kind === "character") return {
     ...common,
     properties: {
-      "文字": text(id === "character-a" ? "あ" : "い"),
+      "文字": text(id === "character-a" ? "あ" : "い", "title"),
       "読み": text(id === "character-a" ? "あ" : "い"),
       "字母": text(id === "character-a" ? "安" : "以"),
       "分類": select("変体仮名"),
@@ -82,7 +87,7 @@ function page(kind: string, id: string) {
   if (kind === "mistake") return {
     ...common,
     properties: {
-      "誤読項目": text("誤読"),
+      "誤読項目": text("誤読", "title"),
       "自分の回答": text("い"),
       "正解": text("あ"),
       "原因": select("字形"),
@@ -122,13 +127,30 @@ function page(kind: string, id: string) {
   };
 }
 
-const sourcePages = {
+const sourcePages: Record<string, unknown[]> = {
   [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.lectures]: [page("lecture", "lecture-1")],
   [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.characters]: [page("character", "character-a"), page("character", "character-b")],
   [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.mistakes]: [page("mistake", "mistake-1")],
   [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.sources]: [page("source", "source-1")],
   [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.expressions]: [page("expression", "expression-1")],
-} as const;
+};
+
+function overridePageProperties(
+  dataSourceId: string,
+  pageId: string,
+  overrides: Record<string, unknown>,
+): Record<string, unknown[]> {
+  return Object.fromEntries(Object.entries(sourcePages).map(([sourceId, pages]) => [
+    sourceId,
+    pages.map((item) => {
+      if (sourceId !== dataSourceId || !item || typeof item !== "object" || Array.isArray(item)) return item;
+      const record = item as Record<string, unknown>;
+      if (record.id !== pageId || !record.properties || typeof record.properties !== "object" || Array.isArray(record.properties)) return item;
+      const properties = record.properties as Record<string, unknown>;
+      return { ...record, properties: { ...properties, ...overrides } };
+    }),
+  ]));
+}
 
 function response(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
@@ -142,7 +164,12 @@ type FailureMode =
   | "relation-cursor-cycle"
   | "duplicate-relation-target";
 
-function installFetch(reverse: boolean, requestedUrls: string[], failureMode?: FailureMode) {
+function installFetch(
+  reverse: boolean,
+  requestedUrls: string[],
+  failureMode?: FailureMode,
+  pages: Record<string, unknown[]> = sourcePages,
+) {
   globalThis.fetch = (async (input, init) => {
     const url = String(input);
     requestedUrls.push(url);
@@ -150,7 +177,7 @@ function installFetch(reverse: boolean, requestedUrls: string[], failureMode?: F
       const dataSourceId = url.split("/data_sources/")[1]!.split("/")[0]!;
       const requestBody = typeof init?.body === "string" ? JSON.parse(init.body) as { start_cursor?: string } : {};
       const sourceCursor = requestBody.start_cursor ?? null;
-      const results = [...(sourcePages[dataSourceId as keyof typeof sourcePages] ?? [])];
+      const results = [...(pages[dataSourceId] ?? [])];
       if (reverse) results.reverse();
       if (dataSourceId === KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.lectures && failureMode === "missing-data-cursor") {
         return response({ results, has_more: true, next_cursor: null });
@@ -289,5 +316,94 @@ test("v2 relation properties require complete pagination and reject duplicate ta
     } finally {
       restore();
     }
+  }
+});
+
+function isMalformedResponse(error: unknown) {
+  return error instanceof StrictNotionSnapshotSourceError && error.code === "malformed-response";
+}
+
+test("v2 source requires the exact title and rich_text schema types", async () => {
+  const drifts = [
+    [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.lectures, "lecture-1", "講義名"],
+    [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.characters, "character-a", "文字"],
+    [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.mistakes, "mistake-1", "誤読項目"],
+    [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.sources, "source-1", "資料名"],
+    [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.expressions, "expression-1", "表現"],
+  ] as const;
+  for (const [dataSourceId, pageId, propertyName] of drifts) {
+    process.env.NOTION_TOKEN = "fixture-token";
+    const requestedUrls: string[] = [];
+    const pages = overridePageProperties(dataSourceId, pageId, { [propertyName]: text("schema drift") });
+    installFetch(false, requestedUrls, undefined, pages);
+    try {
+      await assert.rejects(readKuzushijiV2SnapshotSource(), isMalformedResponse);
+    } finally {
+      restore();
+    }
+  }
+
+  process.env.NOTION_TOKEN = "fixture-token";
+  const requestedUrls: string[] = [];
+  const pages = overridePageProperties(
+    KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.lectures,
+    "lecture-1",
+    { "学習テーマ": text("schema drift", "title") },
+  );
+  installFetch(false, requestedUrls, undefined, pages);
+  try {
+    await assert.rejects(readKuzushijiV2SnapshotSource(), isMalformedResponse);
+  } finally {
+    restore();
+  }
+});
+
+test("v2 source requires select rather than status for choice fields", async () => {
+  const cases = [
+    [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.lectures, "lecture-1", "状態"],
+    [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.characters, "character-a", "習得状態"],
+  ] as const;
+  for (const [dataSourceId, pageId, propertyName] of cases) {
+    process.env.NOTION_TOKEN = "fixture-token";
+    const requestedUrls: string[] = [];
+    const pages = overridePageProperties(dataSourceId, pageId, {
+      [propertyName]: { type: "status", status: { name: "公開" } },
+    });
+    installFetch(false, requestedUrls, undefined, pages);
+    try {
+      await assert.rejects(readKuzushijiV2SnapshotSource(), isMalformedResponse);
+    } finally {
+      restore();
+    }
+  }
+});
+
+test("v2 source preserves valid empty title, rich_text, select, and url values", async () => {
+  process.env.NOTION_TOKEN = "fixture-token";
+  const requestedUrls: string[] = [];
+  const pages = overridePageProperties(
+    KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.lectures,
+    "lecture-1",
+    {
+      "講義名": emptyText("title"),
+      "学習テーマ": emptyText("rich_text"),
+      "状態": select(""),
+    },
+  );
+  const withEmptyUrl = overridePageProperties(
+    KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.sources,
+    "source-1",
+    { "参照URL": { type: "url", url: null } },
+  );
+  const combinedPages: Record<string, unknown[]> = { ...pages, [KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.sources]: withEmptyUrl[KUZUSHIJI_V2_SNAPSHOT_DATA_SOURCE_IDS.sources]! };
+  installFetch(false, requestedUrls, undefined, combinedPages);
+  try {
+    const source = await readKuzushijiV2SnapshotSource();
+    assert.equal(source.projection.lectures[0]?.title, "");
+    assert.equal(source.projection.lectures[0]?.theme, "");
+    assert.equal(source.projection.lectures[0]?.status, "");
+    assert.equal(source.projection.sources[0]?.referenceUrl, "");
+  } finally {
+    restore();
   }
 });

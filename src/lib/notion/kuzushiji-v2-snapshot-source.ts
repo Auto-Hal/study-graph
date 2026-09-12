@@ -61,33 +61,56 @@ function requiredProperty(page: StrictNotionPage, propertyName: string, label: s
   }
 }
 
-function text(page: StrictNotionPage, propertyName: string, label: string) {
+/**
+ * Kuzushiji v2 is a versioned Notion schema.  The shared readers intentionally
+ * accept a few historical Notion representations (for example title and
+ * rich_text), but that would let a schema drift pass through this immutable
+ * projection.  Assert the exact type here before delegating to the shared
+ * scalar parser so empty, valid values retain their existing semantics.
+ */
+function assertPropertyType(page: StrictNotionPage, propertyName: string, expectedType: string, label: string) {
   requiredProperty(page, propertyName, label);
+  const property = page.properties[propertyName];
+  if (property.type !== expectedType) {
+    throw new StrictNotionSnapshotSourceError(
+      "malformed-response",
+      `${label} property ${propertyName} must have type ${expectedType} on ${page.id}`,
+    );
+  }
+}
+
+function title(page: StrictNotionPage, propertyName: string, label: string) {
+  assertPropertyType(page, propertyName, "title", label);
+  return readNotionText(page, propertyName, label);
+}
+
+function richText(page: StrictNotionPage, propertyName: string, label: string) {
+  assertPropertyType(page, propertyName, "rich_text", label);
   return readNotionText(page, propertyName, label);
 }
 
 function number(page: StrictNotionPage, propertyName: string, label: string) {
-  requiredProperty(page, propertyName, label);
+  assertPropertyType(page, propertyName, "number", label);
   return readNotionNumber(page, propertyName, label);
 }
 
 function select(page: StrictNotionPage, propertyName: string, label: string) {
-  requiredProperty(page, propertyName, label);
+  assertPropertyType(page, propertyName, "select", label);
   return readNotionSelect(page, propertyName, label);
 }
 
 function date(page: StrictNotionPage, propertyName: string, label: string) {
-  requiredProperty(page, propertyName, label);
+  assertPropertyType(page, propertyName, "date", label);
   return readNotionDate(page, propertyName, label);
 }
 
 function checkbox(page: StrictNotionPage, propertyName: string, label: string) {
-  requiredProperty(page, propertyName, label);
+  assertPropertyType(page, propertyName, "checkbox", label);
   return readNotionCheckbox(page, propertyName, label);
 }
 
 function url(page: StrictNotionPage, propertyName: string, label: string) {
-  requiredProperty(page, propertyName, label);
+  assertPropertyType(page, propertyName, "url", label);
   return readNotionUrl(page, propertyName, label);
 }
 
@@ -107,9 +130,9 @@ function mapLecture(page: StrictNotionPage): Lecture {
   return {
     id: page.id,
     url: page.url,
-    title: text(page, "講義名", `${LABEL} lecture`),
+    title: title(page, "講義名", `${LABEL} lecture`),
     sequence: number(page, "回次", `${LABEL} lecture`) ?? 0,
-    theme: text(page, "学習テーマ", `${LABEL} lecture`),
+    theme: richText(page, "学習テーマ", `${LABEL} lecture`),
     status: select(page, "状態", `${LABEL} lecture`),
     completedAt: date(page, "実施日", `${LABEL} lecture`),
     reviewAccuracy: number(page, "復習正答率", `${LABEL} lecture`),
@@ -121,9 +144,9 @@ function mapCharacter(page: StrictNotionPage): Character {
   return {
     id: page.id,
     url: page.url,
-    glyph: text(page, "文字", `${LABEL} character`),
-    reading: text(page, "読み", `${LABEL} character`),
-    mother: text(page, "字母", `${LABEL} character`),
+    glyph: title(page, "文字", `${LABEL} character`),
+    reading: richText(page, "読み", `${LABEL} character`),
+    mother: richText(page, "字母", `${LABEL} character`),
     category: select(page, "分類", `${LABEL} character`),
     mastery: select(page, "習得状態", `${LABEL} character`),
     importance: select(page, "重要度", `${LABEL} character`),
@@ -136,9 +159,9 @@ function mapMistake(page: StrictNotionPage): Mistake {
   return {
     id: page.id,
     url: page.url,
-    title: text(page, "誤読項目", `${LABEL} mistake`),
-    answer: text(page, "自分の回答", `${LABEL} mistake`),
-    correctAnswer: text(page, "正解", `${LABEL} mistake`),
+    title: title(page, "誤読項目", `${LABEL} mistake`),
+    answer: richText(page, "自分の回答", `${LABEL} mistake`),
+    correctAnswer: richText(page, "正解", `${LABEL} mistake`),
     cause: select(page, "原因", `${LABEL} mistake`),
     retry: checkbox(page, "再出題", `${LABEL} mistake`),
     resolved: checkbox(page, "克服済み", `${LABEL} mistake`),
@@ -150,16 +173,16 @@ function mapSource(page: StrictNotionPage): KuzushijiSource {
   return {
     id: page.id,
     url: page.url,
-    title: text(page, "資料名", `${LABEL} source`),
+    title: title(page, "資料名", `${LABEL} source`),
     usage: select(page, "用途", `${LABEL} source`),
     materialType: select(page, "資料種別", `${LABEL} source`),
     difficulty: select(page, "難易度", `${LABEL} source`),
-    period: text(page, "時代", `${LABEL} source`),
-    era: text(page, "年代", `${LABEL} source`),
-    institution: text(page, "所蔵機関", `${LABEL} source`),
+    period: richText(page, "時代", `${LABEL} source`),
+    era: richText(page, "年代", `${LABEL} source`),
+    institution: richText(page, "所蔵機関", `${LABEL} source`),
     referenceUrl: url(page, "参照URL", `${LABEL} source`),
     readingAccuracy: number(page, "読解率", `${LABEL} source`),
-    weakPoint: text(page, "苦手ポイント", `${LABEL} source`),
+    weakPoint: richText(page, "苦手ポイント", `${LABEL} source`),
   };
 }
 
@@ -167,12 +190,12 @@ function mapExpression(page: StrictNotionPage): KuzushijiExpression {
   return {
     id: page.id,
     url: page.url,
-    expression: text(page, "表現", `${LABEL} expression`),
-    reading: text(page, "読み", `${LABEL} expression`),
+    expression: title(page, "表現", `${LABEL} expression`),
+    reading: richText(page, "読み", `${LABEL} expression`),
     category: select(page, "分類", `${LABEL} expression`),
-    meaning: text(page, "意味", `${LABEL} expression`),
-    example: text(page, "用例", `${LABEL} expression`),
-    notes: text(page, "注意点", `${LABEL} expression`),
+    meaning: richText(page, "意味", `${LABEL} expression`),
+    example: richText(page, "用例", `${LABEL} expression`),
+    notes: richText(page, "注意点", `${LABEL} expression`),
     mastery: select(page, "習得状態", `${LABEL} expression`),
     importance: select(page, "重要度", `${LABEL} expression`),
   };

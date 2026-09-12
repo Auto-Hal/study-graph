@@ -589,6 +589,21 @@ export function decodeKuzushijiV2Projection(value: unknown): KuzushijiV2Projecti
     }
   }
   const completeness = decodeKuzushijiV2Completeness(record.completeness, entityKinds);
+  const relationCounts = new Map<string, number>();
+  for (const relation of relations) {
+    const key = `${relation.sourceEntityId}\u0000${relation.kind}`;
+    relationCounts.set(key, (relationCounts.get(key) ?? 0) + 1);
+  }
+  for (const [index, evidence] of completeness.relationProperties.entries()) {
+    const key = `${evidence.sourceEntityId}\u0000${evidence.relationKind}`;
+    const actualCount = relationCounts.get(key) ?? 0;
+    if (actualCount !== evidence.itemCount) {
+      fail(
+        `projection.completeness.relationProperties[${index}].itemCount`,
+        "does not match the decoded directional relations",
+      );
+    }
+  }
   const expectedCounts = new Map<string, number>([
     [KUZUSHIJI_V2_SOURCE_IDENTIFIERS[0], lectures.length],
     [KUZUSHIJI_V2_SOURCE_IDENTIFIERS[1], characters.length],
