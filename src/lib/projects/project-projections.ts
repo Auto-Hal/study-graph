@@ -1,3 +1,6 @@
+import type { Character, Lecture, Mistake, ReviewItem } from "../notion/kuzushiji.ts";
+import type { KuzushijiExpression, KuzushijiSource } from "../notion/kuzushiji-reference.ts";
+
 /** A normalized relation observation shared by the project projections. */
 export type ProjectKnowledgeRelation = Readonly<{
   id: string;
@@ -31,6 +34,31 @@ export type ProjectProjectionCompleteness = Readonly<{
   dataSources: readonly DataSourceCompleteness[];
   relationProperties: readonly RelationPropertyCompleteness[];
   unresolvedTargets: readonly string[];
+}>;
+
+/** The five source observations covered by the Kuzushiji v2 projection. */
+export const KUZUSHIJI_V2_SOURCE_IDENTIFIERS = Object.freeze([
+  "notion:data-source:1da45577-aa7d-44e1-a304-9e33e5feb9e2",
+  "notion:data-source:4a9814ba-7c44-47ec-8c46-e5d558a62085",
+  "notion:data-source:12c37554-c7fa-424f-9590-f2f756bf284a",
+  "notion:data-source:a8a2de24-00d8-44cc-9721-a7382b17ee98",
+  "notion:data-source:e8b4669f-41a6-4c59-9876-4e44976a7e33",
+] as const);
+
+/**
+ * Kuzushiji v2 is the first projection that carries the complete learner
+ * knowledge observation.  Its relation and completeness evidence are part of
+ * this object and therefore participate in the historical content hash.
+ */
+export type KuzushijiV2Projection = Readonly<{
+  lectures: readonly Lecture[];
+  characters: readonly Character[];
+  mistakes: readonly Mistake[];
+  sources: readonly KuzushijiSource[];
+  expressions: readonly KuzushijiExpression[];
+  reviewQueue: readonly ReviewItem[];
+  relations: readonly ProjectKnowledgeRelation[];
+  completeness: ProjectProjectionCompleteness;
 }>;
 
 export type WesternArtHistoryLecture = Readonly<{
@@ -360,6 +388,236 @@ function validateRelations(relations: readonly ProjectKnowledgeRelation[]) {
     if (ids.has(relation.id)) fail("projection.relations", `contains duplicate id ${relation.id}`);
     ids.add(relation.id);
   }
+}
+
+function finiteNumber(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) fail(path, "must be a finite number");
+  return value;
+}
+
+function decodeKuzushijiLecture(value: unknown, index: number): Lecture {
+  const path = `projection.lectures[${index}]`;
+  const record = object(value, path);
+  exactKeys(record, ["id", "url", "title", "sequence", "theme", "status", "completedAt", "reviewAccuracy", "newCharactersCount"], path);
+  return {
+    id: requiredString(record.id, `${path}.id`),
+    url: requiredString(record.url, `${path}.url`),
+    // Empty scalar values are valid Notion observations and are retained for
+    // the later learner-facing fallback layer.
+    title: string(record.title, `${path}.title`),
+    sequence: finiteNumber(record.sequence, `${path}.sequence`),
+    theme: string(record.theme, `${path}.theme`),
+    status: string(record.status, `${path}.status`),
+    completedAt: nullableString(record.completedAt, `${path}.completedAt`),
+    reviewAccuracy: nullableNumber(record.reviewAccuracy, `${path}.reviewAccuracy`),
+    newCharactersCount: nullableNumber(record.newCharactersCount, `${path}.newCharactersCount`),
+  };
+}
+
+function decodeKuzushijiCharacter(value: unknown, index: number): Character {
+  const path = `projection.characters[${index}]`;
+  const record = object(value, path);
+  exactKeys(record, ["id", "url", "glyph", "reading", "mother", "category", "mastery", "importance", "errorCount", "lastReviewedAt"], path);
+  return {
+    id: requiredString(record.id, `${path}.id`),
+    url: requiredString(record.url, `${path}.url`),
+    glyph: string(record.glyph, `${path}.glyph`),
+    reading: string(record.reading, `${path}.reading`),
+    mother: string(record.mother, `${path}.mother`),
+    category: string(record.category, `${path}.category`),
+    mastery: string(record.mastery, `${path}.mastery`),
+    importance: string(record.importance, `${path}.importance`),
+    errorCount: finiteNumber(record.errorCount, `${path}.errorCount`),
+    lastReviewedAt: nullableString(record.lastReviewedAt, `${path}.lastReviewedAt`),
+  };
+}
+
+function decodeKuzushijiMistake(value: unknown, index: number): Mistake {
+  const path = `projection.mistakes[${index}]`;
+  const record = object(value, path);
+  exactKeys(record, ["id", "url", "title", "answer", "correctAnswer", "cause", "retry", "resolved", "errorDate"], path);
+  return {
+    id: requiredString(record.id, `${path}.id`),
+    url: requiredString(record.url, `${path}.url`),
+    title: string(record.title, `${path}.title`),
+    answer: string(record.answer, `${path}.answer`),
+    correctAnswer: string(record.correctAnswer, `${path}.correctAnswer`),
+    cause: string(record.cause, `${path}.cause`),
+    retry: boolean(record.retry, `${path}.retry`),
+    resolved: boolean(record.resolved, `${path}.resolved`),
+    errorDate: nullableString(record.errorDate, `${path}.errorDate`),
+  };
+}
+
+function decodeKuzushijiSource(value: unknown, index: number): KuzushijiSource {
+  const path = `projection.sources[${index}]`;
+  const record = object(value, path);
+  exactKeys(record, ["id", "url", "title", "usage", "materialType", "difficulty", "period", "era", "institution", "referenceUrl", "readingAccuracy", "weakPoint"], path);
+  return {
+    id: requiredString(record.id, `${path}.id`),
+    url: requiredString(record.url, `${path}.url`),
+    title: string(record.title, `${path}.title`),
+    usage: string(record.usage, `${path}.usage`),
+    materialType: string(record.materialType, `${path}.materialType`),
+    difficulty: string(record.difficulty, `${path}.difficulty`),
+    period: string(record.period, `${path}.period`),
+    era: string(record.era, `${path}.era`),
+    institution: string(record.institution, `${path}.institution`),
+    referenceUrl: string(record.referenceUrl, `${path}.referenceUrl`),
+    readingAccuracy: nullableNumber(record.readingAccuracy, `${path}.readingAccuracy`),
+    weakPoint: string(record.weakPoint, `${path}.weakPoint`),
+  };
+}
+
+function decodeKuzushijiExpression(value: unknown, index: number): KuzushijiExpression {
+  const path = `projection.expressions[${index}]`;
+  const record = object(value, path);
+  exactKeys(record, ["id", "url", "expression", "reading", "category", "meaning", "example", "notes", "mastery", "importance"], path);
+  return {
+    id: requiredString(record.id, `${path}.id`),
+    url: requiredString(record.url, `${path}.url`),
+    expression: string(record.expression, `${path}.expression`),
+    reading: string(record.reading, `${path}.reading`),
+    category: string(record.category, `${path}.category`),
+    meaning: string(record.meaning, `${path}.meaning`),
+    example: string(record.example, `${path}.example`),
+    notes: string(record.notes, `${path}.notes`),
+    mastery: string(record.mastery, `${path}.mastery`),
+    importance: string(record.importance, `${path}.importance`),
+  };
+}
+
+const KUZUSHIJI_V2_RELATION_CONTRACT = Object.freeze({
+  "lecture-character": { source: "lecture", target: "character", propertyName: "重要・弱点字", label: "重要・弱点字" },
+  "lecture-mistake": { source: "lecture", target: "mistake", propertyName: "誤読記録", label: "誤読記録" },
+  "lecture-source": { source: "lecture", target: "source", propertyName: "使用資料", label: "使用資料" },
+  "lecture-expression": { source: "lecture", target: "expression", propertyName: "頻出表現", label: "頻出表現" },
+  "mistake-character": { source: "mistake", target: "character", propertyName: "関連文字", label: "関連文字" },
+  "mistake-source": { source: "mistake", target: "source", propertyName: "関連資料", label: "関連資料" },
+} as const);
+
+function decodeKuzushijiV2Completeness(value: unknown, entityKinds: ReadonlyMap<string, string>): ProjectProjectionCompleteness {
+  const completeness = decodeCompleteness(value);
+  const sourceIds = completeness.dataSources.map((item) => item.sourceIdentifier);
+  if (
+    sourceIds.length !== KUZUSHIJI_V2_SOURCE_IDENTIFIERS.length
+    || new Set(sourceIds).size !== sourceIds.length
+    || sourceIds.some((id) => !(KUZUSHIJI_V2_SOURCE_IDENTIFIERS as readonly string[]).includes(id))
+  ) {
+    fail("projection.completeness.dataSources", "must contain exactly the five declared Kuzushiji v2 sources");
+  }
+  const relationKeys = new Set<string>();
+  const expectedRelationKeys = new Set<string>();
+  for (const [entityId, kind] of entityKinds) {
+    for (const [relationKind, contract] of Object.entries(KUZUSHIJI_V2_RELATION_CONTRACT)) {
+      if (contract.source === kind) {
+        expectedRelationKeys.add([kind, entityId, contract.propertyName, relationKind].join("\u0000"));
+      }
+    }
+  }
+  for (const [index, evidence] of completeness.relationProperties.entries()) {
+    const key = [evidence.ownerKind, evidence.sourceEntityId, evidence.propertyName, evidence.relationKind].join("\u0000");
+    if (relationKeys.has(key)) fail(`projection.completeness.relationProperties[${index}]`, "duplicates another relation property evidence record");
+    relationKeys.add(key);
+    if (entityKinds.get(evidence.sourceEntityId) !== evidence.ownerKind) {
+      fail(`projection.completeness.relationProperties[${index}].sourceEntityId`, "does not identify an owner of the declared kind");
+    }
+    const contract = KUZUSHIJI_V2_RELATION_CONTRACT[evidence.relationKind as keyof typeof KUZUSHIJI_V2_RELATION_CONTRACT];
+    if (!contract || contract.source !== evidence.ownerKind || contract.propertyName !== evidence.propertyName) {
+      fail(`projection.completeness.relationProperties[${index}]`, "does not match the Kuzushiji v2 relation contract");
+    }
+  }
+  for (const key of expectedRelationKeys) {
+    if (!relationKeys.has(key)) fail("projection.completeness.relationProperties", "is missing relation property evidence");
+  }
+  if (relationKeys.size !== expectedRelationKeys.size) fail("projection.completeness.relationProperties", "contains unexpected relation property evidence");
+  return completeness;
+}
+
+/** Strict, versioned Kuzushiji v2 projection decoder. */
+export function decodeKuzushijiV2Projection(value: unknown): KuzushijiV2Projection {
+  const record = projectionObject(value, ["lectures", "characters", "mistakes", "sources", "expressions", "reviewQueue", "relations", "completeness"]);
+  const lectures = arrayField(record, "lectures").map(decodeKuzushijiLecture);
+  const characters = arrayField(record, "characters").map(decodeKuzushijiCharacter);
+  const mistakes = arrayField(record, "mistakes").map(decodeKuzushijiMistake);
+  const sources = arrayField(record, "sources").map(decodeKuzushijiSource);
+  const expressions = arrayField(record, "expressions").map(decodeKuzushijiExpression);
+  const reviewQueue = arrayField(record, "reviewQueue").map((item, index) => {
+    const relation = object(item, `projection.reviewQueue[${index}]`);
+    exactKeys(relation, ["id", "kind", "label", "reason"], `projection.reviewQueue[${index}]`);
+    if (relation.kind !== "character" && relation.kind !== "mistake") fail(`projection.reviewQueue[${index}].kind`, "is invalid");
+    return {
+      id: requiredString(relation.id, `projection.reviewQueue[${index}].id`),
+      kind: relation.kind,
+      label: string(relation.label, `projection.reviewQueue[${index}].label`),
+      reason: string(relation.reason, `projection.reviewQueue[${index}].reason`),
+    } satisfies ReviewItem;
+  });
+  const relations = arrayField(record, "relations").map((item, index) => decodeRelation(item, index));
+  validateUniqueEntityIds(lectures, "projection.lectures");
+  validateUniqueEntityIds(characters, "projection.characters");
+  validateUniqueEntityIds(mistakes, "projection.mistakes");
+  validateUniqueEntityIds(sources, "projection.sources");
+  validateUniqueEntityIds(expressions, "projection.expressions");
+  const entityKinds = new Map<string, string>();
+  const addKinds = (items: readonly { id: string }[], kind: string) => {
+    for (const item of items) {
+      if (entityKinds.has(item.id)) fail("projection", `contains duplicate entity id ${item.id}`);
+      entityKinds.set(item.id, kind);
+    }
+  };
+  addKinds(lectures, "lecture");
+  addKinds(characters, "character");
+  addKinds(mistakes, "mistake");
+  addKinds(sources, "source");
+  addKinds(expressions, "expression");
+  const reviewIds = new Set<string>();
+  for (const [index, item] of reviewQueue.entries()) {
+    if (reviewIds.has(item.id)) fail(`projection.reviewQueue[${index}].id`, "must be unique");
+    reviewIds.add(item.id);
+    if (entityKinds.get(item.id) !== item.kind) {
+      fail(`projection.reviewQueue[${index}].id`, "must identify an entity of the declared review kind");
+    }
+  }
+  validateRelations(relations);
+  for (const [index, relation] of relations.entries()) {
+    const expectedId = `${relation.sourceEntityId}:${relation.targetEntityId}:${relation.kind}`;
+    if (relation.id !== expectedId) fail(`projection.relations[${index}].id`, "must be source:target:kind");
+    const contract = KUZUSHIJI_V2_RELATION_CONTRACT[relation.kind as keyof typeof KUZUSHIJI_V2_RELATION_CONTRACT];
+    if (!contract || contract.label !== relation.label || entityKinds.get(relation.sourceEntityId) !== contract.source || entityKinds.get(relation.targetEntityId) !== contract.target) {
+      fail(`projection.relations[${index}]`, "does not match the Kuzushiji v2 relation contract");
+    }
+  }
+  const completeness = decodeKuzushijiV2Completeness(record.completeness, entityKinds);
+  const relationCounts = new Map<string, number>();
+  for (const relation of relations) {
+    const key = `${relation.sourceEntityId}\u0000${relation.kind}`;
+    relationCounts.set(key, (relationCounts.get(key) ?? 0) + 1);
+  }
+  for (const [index, evidence] of completeness.relationProperties.entries()) {
+    const key = `${evidence.sourceEntityId}\u0000${evidence.relationKind}`;
+    const actualCount = relationCounts.get(key) ?? 0;
+    if (actualCount !== evidence.itemCount) {
+      fail(
+        `projection.completeness.relationProperties[${index}].itemCount`,
+        "does not match the decoded directional relations",
+      );
+    }
+  }
+  const expectedCounts = new Map<string, number>([
+    [KUZUSHIJI_V2_SOURCE_IDENTIFIERS[0], lectures.length],
+    [KUZUSHIJI_V2_SOURCE_IDENTIFIERS[1], characters.length],
+    [KUZUSHIJI_V2_SOURCE_IDENTIFIERS[2], mistakes.length],
+    [KUZUSHIJI_V2_SOURCE_IDENTIFIERS[3], sources.length],
+    [KUZUSHIJI_V2_SOURCE_IDENTIFIERS[4], expressions.length],
+  ]);
+  for (const [index, dataSource] of completeness.dataSources.entries()) {
+    if (dataSource.itemCount !== expectedCounts.get(dataSource.sourceIdentifier)) {
+      fail(`projection.completeness.dataSources[${index}].itemCount`, "does not match the decoded entity collection");
+    }
+  }
+  if (completeness.unresolvedTargets.length > 0) fail("projection.completeness.unresolvedTargets", "must be empty for a published projection");
+  return { lectures, characters, mistakes, sources, expressions, reviewQueue, relations, completeness };
 }
 
 function decodeArtLecture(value: unknown, index: number): WesternArtHistoryLecture {

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { readKuzushijiSnapshotSource } from "@/src/lib/notion/kuzushiji-snapshot-source";
+import { readKuzushijiV2SnapshotSource } from "@/src/lib/notion/kuzushiji-v2-snapshot-source";
 import {
   beginScopeSnapshotSync,
   failScopeSnapshotSync,
@@ -10,7 +10,7 @@ import {
   type PublishedScopeSnapshotResult,
 } from "@/src/lib/supabase/snapshots";
 import {
-  createKuzushijiScopeKnowledgeSnapshot,
+  createKuzushijiV2ScopeKnowledgeSnapshot,
   KUZUSHIJI_SNAPSHOT_PROJECT_ID,
 } from "./model";
 
@@ -50,9 +50,9 @@ export async function syncKuzushijiScopeKnowledgeSnapshot(): Promise<KuzushijiSn
   try {
     begin = await beginScopeSnapshotSync({ projectId: KUZUSHIJI_SNAPSHOT_PROJECT_ID, runId });
     const sourceReadStartedAt = nowIso();
-    const source = await readKuzushijiSnapshotSource();
+    const source = await readKuzushijiV2SnapshotSource();
     const sourceReadCompletedAt = nowIso();
-    const snapshot = createKuzushijiScopeKnowledgeSnapshot({
+    const snapshot = createKuzushijiV2ScopeKnowledgeSnapshot({
       source,
       snapshotId: randomUUID(),
       generation: begin.generation,

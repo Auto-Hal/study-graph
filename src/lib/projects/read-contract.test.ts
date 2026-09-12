@@ -235,8 +235,12 @@ test("unknown and mismatched project/version pairs fail closed", () => {
     /project-projection|cannot use/,
   );
   assert.throws(
-    () => decodeProjectReadSnapshot({ ...base, projectionVersion: "kuzushiji-v2" }),
+    () => decodeProjectReadSnapshot({ ...base, projectionVersion: "kuzushiji-v9" }),
     /unsupported projectionVersion/,
+  );
+  assert.throws(
+    () => decodeProjectReadSnapshot({ ...base, projectId: "western-art-history", projectionVersion: "kuzushiji-v2" }),
+    /project-projection|cannot use/,
   );
   assert.throws(
     () => decodeProjectReadSnapshot({ ...base, projectId: "philosophy", projectionVersion: "kuzushiji-v1" }),

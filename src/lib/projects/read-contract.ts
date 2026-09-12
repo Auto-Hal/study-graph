@@ -16,17 +16,22 @@ import type {
 import { assertValidScopeKnowledgeSnapshot } from "../review/offline/snapshot-content.ts";
 import { isScopeKnowledgeSnapshotHashValid } from "../review/offline/snapshot.ts";
 import {
+  decodeKuzushijiV2Projection,
   decodePhilosophyV1Projection,
   decodeWesternArtHistoryV1Projection,
+  KUZUSHIJI_V2_SOURCE_IDENTIFIERS,
+  type KuzushijiV2Projection,
   type PhilosophyV1Projection,
   type WesternArtHistoryV1Projection,
 } from "./project-projections.ts";
 
 export {
+  decodeKuzushijiV2Projection,
   decodePhilosophyV1Projection,
   decodeWesternArtHistoryV1Projection,
 } from "./project-projections.ts";
 export type {
+  KuzushijiV2Projection,
   PhilosophyV1Projection,
   WesternArtHistoryV1Projection,
   ProjectKnowledgeRelation,
@@ -43,6 +48,7 @@ export const PROJECT_READ_SCHEMA_VERSION = 1 as const;
 /** Explicitly supported project/projection pairs in this foundation slice. */
 export const KUZUSHIJI_PROJECT_ID = "kuzushiji" as const;
 export const KUZUSHIJI_V1_PROJECTION_VERSION = "kuzushiji-v1" as const;
+export const KUZUSHIJI_V2_PROJECTION_VERSION = "kuzushiji-v2" as const;
 export const WESTERN_ART_HISTORY_PROJECT_ID = "western-art-history" as const;
 export const WESTERN_ART_HISTORY_V1_PROJECTION_VERSION = "western-art-history-v1" as const;
 export const PHILOSOPHY_PROJECT_ID = "philosophy" as const;
@@ -53,6 +59,7 @@ const KNOWN_PROJECT_IDS = [KUZUSHIJI_PROJECT_ID, "western-art-history", "philoso
 type KnownProjectId = (typeof KNOWN_PROJECT_IDS)[number];
 const KNOWN_PROJECTION_VERSIONS = [
   KUZUSHIJI_V1_PROJECTION_VERSION,
+  KUZUSHIJI_V2_PROJECTION_VERSION,
   WESTERN_ART_HISTORY_V1_PROJECTION_VERSION,
   PHILOSOPHY_V1_PROJECTION_VERSION,
 ] as const;
@@ -115,6 +122,9 @@ export type KuzushijiV1Projection = Readonly<{
 export type SupportedProjectReadSnapshot = ProjectReadSnapshot<KuzushijiV1Projection> & Readonly<{
   projectId: typeof KUZUSHIJI_PROJECT_ID;
   projectionVersion: typeof KUZUSHIJI_V1_PROJECTION_VERSION;
+}> | ProjectReadSnapshot<KuzushijiV2Projection> & Readonly<{
+  projectId: typeof KUZUSHIJI_PROJECT_ID;
+  projectionVersion: typeof KUZUSHIJI_V2_PROJECTION_VERSION;
 }> | ProjectReadSnapshot<WesternArtHistoryV1Projection> & Readonly<{
   projectId: typeof WESTERN_ART_HISTORY_PROJECT_ID;
   projectionVersion: typeof WESTERN_ART_HISTORY_V1_PROJECTION_VERSION;
@@ -130,6 +140,7 @@ export type ProjectReadValidationCode =
   | "unsupported-projection-version"
   | "project-projection-mismatch"
   | "invalid-kuzushiji-v1-projection"
+  | "invalid-kuzushiji-v2-projection"
   | "invalid-western-art-history-v1-projection"
   | "invalid-philosophy-v1-projection";
 
@@ -522,22 +533,34 @@ export function decodeProjectReadProjection(
   projectId: string,
   projectionVersion: string,
   value: unknown,
-): KuzushijiV1Projection | WesternArtHistoryV1Projection | PhilosophyV1Projection {
+): KuzushijiV1Projection | KuzushijiV2Projection | WesternArtHistoryV1Projection | PhilosophyV1Projection {
   if (!isKnownProjectId(projectId)) {
     throw new ProjectReadContractError("unsupported-project", `unsupported projectId: ${projectId}`);
   }
-  const expectedVersion = projectId === KUZUSHIJI_PROJECT_ID
-    ? KUZUSHIJI_V1_PROJECTION_VERSION
+  const expectedVersions = projectId === KUZUSHIJI_PROJECT_ID
+    ? [KUZUSHIJI_V1_PROJECTION_VERSION, KUZUSHIJI_V2_PROJECTION_VERSION]
     : projectId === WESTERN_ART_HISTORY_PROJECT_ID
-      ? WESTERN_ART_HISTORY_V1_PROJECTION_VERSION
-      : PHILOSOPHY_V1_PROJECTION_VERSION;
-  if (projectionVersion !== expectedVersion) {
+      ? [WESTERN_ART_HISTORY_V1_PROJECTION_VERSION]
+      : [PHILOSOPHY_V1_PROJECTION_VERSION];
+  if (!(expectedVersions as readonly string[]).includes(projectionVersion)) {
     if ((KNOWN_PROJECTION_VERSIONS as readonly string[]).includes(projectionVersion)) {
       throw new ProjectReadContractError("project-projection-mismatch", `project ${projectId} cannot use ${projectionVersion}`);
     }
     throw new ProjectReadContractError("unsupported-projection-version", `unsupported projectionVersion: ${projectionVersion}`);
   }
-  if (projectId === KUZUSHIJI_PROJECT_ID) return decodeKuzushijiV1Projection(value);
+  if (projectId === KUZUSHIJI_PROJECT_ID) {
+    if (projectionVersion === KUZUSHIJI_V2_PROJECTION_VERSION) {
+      try {
+        return decodeKuzushijiV2Projection(value);
+      } catch (error) {
+        throw new ProjectReadContractError(
+          "invalid-kuzushiji-v2-projection",
+          error instanceof Error ? error.message : "Kuzushiji v2 projection is invalid",
+        );
+      }
+    }
+    return decodeKuzushijiV1Projection(value);
+  }
   if (projectId === WESTERN_ART_HISTORY_PROJECT_ID) {
     try {
       return decodeWesternArtHistoryV1Projection(value);
@@ -560,6 +583,27 @@ export function decodeProjectReadProjection(
 
 function decodeSupportedProjectReadSnapshot(envelope: ProjectReadEnvelope): SupportedProjectReadSnapshot {
   const projection = decodeProjectReadProjection(envelope.projectId, envelope.projectionVersion, envelope.projection);
+  if (envelope.projectId === KUZUSHIJI_PROJECT_ID && envelope.projectionVersion === KUZUSHIJI_V2_PROJECTION_VERSION) {
+    if (envelope.policyVersion !== "phase4b-v1") {
+      throw new ProjectReadContractError(
+        "invalid-kuzushiji-v2-projection",
+        "Kuzushiji v2 snapshots must use phase4b-v1",
+      );
+    }
+    const sourceIdentifiers = envelope.sourceEvidence.sourceIdentifiers;
+    if (
+      sourceIdentifiers.length !== KUZUSHIJI_V2_SOURCE_IDENTIFIERS.length
+      || new Set(sourceIdentifiers).size !== sourceIdentifiers.length
+      || sourceIdentifiers.some((id) => !(KUZUSHIJI_V2_SOURCE_IDENTIFIERS as readonly string[]).includes(id))
+      || envelope.sourceEvidence.paginationComplete !== true
+      || envelope.sourceEvidence.relationCompleteness !== true
+    ) {
+      throw new ProjectReadContractError(
+        "invalid-kuzushiji-v2-projection",
+        "Kuzushiji v2 source evidence is incomplete or unsupported",
+      );
+    }
+  }
   if (envelope.projectId !== KUZUSHIJI_PROJECT_ID) {
     if (envelope.policyVersion !== NO_OBJECTIVE_SCOPE_POLICY_VERSION) {
       throw new ProjectReadContractError(
