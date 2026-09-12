@@ -3,26 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export type ClientSnapshotRefreshProjectId = "kuzushiji" | "western-art-history" | "philosophy";
-export type ClientSnapshotRefreshIntent = "foreground" | "manual";
-export type ClientSnapshotRefreshKind =
-  | "fresh"
-  | "refreshed"
-  | "cooldown"
-  | "busy"
-  | "missing"
-  | "blocked"
-  | "unavailable";
+import {
+  createProjectSnapshotRefreshCoordinator,
+  type CoordinatorIntent,
+  type CoordinatorProjectId,
+  type CoordinatorResult,
+  type CoordinatorResultKind,
+} from "./project-snapshot-refresh-coordinator";
 
-export const FOREGROUND_REFRESH_THROTTLE_MS = 5 * 60 * 1_000;
+export { FOREGROUND_REFRESH_THROTTLE_MS } from "./project-snapshot-refresh-coordinator";
 
-type ClientRefreshResult = Readonly<{
-  projectId: ClientSnapshotRefreshProjectId;
-  kind: ClientSnapshotRefreshKind;
-}>;
-
-const foregroundRequestedAt = new Map<ClientSnapshotRefreshProjectId, number>();
-const inFlightRequests = new Map<ClientSnapshotRefreshProjectId, Promise<ClientRefreshResult>>();
+export type ClientSnapshotRefreshProjectId = CoordinatorProjectId;
+export type ClientSnapshotRefreshIntent = CoordinatorIntent;
+export type ClientSnapshotRefreshKind = CoordinatorResultKind;
+type ClientRefreshResult = CoordinatorResult;
 
 function isRefreshKind(value: unknown): value is ClientSnapshotRefreshKind {
   return value === "fresh"
@@ -35,42 +29,44 @@ function isRefreshKind(value: unknown): value is ClientSnapshotRefreshKind {
 }
 
 /**
- * Browser coordinator for the bounded native refresh route. The response is
+ * Browser transport for the bounded native refresh route. The response is
  * deliberately reduced to a safe status union; infrastructure details never
  * reach learner UI.
  */
+async function fetchProjectSnapshotRefresh(
+  projectId: ClientSnapshotRefreshProjectId,
+  intent: ClientSnapshotRefreshIntent,
+): Promise<ClientRefreshResult> {
+  try {
+    const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/snapshot/refresh`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intent }),
+      cache: "no-store",
+    });
+    let value: unknown = null;
+    try {
+      value = await response.json();
+    } catch {
+      // An unavailable response is enough for the learner-facing status.
+    }
+    const kind = value && typeof value === "object" && isRefreshKind((value as { status?: unknown }).status)
+      ? (value as { status: ClientSnapshotRefreshKind }).status
+      : "unavailable";
+    return { projectId, kind };
+  } catch {
+    return { projectId, kind: "unavailable" };
+  }
+}
+
+const refreshCoordinator = createProjectSnapshotRefreshCoordinator(fetchProjectSnapshotRefresh);
+
 export function requestProjectSnapshotRefresh(
   projectId: ClientSnapshotRefreshProjectId,
   intent: ClientSnapshotRefreshIntent,
 ): Promise<ClientRefreshResult> {
-  const existing = inFlightRequests.get(projectId);
-  if (existing) return existing;
-
-  const request = fetch(`/api/projects/${encodeURIComponent(projectId)}/snapshot/refresh`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ intent }),
-    cache: "no-store",
-  })
-    .then(async (response) => {
-      let value: unknown = null;
-      try {
-        value = await response.json();
-      } catch {
-        // An unavailable response is enough for the learner-facing status.
-      }
-      const kind = value && typeof value === "object" && isRefreshKind((value as { status?: unknown }).status)
-        ? (value as { status: ClientSnapshotRefreshKind }).status
-        : "unavailable";
-      return { projectId, kind };
-    })
-    .catch(() => ({ projectId, kind: "unavailable" as const }))
-    .finally(() => {
-      inFlightRequests.delete(projectId);
-    });
-  inFlightRequests.set(projectId, request);
-  return request;
+  return refreshCoordinator.request(projectId, intent);
 }
 
 function refreshAfterSuccess(
@@ -106,11 +102,9 @@ export default function ProjectSnapshotRefreshCoordinator({
     let disposed = false;
     const requestForeground = () => {
       if (document.visibilityState !== "visible") return;
-      const now = Date.now();
-      const lastRequested = foregroundRequestedAt.get(projectId) ?? 0;
-      if (now - lastRequested < FOREGROUND_REFRESH_THROTTLE_MS) return;
-      foregroundRequestedAt.set(projectId, now);
-      void requestProjectSnapshotRefresh(projectId, "foreground").then((result) => {
+      const request = refreshCoordinator.requestForeground(projectId);
+      if (!request) return;
+      void request.then((result) => {
         if (!disposed) refreshAfterSuccess(result, router, onRefreshedRef.current);
       });
     };
