@@ -142,8 +142,8 @@ shown as unknown.
 Kuzushiji continues to use its existing snapshot, Objective mirror, review,
 offline, and cache semantics. This cutover changes no Scope/SRS authority,
 grading, receipts, attempts, request hashes, service-worker behavior, or
-Notion write policy. Snapshot refresh and broader read-path performance work
-remain deferred to Phase 5A-0-4.
+Notion write policy. Broader read-path performance work remains deferred to
+Phase 5A-0-4.
 
 ## Kuzushiji learner snapshot read cutover (5A-0-4a-5)
 
@@ -158,3 +158,20 @@ Review keeps its separate live Notion path and fresh Character-based Scope
 calculation. Snapshot scope decisions remain observational and do not authorize
 Objective/SRS work. This cutover adds no migration, snapshot publication,
 IndexedDB or service-worker change, or learner-facing authority change.
+
+## Shared foreground snapshot refresh (5A-0-4a-6)
+
+Normal learner surfaces now share a bounded foreground refresh coordinator.
+Each page renders its existing verified observation first; after hydration and
+when the tab is visible, the client may send a POST foreground intent. Only a
+stale current snapshot may invoke an existing project publisher. Manual refresh
+can recover a missing snapshot and is protected by a short server cooldown;
+the existing Supabase lease remains the global concurrency boundary.
+
+Refresh failures, busy leases, missing observations, and validation blocks are
+safe local statuses. They never replace the last-good content or expose
+infrastructure details. A successful generic refresh revalidates the route;
+Kuzushiji adopts through its existing hash-verified IndexedDB cache path.
+The historical Kuzushiji sync endpoint remains a POST-only compatibility alias
+to the same policy. Review/fresh Scope, Objective/SRS, offline authority,
+Notion read-only behavior, and service-worker contracts are unchanged.

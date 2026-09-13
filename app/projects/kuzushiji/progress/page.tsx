@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import ProjectSnapshotRefreshCoordinator from "@/src/components/ProjectSnapshotRefresh";
 import { isKuzushijiV2ProjectReadState, loadProjectReadState } from "@/src/lib/projects/read-runtime";
 import type { KuzushijiV2Projection } from "@/src/lib/projects/project-projections";
 import {
@@ -107,6 +108,7 @@ export default async function KuzushijiProgressPage() {
 
   return (
     <main className="phase5-shell phase5-deep-shell">
+      <ProjectSnapshotRefreshCoordinator projectId="kuzushiji" />
       <AppHeader context="くずし字 · 学習記録" backHref="/projects/kuzushiji" backLabel="くずし字" />
 
       <div className="phase5-context-nav" aria-label="現在地">

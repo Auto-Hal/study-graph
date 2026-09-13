@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import ProjectSnapshotRefreshCoordinator from "@/src/components/ProjectSnapshotRefresh";
 import { isKuzushijiV2ProjectReadState, loadProjectReadState } from "@/src/lib/projects/read-runtime";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export default async function KuzushijiSectionPage({
 
   return (
     <main className="phase5-shell phase5-deep-shell">
+      <ProjectSnapshotRefreshCoordinator projectId="kuzushiji" />
       <AppHeader context={`くずし字 · ${meta.title}`} backHref="/projects/kuzushiji" backLabel="くずし字" />
 
       <div className="phase5-context-nav" aria-label="現在地">

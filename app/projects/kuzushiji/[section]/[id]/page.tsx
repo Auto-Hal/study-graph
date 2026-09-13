@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
+import ProjectSnapshotRefreshCoordinator from "@/src/components/ProjectSnapshotRefresh";
 import { isKuzushijiV2ProjectReadState, loadProjectReadState, projectReadStateToGraph } from "@/src/lib/projects/read-runtime";
 import { getWorkspaceSectionForKind } from "@/src/lib/projects/workspace";
 import {
@@ -80,8 +81,9 @@ function Property({ label, value, wide = false }: { label: string; value: string
 
 function UnavailableDetail({ section }: { section: Section }) {
   return (
-    <main className="phase5-shell phase5-deep-shell">
-      <AppHeader context={`くずし字 · ${sectionLabels[section]}`} backHref={`/projects/kuzushiji/${section}`} backLabel={sectionLabels[section]} />
+      <main className="phase5-shell phase5-deep-shell">
+        <ProjectSnapshotRefreshCoordinator projectId="kuzushiji" />
+        <AppHeader context={`くずし字 · ${sectionLabels[section]}`} backHref={`/projects/kuzushiji/${section}`} backLabel={sectionLabels[section]} />
       <div className="phase5-context-nav" aria-label="現在地"><Link href="/projects/kuzushiji">くずし字</Link><span aria-hidden="true">›</span><Link href={`/projects/kuzushiji/${section}`}>{sectionLabels[section]}</Link></div>
       <section className="phase5-deep-unavailable" role="status" aria-live="polite"><p className="phase5-eyebrow">{sectionLabels[section]}</p><h1 className="phase5-page-title">学習データを表示できません</h1><p>この項目は現在利用できません。学習状況を確認できたあと、もう一度開いてください。</p><Link href={`/projects/kuzushiji/${section}`}>一覧へ戻る</Link></section>
       <PrimaryNav active="learn" />
@@ -132,6 +134,7 @@ export default async function KuzushijiEntityDetailPage({
 
   return (
     <main className="phase5-shell phase5-deep-shell">
+      <ProjectSnapshotRefreshCoordinator projectId="kuzushiji" />
       <AppHeader context={`くずし字 · ${sectionLabels[section]}`} backHref={`/projects/kuzushiji/${section}`} backLabel={sectionLabels[section]} />
       <div className="phase5-context-nav" aria-label="現在地"><Link href="/projects/kuzushiji">くずし字</Link><span aria-hidden="true">›</span><Link href={`/projects/kuzushiji/${section}`}>{sectionLabels[section]}</Link></div>
 

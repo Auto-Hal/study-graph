@@ -12,7 +12,7 @@ import {
   type SnapshotBackedProjectReadState,
 } from "./read-runtime-core.ts";
 
-export { isKuzushijiV2ProjectReadState, isRenderableProjectReadState } from "./read-runtime-core.ts";
+export { isKuzushijiV2ProjectReadState, isRenderableProjectReadState, isSnapshotBackedProjectId } from "./read-runtime-core.ts";
 export type {
   KuzushijiV2ProjectReadSnapshot,
   KuzushijiV2ProjectReadState,
