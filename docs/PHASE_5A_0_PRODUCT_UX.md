@@ -66,8 +66,8 @@ Untrusted or demo Graph data fails closed, and neither workspace invents
 progress or review state. Graph remains contextual at 「知識のつながり」.
 
 The workspace routes do not change the Graph data model or introduce a new
-read path; navigation performance and snapshot-first read-path work remain
-deferred to Phase 5A-0-4.
+read path; the remaining main-tab navigation/performance work is tracked in
+Phase 5A-0-4 and its 5A-0-4b snapshot cutover slice.
 
 ## Preserved authority boundaries
 
@@ -175,3 +175,28 @@ Kuzushiji adopts through its existing hash-verified IndexedDB cache path.
 The historical Kuzushiji sync endpoint remains a POST-only compatibility alias
 to the same policy. Review/fresh Scope, Objective/SRS, offline authority,
 Notion read-only behavior, and service-worker contracts are unchanged.
+
+## Main-tab snapshot cutover and navigation baseline (5A-0-4b)
+
+Before this slice, Home (`/`) and the Review landing page (`/review`) waited
+for a live Notion dashboard before they could start their Supabase schedule
+read. That serialized the first render behind the external curriculum read.
+Now both pages start their verified Kuzushiji v2 display read and the
+Supabase review-schedule read in parallel, then filter candidates only after
+both observations are available.
+
+Home (`/`) and the Review landing page (`/review`) now start their verified
+Kuzushiji v2 display read and the Supabase review-schedule read in parallel.
+The snapshot's `reviewQueue` remains a candidate/display set; due status and
+the displayed due count come only from the authoritative schedule. If either
+observation is unavailable, the learner sees an unknown or local unavailable
+state rather than an authoritative zero. Stale snapshot content remains
+visible while the existing foreground coordinator refreshes after hydration.
+
+The focused Review session still uses its live Notion read and fresh Scope
+calculation; this landing cutover does not change issuance, SRS, grading,
+receipts, or acceptance authority. `/projects` remains registry-only. Core
+main-tab/header links use read-only Next prefetch, localized loading boundaries
+provide destination context, and CSS pressed states provide immediate tap
+feedback. No persistent App Router shell or Graph bundle redesign was added;
+those remain candidates for a later performance slice after iPhone measurement.

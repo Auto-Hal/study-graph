@@ -23,13 +23,13 @@ export default function PrimaryNav({
 
   return (
     <footer className="phase5-bottom-nav" aria-label="メインナビゲーション">
-      <Link className={current === "today" ? "active" : undefined} href="/" aria-current={current === "today" ? "page" : undefined}>
+      <Link className={current === "today" ? "active" : undefined} href="/" prefetch aria-current={current === "today" ? "page" : undefined}>
         <span aria-hidden="true">⌂</span>今日
       </Link>
-      <Link className={current === "learn" ? "active" : undefined} href="/projects" aria-current={current === "learn" ? "page" : undefined}>
+      <Link className={current === "learn" ? "active" : undefined} href="/projects" prefetch aria-current={current === "learn" ? "page" : undefined}>
         <span aria-hidden="true">◌</span>学ぶ
       </Link>
-      <Link className={current === "review" ? "active" : undefined} href="/review" aria-current={current === "review" ? "page" : undefined}>
+      <Link className={current === "review" ? "active" : undefined} href="/review" prefetch aria-current={current === "review" ? "page" : undefined}>
         <span aria-hidden="true">↺</span>復習
       </Link>
     </footer>

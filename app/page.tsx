@@ -1,22 +1,37 @@
 import Link from "next/link";
 import AppHeader from "@/src/components/AppHeader";
 import PrimaryNav from "@/src/components/PrimaryNav";
-import { getKuzushijiDashboard } from "@/src/lib/notion/kuzushiji";
-import { getDueReviewItems } from "@/src/lib/supabase/review";
+import ProjectSnapshotRefreshCoordinator from "@/src/components/ProjectSnapshotRefresh";
+import {
+  isKuzushijiV2ProjectReadState,
+  loadProjectReadState,
+} from "@/src/lib/projects/read-runtime";
+import {
+  filterDueReviewItems,
+  loadReviewScheduleState,
+} from "@/src/lib/supabase/review";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const data = await getKuzushijiDashboard();
-  const scheduledReview = await getDueReviewItems(data.reviewQueue);
-  const hasTrustedData = data.mode === "notion";
-  const hasAuthoritativeReview = hasTrustedData && scheduledReview.persistence === "supabase";
-  const reviewQueue = hasAuthoritativeReview ? scheduledReview.items : [];
-  const reviewScheduleUnavailable = hasTrustedData && !hasAuthoritativeReview;
-  const completedLectures = hasTrustedData ? data.lectures.filter((lecture) => lecture.status === "完了").length : 0;
-  const weakCharacters = hasTrustedData ? data.characters.filter((character) => character.mastery !== "即読").length : 0;
-  const openMistakes = hasTrustedData ? data.mistakes.filter((mistake) => !mistake.resolved).length : 0;
-  const recentLectures = hasTrustedData ? [...data.lectures].sort((a, b) => b.sequence - a.sequence).slice(0, 3) : [];
+  // These are independent display observations. Starting them together keeps
+  // the main tab from serializing snapshot rendering behind the schedule RPC.
+  const [snapshotState, scheduleState] = await Promise.all([
+    loadProjectReadState("kuzushiji"),
+    loadReviewScheduleState(),
+  ]);
+  const displayState = isKuzushijiV2ProjectReadState(snapshotState) ? snapshotState : null;
+  const projection = displayState?.data.projection;
+  const scheduleAvailable = displayState !== null && scheduleState.persistence === "supabase";
+  const reviewQueue = scheduleAvailable && projection
+    ? filterDueReviewItems(projection.reviewQueue, scheduleState)
+    : [];
+  const completedLectures = projection ? projection.lectures.filter((lecture) => lecture.status === "完了").length : null;
+  const weakCharacters = projection ? projection.characters.filter((character) => character.mastery !== "即読").length : null;
+  const openMistakes = projection ? projection.mistakes.filter((mistake) => !mistake.resolved).length : null;
+  const recentLectures = projection
+    ? [...projection.lectures].sort((a, b) => (b.sequence ?? 0) - (a.sequence ?? 0)).slice(0, 3)
+    : [];
 
   const focus = reviewQueue.length > 0
     ? {
@@ -26,21 +41,29 @@ export default async function Home() {
         href: "/review/session?project=kuzushiji",
         label: "始める",
       }
-    : hasTrustedData
+    : displayState && scheduleAvailable
       ? {
           title: "くずし字",
-          detail: completedLectures > 0 ? `完了講義 ${completedLectures}件` : "学習を始める",
+            detail: completedLectures !== null && completedLectures > 0 ? `完了講義 ${completedLectures}件` : "学習を始める",
           description: "現在位置を確認して、次に取り組む講義を選びます。",
           href: "/projects/kuzushiji",
           label: "現在位置を見る",
         }
-      : {
-          title: "学習を選ぶ",
-          detail: "くずし字から始める",
-          description: "学習プロジェクトを選び、現在位置を確認します。",
-          href: "/projects",
-          label: "学ぶ",
-        };
+      : displayState
+        ? {
+            title: "くずし字",
+            detail: "復習予定を確認できません",
+            description: "学習内容は表示できます。復習予定はサーバーで確認でき次第表示します。",
+            href: "/projects/kuzushiji",
+            label: "学習を続ける",
+          }
+        : {
+            title: "学習を選ぶ",
+            detail: "学習データを確認できません",
+            description: "学習プロジェクトを選び、利用できる内容から始めます。",
+            href: "/projects",
+            label: "学ぶ",
+          };
 
   return (
     <main className="phase5-shell">
@@ -53,16 +76,21 @@ export default async function Home() {
         <p className="phase5-eyebrow">次の一歩</p>
         <h2 id="today-focus-title">{focus.title}</h2>
         <p>{focus.description}</p>
-        <div className="phase5-focus-meta"><span>{focus.detail}</span>{data.mode !== "notion" && <span>学習データを確認中</span>}{reviewScheduleUnavailable && <span>復習予定を確認できません</span>}</div>
-        <Link className="phase5-action" href={focus.href}>{focus.label} <span aria-hidden="true">→</span></Link>
+        <div className="phase5-focus-meta">
+          <span>{focus.detail}</span>
+          {displayState?.kind === "stale" && <span>内容を更新しています</span>}
+          {displayState && !scheduleAvailable && <span>復習予定を確認できません</span>}
+          {!displayState && <span>学習データを確認できません</span>}
+        </div>
+        <Link className="phase5-action" href={focus.href} prefetch={!focus.href.startsWith("/review/session")}>{focus.label} <span aria-hidden="true">→</span></Link>
       </section>
 
       {reviewQueue.length > 0 && (
         <section className="phase5-section" aria-labelledby="today-review-title">
-          <div className="phase5-section-heading"><h2 id="today-review-title">今日の復習</h2><Link href="/review">すべて見る</Link></div>
+          <div className="phase5-section-heading"><h2 id="today-review-title">今日の復習</h2><Link href="/review" prefetch>すべて見る</Link></div>
           <div className="phase5-row-list">
             {reviewQueue.slice(0, 4).map((item) => (
-              <Link className="phase5-row" href="/review" key={`${item.kind}-${item.id}`}>
+              <Link className="phase5-row" href="/review" prefetch key={`${item.kind}-${item.id}`}>
                 <span className="phase5-row-main"><span className="phase5-row-title">{item.label}</span><span className="phase5-row-meta">{item.reason}</span></span>
                 <span className="phase5-row-arrow" aria-hidden="true">→</span>
               </Link>
@@ -72,28 +100,31 @@ export default async function Home() {
       )}
 
       <section className="phase5-section" aria-labelledby="continue-learning-title">
-        <div className="phase5-section-heading"><h2 id="continue-learning-title">学習を続ける</h2><Link href="/projects">すべての学び</Link></div>
+        <div className="phase5-section-heading"><h2 id="continue-learning-title">学習を続ける</h2><Link href="/projects" prefetch>すべての学び</Link></div>
         <div className="phase5-row-list">
-          <Link className="phase5-row" href="/projects/kuzushiji">
-            <span className="phase5-row-main"><span className="phase5-row-title">くずし字</span><span className="phase5-row-meta">{completedLectures > 0 ? `完了講義 ${completedLectures}件` : "講義を確認する"}</span></span>
+          <Link className="phase5-row" href="/projects/kuzushiji" prefetch>
+            <span className="phase5-row-main"><span className="phase5-row-title">くずし字</span><span className="phase5-row-meta">{displayState ? (completedLectures !== null && completedLectures > 0 ? `完了講義 ${completedLectures}件` : "講義を確認する") : "学習内容を確認する"}</span></span>
             <span className="phase5-row-arrow" aria-hidden="true">→</span>
           </Link>
         </div>
       </section>
 
       <section className="phase5-section" aria-labelledby="recent-title">
-        <div className="phase5-section-heading"><h2 id="recent-title">最近</h2><Link href="/projects/kuzushiji/progress">学習記録</Link></div>
+        <div className="phase5-section-heading"><h2 id="recent-title">最近</h2><Link href="/projects/kuzushiji/progress" prefetch>学習記録</Link></div>
         <div className="phase5-row-list">
-          {recentLectures.length > 0 ? recentLectures.map((lecture) => (
-            <Link className="phase5-row" href={`/projects/kuzushiji/lectures/${lecture.id}`} key={lecture.id}>
-              <span className="phase5-row-main"><span className="phase5-row-title">{lecture.title}</span><span className="phase5-row-meta">{lecture.status || "学習項目"}</span></span>
-              <span className="phase5-row-status">{lecture.sequence}</span>
-            </Link>
-          )) : <p className="phase5-empty">まだ学習履歴がありません。</p>}
+          {displayState
+            ? (recentLectures.length > 0 ? recentLectures.map((lecture) => (
+                <Link className="phase5-row" href={`/projects/kuzushiji/lectures/${lecture.id}`} prefetch key={lecture.id}>
+                  <span className="phase5-row-main"><span className="phase5-row-title">{lecture.title || "講義"}</span><span className="phase5-row-meta">{lecture.status || "学習項目"}</span></span>
+                  <span className="phase5-row-status">{lecture.sequence ?? ""}</span>
+                </Link>
+              )) : <p className="phase5-empty">まだ学習履歴がありません。</p>)
+            : <p className="phase5-empty">学習データは現在表示できません。</p>}
         </div>
       </section>
 
-      <p className="phase5-context phase5-summary-line">完了講義 {completedLectures} · 要定着文字 {weakCharacters} · 未克服の誤読 {openMistakes}</p>
+      {displayState && completedLectures !== null && weakCharacters !== null && openMistakes !== null && <p className="phase5-context phase5-summary-line">完了講義 {completedLectures} · 要定着文字 {weakCharacters} · 未克服の誤読 {openMistakes}</p>}
+      <ProjectSnapshotRefreshCoordinator projectId="kuzushiji" />
       <PrimaryNav active="today" />
     </main>
   );

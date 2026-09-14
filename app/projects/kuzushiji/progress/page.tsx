@@ -150,7 +150,7 @@ export default async function KuzushijiProgressPage() {
           <p>{objectiveState ? `前回は「${gradeLabels[objectiveState.last_grade]}」でした。` : objective.connected ? "最初の回答を保存すると、次の予定がここに表示されます。" : "接続が戻ると次の予定を表示します。"}</p>
         </div>
         {objectiveDueNow && (
-          <Link className="phase5-action" href="/review/session?project=kuzushiji">
+          <Link className="phase5-action" href="/review/session?project=kuzushiji" prefetch={false}>
             復習を始める <span aria-hidden="true">→</span>
           </Link>
         )}
@@ -207,7 +207,7 @@ export default async function KuzushijiProgressPage() {
           <span>次の予定</span>
         </div>
         {objectiveState ? objectiveDueNow ? (
-          <Link className="phase5-progress-next" href="/review/session?project=kuzushiji">
+          <Link className="phase5-progress-next" href="/review/session?project=kuzushiji" prefetch={false}>
             <span>
               <strong>日本永代蔵「あ」字形の単字読解</strong>
               <span>今取り組めます・前回 {gradeLabels[objectiveState.last_grade]}</span>
