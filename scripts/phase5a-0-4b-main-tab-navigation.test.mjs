@@ -8,6 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 const home = read("app/page.tsx");
 const review = read("app/review/page.tsx");
+const progress = read("app/projects/kuzushiji/progress/page.tsx");
 const schedule = read("src/lib/supabase/review.ts");
 const registry = read("src/lib/review/registry.ts");
 const projects = read("app/projects/page.tsx");
@@ -96,6 +97,9 @@ test("render and prefetch paths do not publish", () => {
   const reviewSessionLinks = review.split("\n").filter((line) => line.includes("<Link") && line.includes("/review/session"));
   assert.ok(reviewSessionLinks.length >= 3);
   assert.ok(reviewSessionLinks.every((line) => line.includes("prefetch={false}")));
+  const progressSessionLinks = progress.split("\n").filter((line) => line.includes("<Link") && line.includes("/review/session"));
+  assert.equal(progressSessionLinks.length, 2);
+  assert.ok(progressSessionLinks.every((line) => line.includes("prefetch={false}")));
 });
 
 test("no authority or storage contract is changed by this slice", () => {
