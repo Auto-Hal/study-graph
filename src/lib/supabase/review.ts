@@ -14,6 +14,16 @@ export type ReviewState = {
   due_at: string;
 };
 
+/**
+ * A schedule observation is deliberately separate from the snapshot
+ * candidate set.  `fallback` means the server schedule could not be read;
+ * it does not mean that every candidate is due.
+ */
+export type ReviewScheduleState = Readonly<{
+  states: readonly ReviewState[];
+  persistence: "supabase" | "fallback";
+}>;
+
 export type ReviewAttempt = {
   id: number;
   item_id: string;
@@ -56,17 +66,40 @@ async function callRpc<T>(name: string, body: Record<string, unknown>): Promise<
 export async function getReviewStates(): Promise<ReviewState[]> { return callRpc<ReviewState[]>("study_graph_review_states", {}); }
 export async function getReviewHistory(limit = 50): Promise<ReviewAttempt[]> { return callRpc<ReviewAttempt[]>("study_graph_review_history", { p_limit: Math.max(1, Math.min(Math.trunc(limit), 100)) }); }
 
-export async function getDueReviewItems<T extends { id: string }>(items: T[]) {
-  if (!isReviewPersistenceConfigured()) return { items, persistence: "fallback" as const };
+/** Read the authoritative schedule without requiring a candidate list first. */
+export async function loadReviewScheduleState(): Promise<ReviewScheduleState> {
+  if (!isReviewPersistenceConfigured()) return { states: [], persistence: "fallback" };
   try {
-    const states = await getReviewStates();
-    const statesById = new Map(states.map((state) => [state.item_id, state]));
-    const now = Date.now();
-    return { items: items.filter((item) => { const state = statesById.get(item.id); return !state || new Date(state.due_at).getTime() <= now; }), persistence: "supabase" as const };
+    return { states: await getReviewStates(), persistence: "supabase" };
   } catch (error) {
     console.error("Study Graph: review schedule fetch failed", error);
-    return { items, persistence: "fallback" as const };
+    return { states: [], persistence: "fallback" };
   }
+}
+
+/** Filter a snapshot candidate set using only an authoritative schedule. */
+export function filterDueReviewItems<T extends { id: string }>(
+  items: readonly T[],
+  schedule: ReviewScheduleState,
+  now = Date.now(),
+): T[] {
+  if (schedule.persistence !== "supabase") return [];
+  const statesById = new Map(schedule.states.map((state) => [state.item_id, state]));
+  return items.filter((item) => {
+    const state = statesById.get(item.id);
+    return !state || new Date(state.due_at).getTime() <= now;
+  });
+}
+
+export async function getDueReviewItems<T extends { id: string }>(items: T[]) {
+  const schedule = await loadReviewScheduleState();
+  // Preserve the historical fallback contract for existing session callers:
+  // they receive the candidate list when persistence is unavailable. Landing
+  // pages use `filterDueReviewItems` directly and keep the due state unknown.
+  return {
+    items: schedule.persistence === "supabase" ? filterDueReviewItems(items, schedule) : items,
+    persistence: schedule.persistence,
+  };
 }
 
 export async function recordReviewAttempt(input: {

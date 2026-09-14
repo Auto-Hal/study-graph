@@ -16,7 +16,7 @@ export default function ProjectsPage() {
         {studyProjects.map((project) => {
           const active = project.status === "active";
           return active ? (
-            <Link className="phase5-project-row" href={project.href} key={project.id}>
+            <Link className="phase5-project-row" href={project.href} prefetch key={project.id}>
               <span className="phase5-project-mark" aria-hidden="true">{project.icon}</span>
               <span><span className="phase5-project-title">{project.title}</span><span className="phase5-project-goal">{project.context}</span></span>
               <span className="phase5-project-arrow" aria-hidden="true">→</span>

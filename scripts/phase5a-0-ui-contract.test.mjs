@@ -43,8 +43,10 @@ test("review landing and focused session are separate routes", () => {
 });
 
 test("due language is shown only from authoritative Supabase schedule state", () => {
-  assert.match(home, /scheduledReview\.persistence === "supabase"/);
-  assert.match(reviewLanding, /scheduledReview\.persistence === "supabase"/);
+  assert.match(home, /scheduleState\.persistence === "supabase"/);
+  assert.match(reviewLanding, /scheduleState\.persistence === "supabase"/);
+  assert.match(home, /filterDueReviewItems/);
+  assert.match(reviewLanding, /filterDueReviewItems/);
   assert.match(home, /復習予定を確認できません/);
   assert.match(reviewLanding, /期限はサーバーで確認できていません/);
   assert.doesNotMatch(dashboard, /問が期限です/);

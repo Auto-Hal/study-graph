@@ -69,6 +69,7 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-back { gap: 5px; justify-content: flex-start; font-size: 14px; }
 .phase5-back-label { font-size: 13px; }
 .phase5-settings-link:hover, .phase5-settings-link:focus-visible, .phase5-back:hover, .phase5-back:focus-visible { background: var(--p5-surface-soft); color: var(--p5-text); }
+.phase5-brand:active, .phase5-back:active, .phase5-settings-link:active { transform: scale(.97); background: var(--p5-surface-soft); }
 
 .phase5-page-title { margin: 0; font-size: clamp(27px, 5vw, 38px); line-height: 1.15; letter-spacing: -.04em; }
 .phase5-context { margin: 7px 0 0; color: var(--p5-muted); font-size: 14px; line-height: 1.55; }
@@ -134,6 +135,7 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
   border-bottom: 1px solid var(--p5-line);
 }
 .phase5-row:hover { color: var(--p5-accent); }
+.phase5-row:active { background: var(--p5-surface-soft); }
 .phase5-row-main { min-width: 0; }
 .phase5-row-title { display: block; overflow: hidden; color: var(--p5-text); font-size: 15px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .phase5-row:hover .phase5-row-title { color: var(--p5-accent); }
@@ -147,6 +149,7 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 .phase5-project-title { display: block; font-size: 16px; font-weight: 750; }
 .phase5-project-goal { display: block; margin-top: 4px; color: var(--p5-muted); font-size: 12px; line-height: 1.45; }
 .phase5-project-arrow { color: var(--p5-muted); font-size: 18px; }
+.phase5-project-row:active { background: var(--p5-surface-soft); }
 
 .phase5-stat-line { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 20px 0 0; padding: 16px 0; border-top: 1px solid var(--p5-line); border-bottom: 1px solid var(--p5-line); }
 .phase5-stat-line div { display: flex; align-items: baseline; gap: 7px; }
@@ -227,7 +230,7 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .phase5-action, .phase5-secondary-action, .phase5-bottom-nav a { transition: none; }
+  .phase5-action, .phase5-secondary-action, .phase5-brand, .phase5-back, .phase5-settings-link, .phase5-row, .phase5-project-row, .phase5-bottom-nav a { transition: none; }
   .phase5-loading-line { animation: none; }
 }
 
