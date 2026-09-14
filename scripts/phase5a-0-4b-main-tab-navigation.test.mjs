@@ -25,9 +25,9 @@ test("Home and Review landing are snapshot-first and never call live Notion", ()
     assert.match(page, /ProjectSnapshotRefreshCoordinator projectId="kuzushiji"/);
     assert.match(page, /Promise\.all/);
   }
-  assert.match(home, /projection(?:\?\.)?lectures/);
-  assert.match(home, /projection(?:\?\.)?characters/);
-  assert.match(home, /projection(?:\?\.)?mistakes/);
+  assert.match(home, /projection(?:\?\.)?\.lectures/);
+  assert.match(home, /projection(?:\?\.)?\.characters/);
+  assert.match(home, /projection(?:\?\.)?\.mistakes/);
   assert.match(home, /projection\.reviewQueue/);
   assert.match(review, /projection\.reviewQueue/);
 });

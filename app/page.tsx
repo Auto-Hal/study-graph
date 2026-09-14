@@ -26,9 +26,9 @@ export default async function Home() {
   const reviewQueue = scheduleAvailable && projection
     ? filterDueReviewItems(projection.reviewQueue, scheduleState)
     : [];
-  const completedLectures = projection?.lectures.filter((lecture) => lecture.status === "完了").length ?? 0;
-  const weakCharacters = projection?.characters.filter((character) => character.mastery !== "即読").length ?? 0;
-  const openMistakes = projection?.mistakes.filter((mistake) => !mistake.resolved).length ?? 0;
+  const completedLectures = projection ? projection.lectures.filter((lecture) => lecture.status === "完了").length : null;
+  const weakCharacters = projection ? projection.characters.filter((character) => character.mastery !== "即読").length : null;
+  const openMistakes = projection ? projection.mistakes.filter((mistake) => !mistake.resolved).length : null;
   const recentLectures = projection
     ? [...projection.lectures].sort((a, b) => (b.sequence ?? 0) - (a.sequence ?? 0)).slice(0, 3)
     : [];
@@ -44,7 +44,7 @@ export default async function Home() {
     : displayState && scheduleAvailable
       ? {
           title: "くずし字",
-          detail: completedLectures > 0 ? `完了講義 ${completedLectures}件` : "学習を始める",
+            detail: completedLectures !== null && completedLectures > 0 ? `完了講義 ${completedLectures}件` : "学習を始める",
           description: "現在位置を確認して、次に取り組む講義を選びます。",
           href: "/projects/kuzushiji",
           label: "現在位置を見る",
@@ -103,7 +103,7 @@ export default async function Home() {
         <div className="phase5-section-heading"><h2 id="continue-learning-title">学習を続ける</h2><Link href="/projects" prefetch>すべての学び</Link></div>
         <div className="phase5-row-list">
           <Link className="phase5-row" href="/projects/kuzushiji" prefetch>
-            <span className="phase5-row-main"><span className="phase5-row-title">くずし字</span><span className="phase5-row-meta">{displayState ? (completedLectures > 0 ? `完了講義 ${completedLectures}件` : "講義を確認する") : "学習内容を確認する"}</span></span>
+            <span className="phase5-row-main"><span className="phase5-row-title">くずし字</span><span className="phase5-row-meta">{displayState ? (completedLectures !== null && completedLectures > 0 ? `完了講義 ${completedLectures}件` : "講義を確認する") : "学習内容を確認する"}</span></span>
             <span className="phase5-row-arrow" aria-hidden="true">→</span>
           </Link>
         </div>
@@ -123,7 +123,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {displayState && <p className="phase5-context phase5-summary-line">完了講義 {completedLectures} · 要定着文字 {weakCharacters} · 未克服の誤読 {openMistakes}</p>}
+      {displayState && completedLectures !== null && weakCharacters !== null && openMistakes !== null && <p className="phase5-context phase5-summary-line">完了講義 {completedLectures} · 要定着文字 {weakCharacters} · 未克服の誤読 {openMistakes}</p>}
       <ProjectSnapshotRefreshCoordinator projectId="kuzushiji" />
       <PrimaryNav active="today" />
     </main>
