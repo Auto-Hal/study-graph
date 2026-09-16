@@ -1,9 +1,9 @@
-import type { ObjectiveSrsApplicationReason } from "../objective-srs.ts";
+import type { ObjectiveSrsApplicationReason, ObjectiveSrsApplicationReasonV2 } from "../objective-srs.ts";
 import type { ReviewGrade } from "./attempt.ts";
 
 export type PilotReceiptGradingStatus = "graded" | "ungraded";
 export type PilotReceiptSrsReason = "applied" | "grader-unavailable" | "scope-not-eligible" | "revision-quarantined";
-export type StoredPilotSrsReason = PilotReceiptSrsReason | ObjectiveSrsApplicationReason;
+export type StoredPilotSrsReason = PilotReceiptSrsReason | ObjectiveSrsApplicationReasonV2;
 
 export type StoredPilotReceiptResult = {
   saved: true;
@@ -38,6 +38,11 @@ const objectiveReasons = new Set<ObjectiveSrsApplicationReason>([
   "revision-retired",
   "practice-only",
   "epoch-inactive",
+]);
+const objectiveReasonsV2 = new Set<ObjectiveSrsApplicationReasonV2>([
+  ...objectiveReasons,
+  "stale-opportunity",
+  "issuance-context-missing",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -107,7 +112,7 @@ export function resultFromStoredReceipt(receipt: unknown, instanceId: string): S
   };
 }
 
-/** Restore the Objective cutover receipt without consulting current Scope, epoch, or grading. */
+/** Restore a stored Objective receipt without consulting current Scope, epoch, grading, or opportunity state. */
 export function resultFromStoredObjectiveReceipt(receipt: unknown, instanceId: string): StoredPilotReceiptResult {
   if (!isRecord(receipt)) throw new StoredReceiptIncompleteError();
   const required = [
@@ -138,7 +143,7 @@ export function resultFromStoredObjectiveReceipt(receipt: unknown, instanceId: s
   const stateRevision = receipt.stateRevision;
   const dueAt = receipt.dueAt;
   if (
-    receipt.receiptVersion !== 1
+    (receipt.receiptVersion !== 1 && receipt.receiptVersion !== 2)
     || typeof receipt.attemptId !== "string"
     || receipt.instanceId !== instanceId
     || typeof receipt.acceptedAt !== "string"
@@ -150,7 +155,10 @@ export function resultFromStoredObjectiveReceipt(receipt: unknown, instanceId: s
     || (gradingStatus !== "graded" && gradingStatus !== "ungraded")
     || (gradingStatus === "graded" ? typeof isCorrect !== "boolean" : isCorrect !== null)
     || typeof applied !== "boolean"
-    || typeof reason !== "string" || !objectiveReasons.has(reason as ObjectiveSrsApplicationReason)
+    || typeof reason !== "string"
+    || (receipt.receiptVersion === 1
+      ? !objectiveReasons.has(reason as ObjectiveSrsApplicationReason)
+      : !objectiveReasonsV2.has(reason as ObjectiveSrsApplicationReasonV2))
     || (effectiveGrade !== null && !grades.has(effectiveGrade as ReviewGrade))
     || (applied && (reason !== "applied" || effectiveGrade === null
       || typeof stateRevision !== "number" || !Number.isSafeInteger(stateRevision) || stateRevision <= 0
@@ -167,7 +175,7 @@ export function resultFromStoredObjectiveReceipt(receipt: unknown, instanceId: s
     normalizedAnswer: null,
     effectiveSrsGrade: effectiveGrade as ReviewGrade | null,
     srsApplied: applied,
-    srsReason: reason as ObjectiveSrsApplicationReason,
+    srsReason: reason as ObjectiveSrsApplicationReasonV2,
     dueAt: dueAt as string | null,
     receipt,
   };

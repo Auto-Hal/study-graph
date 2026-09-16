@@ -17,15 +17,9 @@ test("Phase 4D-1 objective modules remain pure and do not add a Supabase migrati
   );
 });
 
-test("Phase 4D-1 does not cut the objective model into runtime or API paths", () => {
-  for (const relativePath of [
-    "src/lib/review/registry.ts",
-    "src/lib/review/pilot-runtime.ts",
-    "src/components/ReviewSession.tsx",
-    "app/api/review/pilot/issue/route.ts",
-    "app/api/review/pilot/attempt/route.ts",
-  ]) {
-    const source = readFileSync(resolve(root, relativePath), "utf8");
-    assert.doesNotMatch(source, /kuzushijiPilotObjective|ObjectiveSrsTarget|ExerciseObjectiveBinding/);
-  }
+test("existing Phase 4D-4 runtime remains isolated from future Phase 5A-1a policies", () => {
+  const runtime = readFileSync(resolve(root, "src/lib/review/pilot-runtime.ts"), "utf8");
+  assert.match(runtime, /kuzushijiPilotObjectiveBinding/);
+  assert.match(runtime, /resultFromStoredObjectiveReceipt/);
+  assert.doesNotMatch(runtime, /objective-opportunity|deterministicObjectiveGradeV1/);
 });

@@ -82,6 +82,12 @@ test("Objective receipt restoration preserves accepted SRS authority", () => {
   assert.equal(result.dueAt, "2030-01-03T00:00:00.000Z");
 });
 
+test("Objective Receipt v1 continues to accept its historical reasons", () => {
+  const result = resultFromStoredObjectiveReceipt(objectiveReceipt(), instanceId);
+  assert.equal(result.receipt.receiptVersion, 1);
+  assert.equal(result.srsReason, "applied");
+});
+
 test("Objective no-SRS receipt restores without fabricating state", () => {
   const result = resultFromStoredObjectiveReceipt(objectiveReceipt({
     applied: false,
@@ -105,4 +111,65 @@ test("Objective receipt fails closed when application authority is incomplete", 
     () => resultFromStoredObjectiveReceipt(objectiveReceipt({ applied: false, reason: "applied" }), instanceId),
     StoredReceiptIncompleteError,
   );
+});
+
+test("Objective Receipt v1 rejects future v2-only reasons", () => {
+  for (const reason of ["stale-opportunity", "issuance-context-missing"]) {
+    assert.throws(() => resultFromStoredObjectiveReceipt(objectiveReceipt({
+      applied: false,
+      reason,
+      effectiveGrade: null,
+      stateRevision: null,
+      dueAt: null,
+    }), instanceId), StoredReceiptIncompleteError);
+  }
+});
+
+test("Objective Receipt v2 restores applied authority with the compact v1 field shape", () => {
+  const result = resultFromStoredObjectiveReceipt(objectiveReceipt({ receiptVersion: 2 }), instanceId);
+  assert.equal(result.receipt.receiptVersion, 2);
+  assert.equal(result.srsApplied, true);
+  assert.equal(result.srsReason, "applied");
+  assert.equal(result.effectiveSrsGrade, "good");
+  assert.equal(result.dueAt, "2030-01-03T00:00:00.000Z");
+});
+
+test("Objective Receipt v2 restores both future accepted-no-SRS reasons without state", () => {
+  for (const reason of ["stale-opportunity", "issuance-context-missing"]) {
+    const result = resultFromStoredObjectiveReceipt(objectiveReceipt({
+      receiptVersion: 2,
+      applied: false,
+      reason,
+      effectiveGrade: null,
+      stateRevision: null,
+      dueAt: null,
+    }), instanceId);
+    assert.equal(result.srsApplied, false);
+    assert.equal(result.srsReason, reason);
+    assert.equal(result.effectiveSrsGrade, null);
+    assert.equal(result.dueAt, null);
+  }
+});
+
+test("Objective Receipt v2 rejects malformed applied and no-SRS shapes", () => {
+  assert.throws(() => resultFromStoredObjectiveReceipt(objectiveReceipt({
+    receiptVersion: 2,
+    reason: "stale-opportunity",
+  }), instanceId), StoredReceiptIncompleteError);
+  assert.throws(() => resultFromStoredObjectiveReceipt(objectiveReceipt({
+    receiptVersion: 2,
+    applied: false,
+    reason: "stale-opportunity",
+    effectiveGrade: "easy",
+    stateRevision: null,
+    dueAt: null,
+  }), instanceId), StoredReceiptIncompleteError);
+  assert.throws(() => resultFromStoredObjectiveReceipt(objectiveReceipt({
+    receiptVersion: 2,
+    applied: false,
+    reason: "issuance-context-missing",
+    effectiveGrade: null,
+    stateRevision: 2,
+    dueAt: null,
+  }), instanceId), StoredReceiptIncompleteError);
 });
