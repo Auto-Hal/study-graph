@@ -4,80 +4,58 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: npm
+          node-version: 22
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm install
 
-      - name: Pilot tests
-        run: npm run test:pilot
-
-      - name: Phase 4B tests
-        run: npm run test:phase4b
-
-      - name: Phase 4C-1 tests
-        run: npm run test:phase4c-1
-
-      - name: Phase 4C-2 tests
-        run: npm run test:phase4c-2
-
-      - name: Phase 4C-3 tests
-        run: npm run test:phase4c-3
-
-      - name: Phase 4C-4 tests
-        run: npm run test:phase4c-4
-
-      - name: Phase 4C-5 tests
-        run: npm run test:phase4c-5
-
-      - name: Phase 4D-1 tests
-        run: npm run test:phase4d-1
-
-      - name: Phase 4D-2 tests
-        run: npm run test:phase4d-2
-
-      - name: Phase 4D-4 tests
-        run: npm run test:phase4d-4
-
-      - name: Phase 4D-5 tests
+      - name: Phase 4D-5 operational tests
         run: npm run test:phase4d-5
 
-      - name: Phase 4E-1 tests
-        run: npm run test:phase4e-1
+      - name: Phase 4D-2 Objective persistence tests
+        run: npm run test:phase4d-2
 
-      - name: Phase 4E-2 tests
-        run: npm run test:phase4e-2
+      - name: Pilot regression tests
+        run: npm run test:pilot
 
-      - name: Phase 4E-3 tests
-        run: npm run test:phase4e-3
-
-      - name: Phase 4E-4 tests
-        run: npm run test:phase4e-4
-
-      - name: Phase 4E-5 tests
-        run: npm run test:phase4e-5
-
-      - name: Phase 4E-6 tests
-        run: npm run test:phase4e-6
-
-      - name: Objective rawAnswer contract tests
+      - name: Objective rawAnswer contract regression tests
         run: npm run test:objective-raw-answer-fix
 
-      - name: Phase 5A-0 tests
+      - name: Phase 4E-1 offline model tests
+        run: npm run test:phase4e-1
+
+      - name: Phase 4E-2 snapshot sync tests
+        run: npm run test:phase4e-2
+
+      - name: Phase 4E-3 snapshot distribution tests
+        run: npm run test:phase4e-3
+
+      - name: Phase 4E-4 durable attempt outbox tests
+        run: npm run test:phase4e-4
+
+      - name: Phase 4E-5 offline prefetch and asset tests
+        run: npm run test:phase4e-5
+
+      - name: Phase 4E-6 final offline hardening tests
+        run: npm run test:phase4e-6
+
+      - name: Phase 5A-0 UI contract tests
         run: npm run test:phase5a-0
 
-      - name: Phase 5A-0-3c project workspace tests
+      - name: Phase 5A-0-3c project workspace parity tests
         run: npm run test:phase5a-0-3c
 
       - name: Phase 5A-0-4a-1 shared read contract tests
