@@ -1,8 +1,7 @@
 begin;
 
--- Phase 5A-1b is an additive, runtime-unused Objective opportunity foundation.
--- Historical v1 rows keep a NULL scheduling context. No current Kuzushiji
--- issuer or acceptance function is replaced by this migration.
+-- Phase 5A-1b is additive and unused by the learner runtime. Historical v1
+-- instance bindings keep a NULL scheduling context; nothing is backfilled.
 
 alter table private.instance_objective_bindings
   add column scheduling_context_version integer,
@@ -65,82 +64,90 @@ create table private.objective_srs_opportunities (
   opportunity_id uuid primary key default extensions.gen_random_uuid(),
   instance_id uuid not null unique,
   learner_id uuid not null,
-  project_id text not null
-    check (length(btrim(project_id)) > 0),
-  objective_id text not null
-    check (length(btrim(objective_id)) > 0),
-  objective_version integer not null
-    check (objective_version > 0),
-  srs_epoch integer not null
-    check (srs_epoch > 0),
-  evidence_use text not null default 'srs'
-    check (evidence_use = 'srs'),
-  status text not null default 'active'
-    check (status in ('active', 'terminal')),
-  terminal_reason text
-    check (terminal_reason is null or terminal_reason in (
-      'accepted',
-      'accepted-no-srs',
-      'expired',
-      'stale'
-    )),
+  project_id text not null check (length(btrim(project_id)) > 0),
+  objective_id text not null check (length(btrim(objective_id)) > 0),
+  objective_version integer not null check (objective_version > 0),
+  srs_epoch integer not null check (srs_epoch > 0),
+  evidence_use text not null default 'srs' check (evidence_use = 'srs'),
+  status text not null default 'active' check (status in ('active', 'terminal')),
+  terminal_reason text check (terminal_reason is null or terminal_reason in (
+    'accepted', 'accepted-no-srs', 'expired', 'stale'
+  )),
   created_at timestamptz not null default now(),
   terminalized_at timestamptz,
-  constraint objective_srs_opportunities_lifecycle_check
-    check (
-      (status = 'active' and terminal_reason is null and terminalized_at is null)
-      or
-      (status = 'terminal' and terminal_reason is not null and terminalized_at is not null)
-    ),
+  constraint objective_srs_opportunities_lifecycle_check check (
+    (status = 'active' and terminal_reason is null and terminalized_at is null)
+    or
+    (status = 'terminal' and terminal_reason is not null and terminalized_at is not null)
+  ),
   constraint objective_srs_opportunities_instance_fk
     foreign key (instance_id)
     references private.exercise_instances (instance_id)
-    on update restrict
-    on delete restrict,
+    on update restrict on delete restrict,
   constraint objective_srs_opportunities_attribution_fk
     foreign key (
-      instance_id,
-      project_id,
-      objective_id,
-      objective_version,
-      srs_epoch,
-      evidence_use
+      instance_id, project_id, objective_id, objective_version, srs_epoch, evidence_use
     )
     references private.instance_objective_bindings (
-      instance_id,
-      project_id,
-      objective_id,
-      objective_version,
-      srs_epoch,
-      evidence_use
+      instance_id, project_id, objective_id, objective_version, srs_epoch, evidence_use
     )
-    on update restrict
-    on delete restrict
+    on update restrict on delete restrict
 );
 
 create unique index objective_srs_opportunities_one_active_idx
   on private.objective_srs_opportunities (
-    learner_id,
-    project_id,
-    objective_id,
-    srs_epoch
+    learner_id, project_id, objective_id, srs_epoch
   )
   where status = 'active';
 
 create index objective_srs_opportunities_instance_idx
   on private.objective_srs_opportunities (instance_id, status);
 
+-- Opportunity identity/attribution is immutable. The only legal update is the
+-- one-way active -> terminal lifecycle transition made by the authority RPCs.
+create or replace function private.study_graph_objective_srs_opportunity_guard()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception using errcode = '55000', message = 'objective_srs_opportunity_is_not_deletable';
+  end if;
+
+  if old.status <> 'active' or new.status <> 'terminal'
+    or new.opportunity_id is distinct from old.opportunity_id
+    or new.instance_id is distinct from old.instance_id
+    or new.learner_id is distinct from old.learner_id
+    or new.project_id is distinct from old.project_id
+    or new.objective_id is distinct from old.objective_id
+    or new.objective_version is distinct from old.objective_version
+    or new.srs_epoch is distinct from old.srs_epoch
+    or new.evidence_use is distinct from old.evidence_use
+    or new.created_at is distinct from old.created_at then
+    raise exception using errcode = '55000', message = 'objective_srs_opportunity_identity_is_immutable';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger objective_srs_opportunities_lifecycle_guard
+before update or delete on private.objective_srs_opportunities
+for each row execute function private.study_graph_objective_srs_opportunity_guard();
+
 alter table private.objective_srs_opportunities enable row level security;
 revoke all on table private.objective_srs_opportunities
   from public, anon, authenticated, service_role;
+revoke execute on function private.study_graph_objective_srs_opportunity_guard()
+  from public, anon, authenticated, service_role;
 
--- Receipt v2 adds two terminal accepted-no-SRS reasons. The v1 RPC still
--- validates its historical reason set and continues to emit Receipt v1.
+-- Receipt v2 adds only two new authoritative no-SRS reasons. The current v1
+-- RPC still validates its historical set and continues to emit Receipt v1.
 alter table private.objective_srs_applications
   drop constraint if exists objective_srs_applications_reason_check;
 alter table private.objective_srs_applications
-  add constraint objective_srs_applications_reason_check
-  check (reason in (
+  add constraint objective_srs_applications_reason_check check (reason in (
     'applied',
     'grader-unavailable',
     'scope-not-eligible',
@@ -152,9 +159,9 @@ alter table private.objective_srs_applications
     'issuance-context-missing'
   ));
 
--- Generic v2 issuer. The trusted server supplies presentation/archive facts and
--- only an issuance intent. Objective identity, evidence use, due/unseen state,
--- expected revision, policies, and expiry are derived in the transaction.
+-- Common v2 issuer. The caller provides archive/presentation facts plus only an
+-- issuance intent; expected revision, effective evidence use and opportunity
+-- kind are DB-derived under the Objective advisory lock.
 create or replace function public.study_graph_issue_objective_instance_v2(
   p_learner_id uuid,
   p_release_id text,
@@ -218,23 +225,20 @@ begin
     raise exception using errcode = '22023', message = 'invalid_objective_v2_issuance';
   end if;
 
-  -- Revision and Objective binding are immutable archive facts. Read them
-  -- before the Objective lock, but do not take mutable row locks here.
-  select er.*
-    into v_revision
+  -- Immutable archive facts may be read before the authority lock. No mutable
+  -- instance/opportunity/state row lock is taken here.
+  select er.* into v_revision
   from private.content_release_entries cre
   join private.exercise_revisions er on er.revision_id = cre.revision_id
-  where cre.release_id = p_release_id
-    and cre.revision_id = p_revision_id;
+  where cre.release_id = p_release_id and cre.revision_id = p_revision_id;
   if not found then
     raise exception using errcode = 'P0001', message = 'objective_archive_not_registered';
   end if;
-  if v_revision.payload #>> '{status}' <> 'approved' then
+  if (v_revision.payload #>> '{status}') is distinct from 'approved' then
     raise exception using errcode = 'P0001', message = 'revision_not_issuable';
   end if;
 
-  select eob.*
-    into v_binding
+  select eob.* into v_binding
   from private.exercise_objective_bindings eob
   where eob.revision_id = p_revision_id;
   if not found then
@@ -247,16 +251,13 @@ begin
     raise exception using errcode = 'P0001', message = 'objective_binding_not_srs_capable';
   end if;
 
-  -- Binding lock order: Objective authority is acquired before any mutable
-  -- instance/opportunity/state row lock for the v2 path.
   perform pg_advisory_xact_lock(hashtextextended(
     'objective|' || p_learner_id::text || '|' || v_binding.project_id
       || '|' || v_binding.objective_id || '|' || p_srs_epoch::text,
     0
   ));
 
-  select ors.*
-    into v_state
+  select ors.* into v_state
   from private.objective_review_state ors
   where ors.learner_id = p_learner_id
     and ors.project_id = v_binding.project_id
@@ -288,8 +289,7 @@ begin
     v_effective_evidence_use := 'srs';
     v_expires_at := v_now + interval '604800 seconds';
 
-    select oso.*
-      into v_active
+    select oso.* into v_active
     from private.objective_srs_opportunities oso
     where oso.learner_id = p_learner_id
       and oso.project_id = v_binding.project_id
@@ -299,8 +299,7 @@ begin
     for update;
 
     if found then
-      select iob.*
-        into v_active_binding
+      select iob.* into v_active_binding
       from private.instance_objective_bindings iob
       where iob.instance_id = v_active.instance_id;
 
@@ -314,8 +313,7 @@ begin
           or
           (v_state_found and v_active_binding.expected_state_revision = v_state.state_revision)
         ) then
-        select ei.*
-          into v_active_instance
+        select ei.* into v_active_instance
         from private.exercise_instances ei
         where ei.instance_id = v_active.instance_id;
         if not found then
@@ -350,115 +348,47 @@ begin
   end if;
 
   insert into private.exercise_instances (
-    instance_id,
-    learner_id,
-    release_id,
-    revision_id,
-    presentation,
-    presentation_hash,
-    renderer_version,
-    adapter_version,
-    locale,
-    scope_evidence,
-    knowledge_binding,
-    legacy_item_id,
-    legacy_item_kind,
-    legacy_exercise_id,
-    srs_target,
-    srs_epoch,
-    issued_at
+    instance_id, learner_id, release_id, revision_id, presentation,
+    presentation_hash, renderer_version, adapter_version, locale, scope_evidence,
+    knowledge_binding, legacy_item_id, legacy_item_kind, legacy_exercise_id,
+    srs_target, srs_epoch, issued_at
   ) values (
-    v_instance_id,
-    p_learner_id,
-    p_release_id,
-    p_revision_id,
-    p_presentation,
-    p_presentation_hash,
-    p_renderer_version,
-    p_adapter_version,
-    p_locale,
-    p_scope_evidence,
-    p_knowledge_binding,
-    p_legacy_item_id,
-    p_legacy_item_kind,
-    p_legacy_exercise_id,
-    'objective',
-    p_srs_epoch::text,
-    v_now
+    v_instance_id, p_learner_id, p_release_id, p_revision_id, p_presentation,
+    p_presentation_hash, p_renderer_version, p_adapter_version, p_locale, p_scope_evidence,
+    p_knowledge_binding, p_legacy_item_id, p_legacy_item_kind, p_legacy_exercise_id,
+    'objective', p_srs_epoch::text, v_now
   );
 
   insert into private.instance_objective_bindings (
-    instance_id,
-    project_id,
-    objective_id,
-    objective_version,
-    srs_epoch,
-    evidence_use,
-    scheduling_context_version,
-    opportunity_kind,
-    expected_state_revision,
-    grade_policy_version,
-    activation_policy_version,
-    issued_at,
-    expires_at,
-    due_at_observed
+    instance_id, project_id, objective_id, objective_version, srs_epoch, evidence_use,
+    scheduling_context_version, opportunity_kind, expected_state_revision,
+    grade_policy_version, activation_policy_version, issued_at, expires_at, due_at_observed
   ) values (
-    v_instance_id,
-    v_binding.project_id,
-    v_binding.objective_id,
-    v_binding.objective_version,
-    p_srs_epoch,
-    v_effective_evidence_use,
-    1,
-    v_opportunity_kind,
-    v_expected_state_revision,
-    'deterministic-correctness-cap-v1',
-    'on-publication-v1',
-    v_now,
-    v_expires_at,
-    v_due_at_observed
+    v_instance_id, v_binding.project_id, v_binding.objective_id,
+    v_binding.objective_version, p_srs_epoch, v_effective_evidence_use,
+    1, v_opportunity_kind, v_expected_state_revision,
+    'deterministic-correctness-cap-v1', 'on-publication-v1',
+    v_now, v_expires_at, v_due_at_observed
   );
 
   if v_effective_evidence_use = 'srs' then
     insert into private.objective_srs_opportunities (
-      instance_id,
-      learner_id,
-      project_id,
-      objective_id,
-      objective_version,
-      srs_epoch,
-      evidence_use,
-      status,
-      created_at
+      instance_id, learner_id, project_id, objective_id, objective_version,
+      srs_epoch, evidence_use, status, created_at
     ) values (
-      v_instance_id,
-      p_learner_id,
-      v_binding.project_id,
-      v_binding.objective_id,
-      v_binding.objective_version,
-      p_srs_epoch,
-      'srs',
-      'active',
-      v_now
+      v_instance_id, p_learner_id, v_binding.project_id, v_binding.objective_id,
+      v_binding.objective_version, p_srs_epoch, 'srs', 'active', v_now
     );
   end if;
 
   return query select
-    v_instance_id,
-    p_release_id,
-    p_revision_id,
-    v_opportunity_kind,
-    v_effective_evidence_use,
-    v_expected_state_revision,
-    v_now,
-    v_expires_at,
-    false;
+    v_instance_id, p_release_id, p_revision_id, v_opportunity_kind,
+    v_effective_evidence_use, v_expected_state_revision, v_now, v_expires_at, false;
 end;
 $$;
 
--- Generic v2 acceptance RPC. It intentionally receives grading/scope facts,
--- not an SRS plan. The database computes the authoritative application reason
--- and deterministic effective grade from immutable issuance context.
+-- Common v2 acceptance RPC. It receives grading/scope facts but no SRS plan;
+-- the DB derives effective grade, application reason and state mutation.
 create or replace function public.study_graph_record_objective_attempt_v2(
   p_attempt_id uuid,
   p_instance_id uuid,
@@ -527,17 +457,14 @@ begin
         jsonb_typeof(p_raw_answer) = 'object'
         and p_raw_answer ->> 'type' = 'text'
         and jsonb_typeof(p_raw_answer -> 'value') = 'string'
-      ),
-      false
+      ), false
     )
     or p_grading_status is null or p_grading_status not in ('graded', 'ungraded')
     or p_grading_authority is null or p_grading_authority <> 'server'
     or p_grading_strategy_id is null or length(btrim(p_grading_strategy_id)) = 0
     or p_grading_strategy_version is null or p_grading_strategy_version <= 0
     or p_normalizer_version is null or length(btrim(p_normalizer_version)) = 0
-    or p_used_hint is null
-    or p_scope_accepted is null
-    or p_epoch_active is null then
+    or p_used_hint is null or p_scope_accepted is null or p_epoch_active is null then
     raise exception using errcode = '22023', message = 'invalid_objective_v2_submission';
   end if;
   if p_grading_status = 'graded' and p_is_correct is null then
@@ -554,10 +481,9 @@ begin
     raise exception using errcode = '22023', message = 'invalid_response_time';
   end if;
 
-  -- v2 binding lock order begins with request identity.
+  -- 1. Attempt/request identity lock.
   perform pg_advisory_xact_lock(hashtextextended(
-    'objective-v2-attempt|' || p_attempt_id::text,
-    0
+    'objective-v2-attempt|' || p_attempt_id::text, 0
   ));
 
   select ea.request_hash, ea.instance_id, ea.learner_id
@@ -570,29 +496,26 @@ begin
       or v_existing_request_hash <> p_request_hash then
       raise exception using errcode = 'P0001', message = 'attempt_conflict';
     end if;
-    select osa.*
-      into v_existing_application
+    select osa.* into v_existing_application
     from private.objective_srs_applications osa
     where osa.attempt_id = p_attempt_id;
-    if not found or v_existing_application.receipt #>> '{receiptVersion}' <> '2' then
+    if not found
+      or (v_existing_application.receipt #>> '{receiptVersion}') is distinct from '2' then
       raise exception using errcode = 'P0001', message = 'attempt_not_objective_v2';
     end if;
     return query select v_existing_application.receipt;
     return;
   end if;
 
-  -- Immutable attribution is read without a mutable row lock only to derive
-  -- the Objective key. Historical rows with NULL context remain readable.
-  select iob.*
-    into v_instance_binding
+  -- Immutable attribution is read without FOR UPDATE only to derive the key.
+  select iob.* into v_instance_binding
   from private.instance_objective_bindings iob
   where iob.instance_id = p_instance_id;
   if not found then
     raise exception using errcode = 'P0001', message = 'instance_objective_binding_not_found';
   end if;
 
-  select ei.*
-    into v_instance
+  select ei.* into v_instance
   from private.exercise_instances ei
   where ei.instance_id = p_instance_id;
   if not found then
@@ -602,16 +525,16 @@ begin
     raise exception using errcode = 'P0001', message = 'learner_mismatch';
   end if;
 
-  -- Binding lock order: request identity -> Objective advisory lock -> mutable
-  -- instance/opportunity/state rows. Do not move an instance FOR UPDATE above it.
+  -- 2. Objective authority lock. Only after this may mutable instance,
+  -- opportunity and state rows be locked.
   perform pg_advisory_xact_lock(hashtextextended(
     'objective|' || p_learner_id::text || '|' || v_instance_binding.project_id
       || '|' || v_instance_binding.objective_id || '|' || v_instance_binding.srs_epoch::text,
     0
   ));
 
-  select ei.*
-    into v_instance
+  -- 3. Consistent mutable row order: instance -> opportunity -> state.
+  select ei.* into v_instance
   from private.exercise_instances ei
   where ei.instance_id = p_instance_id
   for update;
@@ -619,14 +542,12 @@ begin
     raise exception using errcode = 'P0001', message = 'instance_not_found';
   end if;
 
-  select oso.*
-    into v_opportunity
+  select oso.* into v_opportunity
   from private.objective_srs_opportunities oso
   where oso.instance_id = p_instance_id
   for update;
 
-  select ors.*
-    into v_state
+  select ors.* into v_state
   from private.objective_review_state ors
   where ors.learner_id = p_learner_id
     and ors.project_id = v_instance_binding.project_id
@@ -635,8 +556,7 @@ begin
   for update;
   v_state_found := found;
 
-  select ea.attempt_id
-    into v_existing_instance_attempt_id
+  select ea.attempt_id into v_existing_instance_attempt_id
   from private.exercise_attempts ea
   where ea.instance_id = p_instance_id
   for update;
@@ -644,8 +564,7 @@ begin
     raise exception using errcode = 'P0001', message = 'instance_already_answered';
   end if;
 
-  select er.*
-    into v_revision
+  select er.* into v_revision
   from private.exercise_revisions er
   where er.revision_id = v_instance.revision_id;
   if not found then
@@ -669,12 +588,14 @@ begin
     raise exception using errcode = 'P0001', message = 'grading_revision_mismatch';
   end if;
 
-  v_context_trustworthy :=
+  v_context_trustworthy := coalesce(
     v_instance_binding.scheduling_context_version = 1
     and v_instance_binding.opportunity_kind in ('unseen', 'due', 'practice')
     and v_instance_binding.grade_policy_version = 'deterministic-correctness-cap-v1'
     and v_instance_binding.activation_policy_version = 'on-publication-v1'
-    and v_instance_binding.issued_at is not null;
+    and v_instance_binding.issued_at is not null,
+    false
+  );
 
   if p_grading_status = 'graded' then
     if p_is_correct = false then
@@ -708,8 +629,6 @@ begin
       and v_instance_binding.expires_at > v_now;
   end if;
 
-  -- DB chooses one authoritative application reason from server grading/scope
-  -- facts plus immutable issuance and current opportunity/state authority.
   if v_revision_status = 'quarantined' then
     v_reason := 'revision-quarantined';
   elsif v_revision_status = 'retired' then
@@ -735,9 +654,7 @@ begin
   if v_srs_applied then
     v_previous_interval := case when v_state_found then v_state.interval_days else 0 end;
     v_previous_repetitions := case when v_state_found then v_state.repetitions else 0 end;
-    if v_state_found then
-      v_state_before := to_jsonb(v_state);
-    end if;
+    if v_state_found then v_state_before := to_jsonb(v_state); end if;
 
     case v_effective_grade
       when 'again' then
@@ -745,24 +662,18 @@ begin
         v_repetitions := 0;
         v_due_at := v_now + interval '10 minutes';
       when 'hard' then
-        v_interval := case
-          when v_previous_interval = 0 then 1
-          else greatest(1, ceil(v_previous_interval * 1.2)::integer)
-        end;
+        v_interval := case when v_previous_interval = 0 then 1
+          else greatest(1, ceil(v_previous_interval * 1.2)::integer) end;
         v_repetitions := v_previous_repetitions + 1;
         v_due_at := v_now + make_interval(days => v_interval);
       when 'good' then
-        v_interval := case
-          when v_previous_interval = 0 then 2
-          else greatest(2, round(v_previous_interval * 2.2)::integer)
-        end;
+        v_interval := case when v_previous_interval = 0 then 2
+          else greatest(2, round(v_previous_interval * 2.2)::integer) end;
         v_repetitions := v_previous_repetitions + 1;
         v_due_at := v_now + make_interval(days => v_interval);
       when 'easy' then
-        v_interval := case
-          when v_previous_interval = 0 then 5
-          else greatest(5, round(v_previous_interval * 3.2)::integer)
-        end;
+        v_interval := case when v_previous_interval = 0 then 5
+          else greatest(5, round(v_previous_interval * 3.2)::integer) end;
         v_repetitions := v_previous_repetitions + 1;
         v_due_at := v_now + make_interval(days => v_interval);
     end case;
@@ -770,35 +681,14 @@ begin
     v_state_revision := case when v_state_found then v_state.state_revision + 1 else 1 end;
 
     insert into private.objective_review_state (
-      learner_id,
-      project_id,
-      objective_id,
-      srs_epoch,
-      last_grade,
-      repetitions,
-      interval_days,
-      last_reviewed_at,
-      due_at,
-      scheduler_version,
-      state_revision,
-      last_application_id,
-      created_at,
-      updated_at
+      learner_id, project_id, objective_id, srs_epoch, last_grade, repetitions,
+      interval_days, last_reviewed_at, due_at, scheduler_version, state_revision,
+      last_application_id, created_at, updated_at
     ) values (
-      p_learner_id,
-      v_instance_binding.project_id,
-      v_instance_binding.objective_id,
-      v_instance_binding.srs_epoch,
-      v_effective_grade,
-      v_repetitions,
-      v_interval,
-      v_now,
-      v_due_at,
-      'objective-four-grade-v1',
-      v_state_revision,
-      v_application_id,
-      v_now,
-      v_now
+      p_learner_id, v_instance_binding.project_id, v_instance_binding.objective_id,
+      v_instance_binding.srs_epoch, v_effective_grade, v_repetitions, v_interval,
+      v_now, v_due_at, 'objective-four-grade-v1', v_state_revision,
+      v_application_id, v_now, v_now
     )
     on conflict (learner_id, project_id, objective_id, srs_epoch) do update set
       last_grade = excluded.last_grade,
@@ -811,8 +701,7 @@ begin
       last_application_id = excluded.last_application_id,
       updated_at = excluded.updated_at;
 
-    select ors.*
-      into v_state
+    select ors.* into v_state
     from private.objective_review_state ors
     where ors.learner_id = p_learner_id
       and ors.project_id = v_instance_binding.project_id
@@ -821,8 +710,8 @@ begin
     v_state_after := to_jsonb(v_state);
   end if;
 
-  -- The exact instance-owned opportunity is terminalized. A newer opportunity
-  -- can never be closed by this update because instance_id is part of it.
+  -- Target only this instance's opportunity; a newer active opportunity cannot
+  -- be terminalized by an old acceptance transaction.
   if v_opportunity.opportunity_id is not null and v_opportunity.status = 'active' then
     update private.objective_srs_opportunities oso
     set status = 'terminal',
@@ -837,6 +726,8 @@ begin
       and oso.status = 'active';
   end if;
 
+  -- exercise_attempts retains the historical four-reason projection. Exact
+  -- Objective v2 authority lives in objective_srs_applications + Receipt v2.
   v_private_srs_reason := case
     when v_reason in ('applied', 'grader-unavailable', 'scope-not-eligible', 'revision-quarantined')
       then v_reason
@@ -863,103 +754,41 @@ begin
   );
 
   insert into private.exercise_attempts (
-    attempt_id,
-    instance_id,
-    learner_id,
-    request_hash,
-    raw_answer,
-    normalized_answer,
-    grading_status,
-    grading_authority,
-    grading_strategy_id,
-    grading_strategy_version,
-    normalizer_version,
-    is_correct,
-    self_evaluation,
-    effective_srs_grade,
-    response_ms,
-    used_hint,
-    scope_accepted,
-    srs_applied,
-    srs_reason,
-    scheduler_version,
-    review_state_before,
-    review_state_after,
-    legacy_review_attempt_id,
-    receipt,
-    submitted_at
+    attempt_id, instance_id, learner_id, request_hash, raw_answer, normalized_answer,
+    grading_status, grading_authority, grading_strategy_id, grading_strategy_version,
+    normalizer_version, is_correct, self_evaluation, effective_srs_grade, response_ms,
+    used_hint, scope_accepted, srs_applied, srs_reason, scheduler_version,
+    review_state_before, review_state_after, legacy_review_attempt_id, receipt, submitted_at
   ) values (
-    p_attempt_id,
-    p_instance_id,
-    p_learner_id,
-    p_request_hash,
-    p_raw_answer,
-    p_normalized_answer,
-    p_grading_status,
-    p_grading_authority,
-    p_grading_strategy_id,
-    p_grading_strategy_version,
-    p_normalizer_version,
-    p_is_correct,
-    p_self_evaluation,
+    p_attempt_id, p_instance_id, p_learner_id, p_request_hash, p_raw_answer,
+    p_normalized_answer, p_grading_status, p_grading_authority, p_grading_strategy_id,
+    p_grading_strategy_version, p_normalizer_version, p_is_correct, p_self_evaluation,
     case when v_srs_applied then v_effective_grade else null end,
-    p_response_ms,
-    p_used_hint,
-    p_scope_accepted,
-    v_srs_applied,
-    v_private_srs_reason,
+    p_response_ms, p_used_hint, p_scope_accepted, v_srs_applied, v_private_srs_reason,
     case when v_srs_applied then 'objective-four-grade-v1' else null end,
-    null,
-    null,
-    null,
-    v_receipt,
-    v_now
+    null, null, null, v_receipt, v_now
   );
 
   insert into private.objective_srs_applications (
-    application_id,
-    attempt_id,
-    instance_id,
-    learner_id,
-    project_id,
-    objective_id,
-    objective_version,
-    srs_epoch,
-    evidence_use,
-    applied,
-    reason,
-    effective_grade,
-    scheduler_version,
-    state_before,
-    state_after,
-    receipt,
-    created_at
+    application_id, attempt_id, instance_id, learner_id, project_id, objective_id,
+    objective_version, srs_epoch, evidence_use, applied, reason, effective_grade,
+    scheduler_version, state_before, state_after, receipt, created_at
   ) values (
-    v_application_id,
-    p_attempt_id,
-    p_instance_id,
-    p_learner_id,
-    v_instance_binding.project_id,
-    v_instance_binding.objective_id,
-    v_instance_binding.objective_version,
-    v_instance_binding.srs_epoch,
-    v_instance_binding.evidence_use,
-    v_srs_applied,
-    v_reason,
+    v_application_id, p_attempt_id, p_instance_id, p_learner_id,
+    v_instance_binding.project_id, v_instance_binding.objective_id,
+    v_instance_binding.objective_version, v_instance_binding.srs_epoch,
+    v_instance_binding.evidence_use, v_srs_applied, v_reason,
     case when v_srs_applied then v_effective_grade else null end,
     case when v_srs_applied then 'objective-four-grade-v1' else null end,
-    v_state_before,
-    v_state_after,
-    v_receipt,
-    v_now
+    v_state_before, v_state_after, v_receipt, v_now
   );
 
   return query select v_receipt;
 end;
 $$;
 
--- SECURITY DEFINER functions are private service-role RPCs. Revoke the
--- Postgres/Supabase default EXECUTE surface before granting the intended role.
+-- SECURITY DEFINER functions are service-role-only. Revoke the Postgres and
+-- Supabase default EXECUTE surface explicitly before granting the trusted role.
 revoke execute on function public.study_graph_issue_objective_instance_v2(
   uuid, text, uuid, jsonb, text, text, text, text, jsonb, jsonb,
   text, text, text, integer, text
