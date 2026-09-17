@@ -24,6 +24,11 @@ export type ObjectiveSrsApplicationReason =
   | "practice-only"
   | "epoch-inactive";
 
+/** Additive reason vocabulary reserved for the future Objective Receipt v2 writer. */
+export type ObjectiveSrsApplicationReasonV2 = ObjectiveSrsApplicationReason
+  | "stale-opportunity"
+  | "issuance-context-missing";
+
 export type ObjectiveReviewState = {
   learnerId: string;
   projectId: string;
@@ -54,6 +59,26 @@ export type ObjectiveSrsReceipt = {
   isCorrect: boolean | null;
   applied: boolean;
   reason: ObjectiveSrsApplicationReason;
+  effectiveGrade: ReviewGrade | null;
+  stateRevision: number | null;
+  dueAt: string | null;
+};
+
+/** Future compact receipt shape. This type does not change the current v1 writer. */
+export type ObjectiveSrsReceiptV2 = {
+  receiptVersion: 2;
+  attemptId: string;
+  instanceId: string;
+  acceptedAt: string;
+  projectId: string;
+  objectiveId: string;
+  objectiveVersion: number;
+  srsEpoch: SrsEpoch;
+  evidenceUse: "srs" | "practice-only";
+  gradingStatus: "graded" | "ungraded";
+  isCorrect: boolean | null;
+  applied: boolean;
+  reason: ObjectiveSrsApplicationReasonV2;
   effectiveGrade: ReviewGrade | null;
   stateRevision: number | null;
   dueAt: string | null;

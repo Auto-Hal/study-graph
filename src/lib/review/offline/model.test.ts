@@ -556,3 +556,60 @@ test("delivery transition stores authoritative receipt and derives terminal SRS 
   assert.equal(authoritativeReceiptResult(result.receipt as OfflineReceiptRecord, instanceId).srsApplied, false);
   assert.throws(() => transitionOfflineAttempt(result, { type: "begin-send" }), /Terminal/);
 });
+
+test("offline descriptor v1 wraps and restores compact Objective Receipt v2 verbatim", () => {
+  for (const reason of ["stale-opportunity", "issuance-context-missing"] as const) {
+    const serverReceipt = {
+      receiptVersion: 2,
+      attemptId,
+      instanceId,
+      acceptedAt: "2030-01-01T00:00:00.000Z",
+      projectId: "philosophy",
+      objectiveId: "philosophy.term-recall",
+      objectiveVersion: 1,
+      srsEpoch: 1,
+      evidenceUse: "srs",
+      gradingStatus: "graded",
+      isCorrect: true,
+      applied: false,
+      reason,
+      effectiveGrade: null,
+      stateRevision: null,
+      dueAt: null,
+    };
+    const record = createOfflineReceiptRecord("objective", serverReceipt, instanceId, attemptId);
+    assert.equal(record.descriptorVersion, 1);
+    assert.deepEqual(record.receipt, serverReceipt);
+    const restored = authoritativeReceiptResult(record, instanceId);
+    assert.equal(restored.srsApplied, false);
+    assert.equal(restored.srsReason, reason);
+    assert.equal(restored.effectiveSrsGrade, null);
+    assert.equal(restored.dueAt, null);
+
+    const pending = confirmOfflineSubmission(createOfflineAttemptDraft(), submission());
+    const sending = transitionOfflineAttempt(pending, { type: "begin-send" }) as OfflineAttemptCommitted;
+    const accepted = transitionFromDelivery(sending, { kind: "accepted", receipt: record }) as OfflineAttemptCommitted;
+    assert.equal(accepted.status, "accepted-no-srs");
+  }
+});
+
+test("offline descriptor v1 rejects malformed Objective Receipt v2", () => {
+  assert.throws(() => createOfflineReceiptRecord("objective", {
+    receiptVersion: 2,
+    attemptId,
+    instanceId,
+    acceptedAt: "2030-01-01T00:00:00.000Z",
+    projectId: "philosophy",
+    objectiveId: "philosophy.term-recall",
+    objectiveVersion: 1,
+    srsEpoch: 1,
+    evidenceUse: "srs",
+    gradingStatus: "graded",
+    isCorrect: true,
+    applied: false,
+    reason: "stale-opportunity",
+    effectiveGrade: null,
+    stateRevision: 1,
+    dueAt: null,
+  }, instanceId, attemptId), /stored_receipt_incomplete/);
+});
