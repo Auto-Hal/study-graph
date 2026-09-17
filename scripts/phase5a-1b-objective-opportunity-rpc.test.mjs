@@ -6,31 +6,33 @@ import test from "node:test";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
-const migration = read("supabase/migrations/20260917021000_phase_5a_1b_objective_opportunity_rpc_foundation.sql");
+const foundationMigration = read("supabase/migrations/20260917021000_phase_5a_1b_objective_opportunity_rpc_foundation.sql");
+const lockOrderMigration = read("supabase/migrations/20260918010500_phase_5a_1b_objective_issuer_lock_order.sql");
+const migration = `${foundationMigration}\n${lockOrderMigration}`;
 
 function functionBody(name) {
   const marker = `create or replace function public.${name}`;
-  const start = migration.indexOf(marker);
+  const start = migration.lastIndexOf(marker);
   assert.notEqual(start, -1, `${name} must exist`);
   const next = migration.indexOf("\ncreate or replace function public.", start + marker.length);
   return migration.slice(start, next === -1 ? migration.length : next);
 }
 
 test("historical Objective instance bindings remain valid without fabricated v2 context", () => {
-  assert.match(migration, /scheduling_context_version is null[\s\S]*opportunity_kind is null[\s\S]*expected_state_revision is null/);
+  assert.match(foundationMigration, /scheduling_context_version is null[\s\S]*opportunity_kind is null[\s\S]*expected_state_revision is null/);
   assert.doesNotMatch(migration, /update\s+private\.instance_objective_bindings\s+set\s+scheduling_context_version/i);
 });
 
 test("v2 scheduling context keeps unseen, due, and practice semantics strict", () => {
-  assert.match(migration, /opportunity_kind = 'unseen'[\s\S]*evidence_use = 'srs'[\s\S]*expected_state_revision = 0[\s\S]*expires_at is not null/);
-  assert.match(migration, /opportunity_kind = 'due'[\s\S]*evidence_use = 'srs'[\s\S]*expected_state_revision > 0[\s\S]*expires_at is not null/);
-  assert.match(migration, /opportunity_kind = 'practice'[\s\S]*evidence_use = 'practice-only'[\s\S]*expected_state_revision is null[\s\S]*expires_at is null/);
+  assert.match(foundationMigration, /opportunity_kind = 'unseen'[\s\S]*evidence_use = 'srs'[\s\S]*expected_state_revision = 0[\s\S]*expires_at is not null/);
+  assert.match(foundationMigration, /opportunity_kind = 'due'[\s\S]*evidence_use = 'srs'[\s\S]*expected_state_revision > 0[\s\S]*expires_at is not null/);
+  assert.match(foundationMigration, /opportunity_kind = 'practice'[\s\S]*evidence_use = 'practice-only'[\s\S]*expected_state_revision is null[\s\S]*expires_at is null/);
 });
 
 test("active SRS uniqueness is Objective-key scoped and never time-predicate based", () => {
-  const uniqueStart = migration.indexOf("create unique index objective_srs_opportunities_one_active_idx");
-  const uniqueEnd = migration.indexOf("create index objective_srs_opportunities_instance_idx", uniqueStart);
-  const unique = migration.slice(uniqueStart, uniqueEnd);
+  const uniqueStart = foundationMigration.indexOf("create unique index objective_srs_opportunities_one_active_idx");
+  const uniqueEnd = foundationMigration.indexOf("create index objective_srs_opportunities_instance_idx", uniqueStart);
+  const unique = foundationMigration.slice(uniqueStart, uniqueEnd);
   for (const field of ["learner_id", "project_id", "objective_id", "srs_epoch"]) assert.match(unique, new RegExp(field));
   assert.match(unique, /where status = 'active'/);
   assert.doesNotMatch(unique, /expires_at|now\(|current_timestamp/i);
@@ -55,13 +57,16 @@ test("issuer derives expected revision under the Objective lock and pins v1 poli
   assert.match(issuer, /'on-publication-v1'/);
 });
 
-test("issuer reuses a valid active SRS opportunity and lazily terminalizes only the old row", () => {
+test("issuer and acceptance use the same mutable instance -> opportunity -> state ordering", () => {
   const issuer = functionBody("study_graph_issue_objective_instance_v2");
-  assert.match(issuer, /v_active_binding\.expires_at > v_now[\s\S]*return query select[\s\S]*true/);
-  assert.match(issuer, /update private\.objective_srs_opportunities oso[\s\S]*where oso\.opportunity_id = v_active\.opportunity_id[\s\S]*and oso\.instance_id = v_active\.instance_id[\s\S]*and oso\.status = 'active'/);
-});
+  const issuerObjectiveLock = issuer.indexOf("'objective|'");
+  const issuerActiveProbe = issuer.indexOf("from private.objective_srs_opportunities oso", issuerObjectiveLock);
+  const issuerInstanceLock = issuer.indexOf("from private.exercise_instances ei", issuerActiveProbe);
+  const issuerOpportunityLock = issuer.indexOf("from private.objective_srs_opportunities oso", issuerInstanceLock);
+  const issuerStateLock = issuer.indexOf("from private.objective_review_state ors", issuerOpportunityLock);
+  assert.ok(issuerObjectiveLock >= 0 && issuerActiveProbe > issuerObjectiveLock);
+  assert.ok(issuerInstanceLock > issuerActiveProbe && issuerOpportunityLock > issuerInstanceLock && issuerStateLock > issuerOpportunityLock);
 
-test("v2 acceptance lock order is attempt identity then Objective authority then mutable rows", () => {
   const accept = functionBody("study_graph_record_objective_attempt_v2");
   const attemptLock = accept.indexOf("'objective-v2-attempt|'");
   const objectiveLock = accept.indexOf("'objective|'", attemptLock);
@@ -70,6 +75,12 @@ test("v2 acceptance lock order is attempt identity then Objective authority then
   const stateForUpdate = accept.indexOf("from private.objective_review_state ors", objectiveLock);
   assert.ok(attemptLock >= 0 && objectiveLock > attemptLock);
   assert.ok(instanceForUpdate > objectiveLock && opportunityForUpdate > instanceForUpdate && stateForUpdate > opportunityForUpdate);
+});
+
+test("issuer reuses a valid active SRS opportunity and lazily terminalizes only the old row", () => {
+  const issuer = functionBody("study_graph_issue_objective_instance_v2");
+  assert.match(issuer, /v_active_binding\.expires_at > v_now[\s\S]*return query select[\s\S]*true/);
+  assert.match(issuer, /update private\.objective_srs_opportunities oso[\s\S]*where oso\.opportunity_id = v_active\.opportunity_id[\s\S]*and oso\.instance_id = v_active\.instance_id[\s\S]*and oso\.status = 'active'/);
 });
 
 test("v2 acceptance is DB-authoritative for expected revision and deterministic grading", () => {
