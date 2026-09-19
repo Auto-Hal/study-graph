@@ -82,6 +82,9 @@ jobs:
       - name: Phase 5A-1a Objective opportunity contract tests
         run: npm run test:phase5a-1a
 
+      - name: Phase 5A-1b Objective opportunity RPC foundation tests
+        run: npm run test:phase5a-1b
+
       - name: TypeScript noEmit
         run: npx tsc --noEmit
 

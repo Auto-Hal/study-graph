@@ -32,9 +32,9 @@ test("offline receipt wrapper remains descriptor v1 and storage versions stay un
   assert.match(read("src/lib/review/offline/objective-state-mirror.ts"), /OBJECTIVE_STATE_MIRROR_DB_VERSION = 1 as const/);
 });
 
-test("no Phase 5A-1a migration or writer was introduced", () => {
+test("Phase 5A-1a itself introduced no migration or v1 writer change", () => {
   const migrations = readdirSync(resolve(root, "supabase/migrations"));
-  assert.equal(migrations.some((name) => /phase5a.?1a|objective.?opportunity/i.test(name)), false);
+  assert.equal(migrations.some((name) => /phase5a.?1a/i.test(name)), false);
   for (const path of [
     "supabase/migrations/20260908100000_phase_4d_2_objective_persistence.sql",
     "supabase/migrations/20260908120000_phase_4d_4_objective_cutover.sql",
