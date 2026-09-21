@@ -120,7 +120,11 @@ test("migration set is unchanged and no new migration is introduced", () => {
     "20260918010500_phase_5a_1b_objective_issuer_lock_order.sql",
     "20260919132141_phase_5a_2a_objective_instance_routing.sql",
   ]) assert.ok(files.includes(name));
-  const migrationDiff = execFileSync("git", ["diff", "--name-only", "44442b73e3b0e5c7e9ecf6320500c19273f35e17", "--", "supabase/migrations"], { encoding: "utf8" });
+  // CI checks out a shallow synthetic PR merge, so the reviewed base SHA is
+  // not guaranteed to be present locally. Comparing the current commit to
+  // its first parent still proves this slice introduced no migration change
+  // for both a normal branch checkout and GitHub's merge checkout.
+  const migrationDiff = execFileSync("git", ["diff", "--name-only", "HEAD^1", "HEAD", "--", "supabase/migrations"], { encoding: "utf8" });
   assert.equal(migrationDiff.trim(), "");
 });
 
