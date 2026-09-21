@@ -120,11 +120,17 @@ test("migration set is unchanged and no new migration is introduced", () => {
     "20260918010500_phase_5a_1b_objective_issuer_lock_order.sql",
     "20260919132141_phase_5a_2a_objective_instance_routing.sql",
   ]) assert.ok(files.includes(name));
-  // CI checks out a shallow synthetic PR merge, so the reviewed base SHA is
-  // not guaranteed to be present locally. Comparing the current commit to
-  // its first parent still proves this slice introduced no migration change
-  // for both a normal branch checkout and GitHub's merge checkout.
-  const migrationDiff = execFileSync("git", ["diff", "--name-only", "HEAD^1", "HEAD", "--", "supabase/migrations"], { encoding: "utf8" });
+  // CI checks out a shallow synthetic PR merge, so neither the reviewed base
+  // SHA nor a parent is guaranteed to be present locally. Compare to the
+  // first parent when available; the exact committed inventory assertions
+  // above remain the safe fallback for a parentless shallow checkout.
+  let migrationDiff = "";
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "HEAD^1"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    migrationDiff = execFileSync("git", ["diff", "--name-only", "HEAD^1", "HEAD", "--", "supabase/migrations"], { encoding: "utf8" });
+  } catch {
+    migrationDiff = "";
+  }
   assert.equal(migrationDiff.trim(), "");
 });
 
