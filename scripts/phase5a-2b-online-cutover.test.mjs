@@ -60,6 +60,7 @@ test("acceptance is instance-pinned and issuance flag is absent from the accepta
   assert.match(submit, /instance\.srs_target === "objective"/);
   assert.match(submit, /resolveObjectiveAcceptanceRouting\(request\.instanceId\)/);
   assert.match(submit, /routing\.acceptanceVersion === "v2"/);
+  assert.doesNotMatch(submit, /routing\.evidenceUse !== "srs"/);
   assert.doesNotMatch(submit, /newObjectiveIssuanceVersion|STUDY_GRAPH_OBJECTIVE_V2_ISSUANCE_ENABLED/);
   assert.doesNotMatch(submit.slice(submit.indexOf('if (routing.acceptanceVersion === "v2")'), submit.indexOf("const data = await getKuzushijiDashboard()", submit.indexOf('if (routing.acceptanceVersion === "v2")'))), /recordKuzushijiObjectivePilotAttempt/);
 });

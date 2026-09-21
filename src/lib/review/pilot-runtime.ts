@@ -310,7 +310,6 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
       if (
         routing.projectId !== instance.project_id
         || routing.srsEpoch !== Number(instance.srs_epoch)
-        || routing.acceptanceVersion === "v2" && routing.evidenceUse !== "srs"
       ) {
         throw new PilotRpcError("pilot_instance_mismatch", 502, "pilot_instance_mismatch");
       }
