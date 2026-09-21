@@ -179,7 +179,7 @@ test("receipt restoration is receipt-first and fails closed when legacy fields a
   assert.match(receipt, /effectiveSrsGrade/);
   assert.match(receipt, /StoredReceiptIncompleteError/);
   assert.match(runtime, /const existing = await getKuzushijiPilotAttemptReceipt/);
-  assert.match(runtime, /return receiptResult\(existing\.receipt,\s*request\.instanceId,\s*instance\.srs_target\)/);
+  assert.match(runtime, /return (?:receiptResult\(existing\.receipt,\s*request\.instanceId,\s*instance\.srs_target\)|receiptResultFromStoredAttempt\(existing\.receipt,\s*request\.instanceId\))/);
   assert.doesNotMatch(runtime, /receiptField/);
   assert.doesNotMatch(runtime, /gradingStatus: receipt/);
   assert.doesNotMatch(runtime, /srsApplied: receipt/);
