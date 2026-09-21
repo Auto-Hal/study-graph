@@ -66,7 +66,10 @@ test("string rawAnswer survives validation, grading, and Objective RPC payload c
   assert.equal(result.grading.isCorrect, true);
   assert.equal(result.objectiveRpcPayload.p_raw_answer, "あ");
 
-  assert.match(pilotRuntime, /gradeExerciseRevision\(instance\.revision_payload, request\.rawAnswer\)/);
+  assert.match(
+    pilotRuntime,
+    /gradeExerciseRevision\(instance\.revision_payload, (?:request|immutableRequest)\.rawAnswer\)/,
+  );
   assert.match(pilotRuntime, /recordKuzushijiObjectivePilotAttempt\(\{/);
   assert.match(
     pilotRpc,

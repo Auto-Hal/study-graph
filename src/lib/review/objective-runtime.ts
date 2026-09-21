@@ -8,7 +8,7 @@ import {
   selectNewObjectiveIssuer, type ObjectiveInstanceRouting, type ObjectiveIssueInput,
 } from "./objective-runtime-core.ts";
 
-/** Future opt-in for NEW issuance only. No current route imports this module. */
+/** Server-only opt-in for NEW online issuance only; acceptance never reads it. */
 export function newObjectiveIssuanceVersion() {
   return selectNewObjectiveIssuer(process.env.STUDY_GRAPH_OBJECTIVE_V2_ISSUANCE_ENABLED === "true");
 }
@@ -43,9 +43,10 @@ export type ObjectiveAcceptanceAuthorities = Readonly<{
 }>;
 
 /**
- * Unused preparation boundary. Future server wiring must supply project authority functions.
- * Accepted retries return before resolver, grader, fresh Scope or epoch checks.
- * DB remains the final SRS authority and serializes concurrent first acceptances.
+ * Server acceptance boundary. Project authority callbacks are supplied by the
+ * current online pilot adapter; DB remains the final SRS authority and
+ * serializes concurrent first acceptances. Accepted retries return before
+ * resolver, grader, fresh Scope or epoch checks.
  */
 export async function submitObjectiveAttemptV2(requestInput: ExerciseAttemptRequest, authority: ObjectiveAcceptanceAuthorities) {
   const request = immutableObjectiveAttempt(requestInput);
