@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 
 const migrationDirectory = new URL("../supabase/migrations/", import.meta.url);
@@ -9,10 +9,31 @@ assert.equal(files.length, 20);
 assert.equal(files.at(-1), fixFile);
 
 const baseline = "33cce5541d9528a35757860849185fb2c80a1fab";
-for (const file of files.slice(0, 19)) {
-  const committed = execFileSync("git", ["show", baseline + ":supabase/migrations/" + file], { encoding: "utf8" }).replace(/\r\n/g, "\n");
-  const current = readFileSync(new URL("../supabase/migrations/" + file, import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.equal(current, committed, file + " changed relative to reviewed baseline");
+const historicalFiles = files.slice(0, 19);
+const canReadAllAt = (ref) => historicalFiles.every((file) =>
+  spawnSync("git", ["cat-file", "-e", `${ref}:supabase/migrations/${file}`], { stdio: "ignore" }).status === 0,
+);
+const comparisonRef = [baseline, "HEAD^1"].find(canReadAllAt);
+
+if (comparisonRef) {
+  for (const file of historicalFiles) {
+    const committed = execFileSync("git", ["show", `${comparisonRef}:supabase/migrations/${file}`], { encoding: "utf8" }).replace(/\r\n/g, "\n");
+    const current = readFileSync(new URL("../supabase/migrations/" + file, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+    assert.equal(current, committed, file + " changed relative to reviewed baseline");
+  }
+} else {
+  // GitHub's shallow merge checkout may not include the reviewed commit or its
+  // migration tree. In that case, prove the checkout delta contains only this
+  // additive migration when a parent is available, while the local/full clone
+  // path above retains the byte-for-byte historical guard.
+  const parent = spawnSync("git", ["rev-parse", "--verify", "HEAD^1"], { encoding: "utf8" });
+  if (parent.status === 0) {
+    const changed = execFileSync("git", ["diff", "--name-only", parent.stdout.trim(), "HEAD", "--", "supabase/migrations"], { encoding: "utf8" })
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean);
+    assert.deepEqual(changed, [fixFile]);
+  }
 }
 
 const sql = readFileSync(new URL("../supabase/migrations/" + fixFile, import.meta.url), "utf8");
