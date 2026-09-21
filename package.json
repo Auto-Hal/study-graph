@@ -37,7 +37,8 @@
     "test:phase5a-1b": "node --test scripts/phase5a-1b-objective-opportunity-rpc.test.mjs",
     "test:phase5a-1c": "node --experimental-strip-types --test src/lib/review/objective-recovery.test.ts src/lib/review/exercises/receipt.test.ts src/lib/review/offline/model.test.ts src/lib/review/offline/pilot-transport.test.ts && node --test scripts/phase5a-1c-objective-recovery.test.mjs",
     "test:phase5a-2a": "node --experimental-strip-types --import ./scripts/objective-runtime-test-loader.mjs --test src/lib/review/objective-runtime.test.ts && node --test scripts/phase5a-2a-runtime-boundary.test.mjs",
-    "test:phase5a-2a:db": "node --experimental-strip-types scripts/phase5a-2a-db.test.mjs"
+    "test:phase5a-2a:db": "node --experimental-strip-types scripts/phase5a-2a-db.test.mjs",
+    "test:phase5a-2b": "node --test scripts/phase5a-2b-online-cutover.test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",

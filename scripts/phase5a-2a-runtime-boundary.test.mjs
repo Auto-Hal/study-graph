@@ -3,12 +3,15 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("current API/online/offline v1 runtime remains isolated from the unused v2 adapter", () => {
-  for (const file of ["src/lib/review/pilot-runtime.ts", "src/lib/supabase/pilot.ts", "src/lib/review/registry.ts",
-    "app/api/review/pilot/issue/route.ts", "app/api/review/pilot/attempt/route.ts", "src/lib/review/offline/pilot-transport.ts"]) {
-    assert.doesNotMatch(read(file), /objective-runtime|study_graph_issue_objective_instance_v2|study_graph_record_objective_attempt_v2/);
-  }
+test("online pilot owns the adapter boundary while offline and Supabase legacy transport stay isolated", () => {
   const runtime = read("src/lib/review/pilot-runtime.ts");
+  assert.match(runtime, /issueObjectiveInstanceV2/);
+  assert.match(runtime, /resolveObjectiveAcceptanceRouting/);
+  assert.match(runtime, /submitObjectiveAttemptV2/);
+  for (const file of ["src/lib/supabase/pilot.ts", "src/lib/review/registry.ts",
+    "app/api/review/pilot/issue/route.ts", "app/api/review/pilot/attempt/route.ts", "src/lib/review/offline/pilot-transport.ts"]) {
+    assert.doesNotMatch(read(file), /study_graph_issue_objective_instance_v2|study_graph_record_objective_attempt_v2/);
+  }
   assert.match(runtime, /getKuzushijiDashboard\(\)/);
   assert.match(runtime, /buildKuzushijiScopeSnapshot\(data\)/);
   assert.match(runtime, /KUZUSHIJI_PILOT_SRS_EPOCH/);
