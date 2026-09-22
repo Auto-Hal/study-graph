@@ -202,8 +202,10 @@ try {
     .filter((file) => file.endsWith(".sql"))
     .sort();
   const migration20 = "20260921100000_fix_pilot_archive_conflict_target.sql";
-  assert.equal(files.at(-1), migration20);
-  assert.equal(files.length, 20);
+  const migration21 = "20260922100000_phase_5a_3a_generic_objective_archive.sql";
+  assert.equal(files.at(-2), migration20);
+  assert.equal(files.at(-1), migration21);
+  assert.equal(files.length, 21);
   const firstNineteen = files.slice(0, 19);
   assert.equal(firstNineteen.length, 19);
   for (const file of firstNineteen) {
