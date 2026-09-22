@@ -179,7 +179,7 @@ try {
     ["study_graph_resolve_objective_instance_archive", "uuid,uuid"],
   ]) {
     assert.equal(sql(`select count(*) from pg_proc where oid = 'public.${name}(${signature})'::regprocedure;`), "1");
-    assert.equal(sql(`select has_function_privilege('public', 'public.${name}(${signature})', 'EXECUTE');`), "f");
+    assert.equal(sql(`select exists(select from aclexplode(proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE') from pg_proc where oid = 'public.${name}(${signature})'::regprocedure;`), "f");
     assert.equal(sql(`select has_function_privilege('anon', 'public.${name}(${signature})', 'EXECUTE');`), "f");
     assert.equal(sql(`select has_function_privilege('authenticated', 'public.${name}(${signature})', 'EXECUTE');`), "f");
     assert.equal(sql(`select has_function_privilege('service_role', 'public.${name}(${signature})', 'EXECUTE');`), "t");
