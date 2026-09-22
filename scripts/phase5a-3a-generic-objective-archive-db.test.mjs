@@ -142,7 +142,7 @@ try {
   ].join("\n"));
   for (const file of files) sql(readFileSync(new URL("../supabase/migrations/" + file, import.meta.url), "utf8"));
   assert.equal(sql("show server_version;").split(".")[0], "17");
-  assert.equal(sql("show plpgsql.variable_conflict;"), "error");
+  assert.equal(sql("set plpgsql.variable_conflict = error; show plpgsql.variable_conflict;"), "error");
   console.log("PASS exact migrations 1-21 applied in isolated PostgreSQL 17 with plpgsql.variable_conflict=error");
 
   const functionMeta = json([
