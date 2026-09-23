@@ -8,7 +8,7 @@ export type KnowledgeBinding = {
   role: "scope-subject" | "related";
 };
 
-export type ExerciseSource = {
+export type LicensedExerciseSource = {
   title: string;
   image?: string;
   url: string;
@@ -16,7 +16,16 @@ export type ExerciseSource = {
   license: string;
 };
 
-export type VisualAssetSource = ExerciseSource & {
+export type TextReferenceSource = {
+  kind: "text-reference";
+  title: string;
+  url: string;
+  attribution: string;
+};
+
+export type ExerciseSource = LicensedExerciseSource | TextReferenceSource;
+
+export type VisualAssetSource = LicensedExerciseSource & {
   originalFile?: string;
 };
 
