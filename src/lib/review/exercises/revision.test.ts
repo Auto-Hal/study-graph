@@ -69,6 +69,7 @@ test("prompt, answer, source, provenance, mother annotation, and asset changes a
   assert.notEqual(hashExerciseRevision(provenance), baseHash);
 
   const mother = revisionCopy();
+  assert.ok(mother.pilotMetadata);
   mother.pilotMetadata.motherCharacter.value = "別の字母";
   assert.notEqual(hashExerciseRevision(mother), baseHash);
 
@@ -130,6 +131,7 @@ test("the pilot keeps 阿 as legacy-approved metadata from PR #27", () => {
   assert.equal(Object.prototype.hasOwnProperty.call(kuzushijiPilotRevisionPayload, "contentHash"), false);
   assert.equal(Object.isFrozen(kuzushijiPilotRevision), true);
   assert.equal(Object.isFrozen(kuzushijiPilotRevisionPayload), true);
+  assert.ok(kuzushijiPilotRevision.pilotMetadata);
   assert.equal(kuzushijiPilotRevision.pilotMetadata.motherCharacter.value, "阿");
   assert.equal(kuzushijiPilotRevision.pilotMetadata.motherCharacter.status, "legacy-approved");
   assert.equal(kuzushijiPilotRevision.pilotMetadata.motherCharacter.approvedFrom, "PR #27");

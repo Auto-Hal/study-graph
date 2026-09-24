@@ -14,6 +14,7 @@ import type {
   VisualAssetSource,
 } from "./types.ts";
 import { assertValidExerciseDefinition } from "./validation.ts";
+import { assertExerciseRevisionMetadata } from "./kuzushiji-metadata.ts";
 
 export const REVISION_SCHEMA_VERSION = 1 as const;
 export const CANONICALIZATION_VERSION = 1 as const;
@@ -28,6 +29,8 @@ export type PilotStructuredMetadata = {
     approvedFrom: "PR #27";
   };
 };
+
+export type ExerciseRevisionMetadata = PilotStructuredMetadata | null;
 
 export type ExerciseRevisionVisualAsset = {
   assetId: string;
@@ -80,7 +83,7 @@ export type ExerciseRevisionPayload = {
   scopeRequirements: JsonValue | null;
   prerequisites: string[];
   relatedKnowledgeBindings: KnowledgeBinding[];
-  pilotMetadata: PilotStructuredMetadata;
+  pilotMetadata: ExerciseRevisionMetadata;
   origin: ExerciseDefinition["origin"];
   status: ExerciseDefinition["status"];
   supersedes: string | null;
@@ -158,26 +161,14 @@ function copyJson<T>(value: T): T {
   return JSON.parse(canonicalizeJson(value)) as T;
 }
 
-function validatePilotMetadata(metadata: PilotStructuredMetadata) {
-  if (metadata.motherCharacter.value !== "阿") {
-    throw new Error("Kuzushiji pilot motherCharacter must remain 阿");
-  }
-  if (metadata.motherCharacter.status !== "legacy-approved") {
-    throw new Error("Kuzushiji pilot motherCharacter must remain legacy-approved");
-  }
-  if (metadata.motherCharacter.approvedFrom !== "PR #27") {
-    throw new Error("Kuzushiji pilot motherCharacter must remain approved from PR #27");
-  }
-}
-
 export function createExerciseRevisionPayload(
   definition: ExerciseDefinition,
   assets: ReadonlyMap<string, VisualAsset>,
-  pilotMetadata: PilotStructuredMetadata,
+  pilotMetadata: ExerciseRevisionMetadata,
   options: RevisionScopeOptions & RevisionVersioningOptions = {},
 ): ExerciseRevisionPayload {
   assertValidExerciseDefinition(definition, assets);
-  validatePilotMetadata(pilotMetadata);
+  assertExerciseRevisionMetadata(definition.projectId, definition.exerciseId, pilotMetadata);
 
   const visualAssets = definition.stimuli.map((stimulus) => {
     const asset = assets.get(stimulus.assetId);
@@ -257,7 +248,7 @@ export function hashExerciseRevision(value: ExerciseRevisionPayload | ExerciseRe
 export function createExerciseRevision(
   definition: ExerciseDefinition,
   assets: ReadonlyMap<string, VisualAsset>,
-  pilotMetadata: PilotStructuredMetadata,
+  pilotMetadata: ExerciseRevisionMetadata,
   options: RevisionScopeOptions & RevisionVersioningOptions & { archiveMetadata?: RevisionArchiveMetadata } = {},
 ): ExerciseRevision {
   const payload = createExerciseRevisionPayload(definition, assets, pilotMetadata, options);
@@ -355,7 +346,10 @@ export function validateContentReleaseManifest(manifest: ContentReleaseManifest)
     const identityKey = revisionIdentityKey(entry);
     if (identities.has(identityKey)) errors.push(`${prefix} duplicates a revision identity`);
     identities.add(identityKey);
-    if (entry.assets.length === 0) errors.push(`${prefix}.assets is required`);
+    if (!Array.isArray(entry.assets)) {
+      errors.push(`${prefix}.assets must be an array`);
+      continue;
+    }
     for (const [assetIndex, asset] of entry.assets.entries()) {
       if (!asset.assetId.trim()) errors.push(`${prefix}.assets[${assetIndex}].assetId is required`);
       if (!Number.isInteger(asset.assetVersion) || asset.assetVersion < 1) errors.push(`${prefix}.assets[${assetIndex}].assetVersion is invalid`);
