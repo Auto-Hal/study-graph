@@ -3,12 +3,15 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 
 const migrationDirectory = new URL("../supabase/migrations/", import.meta.url);
-const files = readdirSync(migrationDirectory).filter((file) => file.endsWith(".sql")).sort();
+const allFiles = readdirSync(migrationDirectory).filter((file) => file.endsWith(".sql")).sort();
 const fixFile = "20260921100000_fix_pilot_archive_conflict_target.sql";
-assert.equal(files.length, 20);
-assert.equal(files.at(-1), fixFile);
+const genericArchiveFile = "20260922100000_phase_5a_3a_generic_objective_archive.sql";
+assert.equal(allFiles.length, 21);
+assert.equal(allFiles.at(-1), genericArchiveFile);
+assert.equal(allFiles.at(-2), fixFile);
+const files = allFiles.slice(0, 20);
 
-const baseline = "33cce5541d9528a35757860849185fb2c80a1fab";
+const baseline = "22f2de997dea8a1442ba6d8993f4acaabebc8d10";
 const historicalFiles = files.slice(0, 19);
 const canReadAllAt = (ref) => historicalFiles.every((file) =>
   spawnSync("git", ["cat-file", "-e", `${ref}:supabase/migrations/${file}`], { stdio: "ignore" }).status === 0,

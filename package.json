@@ -41,7 +41,9 @@
     "test:phase5a-2b": "node --test scripts/phase5a-2b-online-cutover.test.mjs",
     "test:phase5a-3a-1": "node --experimental-strip-types --test src/lib/review/exercises/content-contract.test.ts src/lib/review/exercises/revision.test.ts",
     "test:phase5a-archive-conflict-target": "node --test scripts/phase5a-archive-conflict-target.test.mjs",
-    "test:phase5a-archive-conflict-target:db": "node scripts/phase5a-archive-conflict-target-db.test.mjs"
+    "test:phase5a-archive-conflict-target:db": "node scripts/phase5a-archive-conflict-target-db.test.mjs",
+    "test:phase5a-3a": "node --experimental-strip-types --import ./scripts/objective-runtime-test-loader.mjs --test src/lib/supabase/objective-archive.test.ts && node --test scripts/phase5a-3a-generic-objective-archive.test.mjs",
+    "test:phase5a-3a:db": "node --experimental-strip-types scripts/phase5a-3a-generic-objective-archive-db.test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",

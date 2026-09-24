@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8").replace(/\r\n/g, "\n");
@@ -113,15 +113,16 @@ test("environment and rollback documentation keep production issuance off", () =
   }
 });
 
-test("migration set keeps 1-19 unchanged and adds only migration 20", () => {
+test("migration set keeps 1-20 unchanged and adds only the approved additive migrations", () => {
   const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql"));
-  assert.equal(files.length, 20);
+  assert.equal(files.length, 21);
   for (const name of [
     "20260917021000_phase_5a_1b_objective_opportunity_rpc_foundation.sql",
     "20260918010500_phase_5a_1b_objective_issuer_lock_order.sql",
     "20260919132141_phase_5a_2a_objective_instance_routing.sql",
   ]) assert.ok(files.includes(name));
   assert.ok(files.includes("20260921100000_fix_pilot_archive_conflict_target.sql"));
+  assert.ok(files.includes("20260922100000_phase_5a_3a_generic_objective_archive.sql"));
   // CI checks out a shallow synthetic PR merge, so neither the reviewed base
   // SHA nor a parent is guaranteed to be present locally. Compare to the
   // first parent when available; the exact committed inventory assertions
@@ -135,7 +136,11 @@ test("migration set keeps 1-19 unchanged and adds only migration 20", () => {
   }
   const changedFiles = migrationDiff.trim() ? migrationDiff.trim().split(/\r?\n/).filter(Boolean) : [];
   if (migrationDiff.trim()) {
-    assert.deepEqual(changedFiles, ["supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"]);
+    const migration21Tracked = spawnSync("git", ["ls-files", "--error-unmatch", "supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql"], { stdio: "ignore" }).status === 0;
+    const parentHasMigration20 = spawnSync("git", ["cat-file", "-e", "HEAD^1:supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"], { stdio: "ignore" }).status === 0;
+    const expected = parentHasMigration20 ? [] : ["supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"];
+    if (migration21Tracked) expected.push("supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql");
+    assert.deepEqual(changedFiles.sort(), expected.sort());
   }
 });
 

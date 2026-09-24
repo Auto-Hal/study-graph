@@ -14,45 +14,26 @@ import { gradeExerciseRevision } from "./attempt.ts";
 import { kuzushijiPilotContentRelease, kuzushijiPilotContentReleaseV2, kuzushijiPilotRevision, kuzushijiPilotRevisionV2 } from "./kuzushiji-revision.ts";
 import { kuzushijiPilotAsset, kuzushijiPilotExercise, kuzushijiPilotAssets } from "./kuzushiji-pilot.ts";
 import { kuzushijiBaselineGoldens } from "./test-fixtures/kuzushiji-baseline-goldens.ts";
-import type { ExerciseDefinition, TextReferenceSource, VisualAsset, VisualAssetSource } from "./types.ts";
+import type { VisualAsset, VisualAssetSource } from "./types.ts";
 import { validateExerciseDefinition } from "./validation.ts";
+import {
+  philosophyArcheContentRelease,
+  philosophyArcheDefinition,
+  philosophyArcheManifest,
+  philosophyArcheRevision,
+  philosophyTestTextReferenceSource,
+} from "./test-fixtures/philosophy-arche.ts";
 
-const textSource: TextReferenceSource = {
-  kind: "text-reference",
-  title: "Anaximander review fixture",
-  url: "https://example.invalid/phase5a-3a-1-text-fixture",
-  attribution: "Phase 5A-3a.1 test fixture",
+const textSource = philosophyTestTextReferenceSource;
+const philosophyFixture = {
+  definition: philosophyArcheDefinition,
+  revision: philosophyArcheRevision,
+  manifest: philosophyArcheManifest,
+  contentRelease: philosophyArcheContentRelease,
 };
 // @ts-expect-error A text reference cannot replace a licensed image source.
 const invalidVisualSource: VisualAssetSource = textSource;
 void invalidVisualSource;
-
-function createPhilosophyFixture() {
-  const definition: ExerciseDefinition = {
-    schemaVersion: 1,
-    exerciseId: "philosophy.anaximander.arche-recall",
-    exerciseVersion: 1,
-    projectId: "philosophy",
-    domain: "philosophy",
-    objectiveId: "philosophy.anaximander.arche-recall",
-    skill: "recall",
-    category: "ancient-greek-philosophy",
-    prompt: "アナクシマンドロスが万物のアルケー（根源）としたものを、カタカナで答えてください。",
-    front: "アナクシマンドロス",
-    stimuli: [],
-    answerSpec: { type: "text", acceptedAnswers: ["アペイロン"] },
-    gradingSpec: { strategyId: "legacy-text-v1", strategyVersion: 1, normalization: "review-session-ja-v1" },
-    explanation: { summary: "アナクシマンドロスはアルケーをアペイロンとしました。" },
-    sources: [textSource],
-    provenance: { status: "curated", approvedFrom: "manual-curation" },
-    origin: "curated",
-    status: "approved",
-    relatedKnowledgeBindings: [],
-  };
-  const revision = createExerciseRevision(definition, new Map<string, VisualAsset>(), null);
-  const manifest = createContentReleaseManifest([revision]);
-  return { definition, revision, manifest, contentRelease: createContentRelease(manifest) };
-}
 
 test("approved Kuzushiji v1/v2 payload and release bytes remain exact", () => {
   const actual = {
@@ -84,7 +65,7 @@ test("approved Kuzushiji v1/v2 payload and release bytes remain exact", () => {
 });
 
 test("Philosophy text-only fixture uses the supported builder chain", () => {
-  const fixture = createPhilosophyFixture();
+  const fixture = philosophyFixture;
   assert.equal(fixture.revision.pilotMetadata, null);
   assert.equal(fixture.revision.stimuli.length, 0);
   assert.equal(fixture.revision.visualAssets.length, 0);
@@ -99,7 +80,7 @@ test("Philosophy text-only fixture uses the supported builder chain", () => {
 });
 
 test("Kuzushiji identity requires its historical metadata and neutral identities require null", () => {
-  const fixture = createPhilosophyFixture();
+  const fixture = philosophyFixture;
   const historicalMetadata = kuzushijiPilotRevision.pilotMetadata;
   assert.throws(() => createExerciseRevision(fixture.definition, new Map(), historicalMetadata), /non-Kuzushiji/);
   assert.throws(() => Reflect.apply(createExerciseRevision, null, [fixture.definition, new Map(), undefined]), /pilotMetadata/);
@@ -124,7 +105,7 @@ test("Kuzushiji identity requires its historical metadata and neutral identities
 });
 
 test("source validation distinguishes licensed and text-reference sources", () => {
-  const fixture = createPhilosophyFixture();
+  const fixture = philosophyFixture;
   const missingTitle = { ...fixture.definition, sources: [{ ...textSource, title: "" }] };
   const missingUrl = { ...fixture.definition, sources: [{ ...textSource, url: "" }] };
   const missingAttribution = { ...fixture.definition, sources: [{ ...textSource, attribution: "" }] };
@@ -144,7 +125,7 @@ test("source validation distinguishes licensed and text-reference sources", () =
 });
 
 test("empty release entries remain invalid while zero-asset entries are valid", () => {
-  const fixture = createPhilosophyFixture();
+  const fixture = philosophyFixture;
   assert.throws(() => createContentReleaseManifest([]), /at least one revision entry/);
   assert.equal(fixture.manifest.revisionEntries[0].assets.length, 0);
   const invalidAssetManifest = {
