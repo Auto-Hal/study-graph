@@ -4,63 +4,35 @@ import {
   ensureObjectiveArchive,
   resolveObjectiveInstanceArchive,
 } from "./objective-archive.ts";
+import {
+  canonicalizeExerciseRevision,
+  type ExerciseRevisionPayload,
+} from "../review/exercises/revision.ts";
+import {
+  canonicalizeObjectiveDefinition,
+  hashObjectiveDefinition,
+} from "../review/objectives.ts";
+import {
+  philosophyArcheContentRelease,
+  philosophyArcheObjectiveBinding,
+  philosophyArcheObjectiveDefinition,
+  philosophyArcheRevision,
+  philosophyArcheRevisionPayload,
+} from "../review/exercises/test-fixtures/philosophy-arche.ts";
 
 const learnerId = "11111111-1111-4111-8111-111111111111";
 const instanceId = "22222222-2222-4222-8222-222222222222";
 const revisionId = "33333333-3333-4333-8333-333333333333";
 const bindingId = "44444444-4444-4444-8444-444444444444";
-const releaseHash = "a".repeat(64);
-const contentHash = "b".repeat(64);
-const objectiveId = "philosophy.anaximander.arche-recall";
-const exerciseId = "philosophy.anaximander.arche-recall";
-
-const objectiveDefinition = {
-  projectId: "philosophy",
-  objectiveId,
-  objectiveVersion: 1,
-  title: "Recall arche",
-  target: "arche",
-  action: "recall",
-  responseMode: "recall" as const,
-  conditions: "given a prompt",
-  successCriterion: "states the target meaning",
-};
-
-const revision = {
-  projectId: "philosophy",
-  exerciseId,
-  exerciseVersion: 1,
-  objectiveId,
-  contentHash,
-  canonicalizationVersion: 1,
-  status: "approved",
-  prompt: "What is arche?",
-  projectOnlyFixture: true,
-} as never;
-
-const contentRelease = {
-  manifestHash: releaseHash,
-  manifest: {
-    manifestSchemaVersion: 1 as const,
-    revisionEntries: [{
-      projectId: "philosophy",
-      exerciseId,
-      exerciseVersion: 1,
-      contentHash,
-      assets: [],
-      grader: { strategyId: "deterministic-text-v1", strategyVersion: 1 },
-      normalizerVersion: "review-session-ja-v1",
-    }],
-  },
-  provenance: { sourceGitSha: "fixture-source-sha" },
-} as never;
-
-const exerciseObjectiveBinding = {
-  revisionContentHash: contentHash,
-  objectiveId,
-  objectiveVersion: 1,
-  evidenceUse: "srs" as const,
-};
+const revision = philosophyArcheRevision;
+const revisionPayload: ExerciseRevisionPayload = philosophyArcheRevisionPayload;
+const contentRelease = philosophyArcheContentRelease;
+const objectiveDefinition = philosophyArcheObjectiveDefinition;
+const exerciseObjectiveBinding = philosophyArcheObjectiveBinding;
+const releaseHash = contentRelease.manifestHash;
+const contentHash = revision.contentHash;
+const objectiveId = revision.objectiveId;
+const exerciseId = revision.exerciseId;
 
 const resolvedRow = {
   instance_id: instanceId,
@@ -79,7 +51,7 @@ const resolvedRow = {
   legacy_exercise_id: exerciseId,
   srs_target: "objective",
   srs_epoch: "1",
-  revision_payload: { projectId: "philosophy", exerciseId, objectiveId },
+  revision_payload: revisionPayload,
   revision_status: "approved",
   project_id: "philosophy",
   exercise_id: exerciseId,
@@ -115,9 +87,39 @@ test("generic archive helper registers archive before Objective definition and b
     "study_graph_register_objective_definition",
     "study_graph_register_exercise_objective_binding",
   ]);
-  assert.equal(calls[0].body.p_project_id, "philosophy");
-  assert.equal(calls[0].body.p_exercise_id, exerciseId);
-  assert.equal(calls[0].body.p_objective_id, objectiveId);
+  assert.deepEqual(calls[0].body, {
+    p_release_id: contentRelease.manifestHash,
+    p_manifest_schema_version: contentRelease.manifest.manifestSchemaVersion,
+    p_manifest_hash: contentRelease.manifestHash,
+    p_manifest: contentRelease.manifest,
+    p_source_git_sha: contentRelease.provenance?.sourceGitSha,
+    p_project_id: revision.projectId,
+    p_exercise_id: revision.exerciseId,
+    p_exercise_version: revision.exerciseVersion,
+    p_content_hash: revision.contentHash,
+    p_canonicalization_version: revisionPayload.canonicalizationVersion,
+    p_canonical_payload: canonicalizeExerciseRevision(revisionPayload),
+    p_payload: revisionPayload,
+    p_objective_id: revision.objectiveId,
+  });
+  assert.deepEqual(calls[1].body, {
+    p_project_id: objectiveDefinition.projectId,
+    p_objective_id: objectiveDefinition.objectiveId,
+    p_objective_version: objectiveDefinition.objectiveVersion,
+    p_canonicalization_version: 1,
+    p_canonical_payload: canonicalizeObjectiveDefinition(objectiveDefinition),
+    p_content_hash: hashObjectiveDefinition(objectiveDefinition),
+    p_payload: objectiveDefinition,
+  });
+  assert.deepEqual(calls[2].body, {
+    p_revision_content_hash: revision.contentHash,
+    p_project_id: objectiveDefinition.projectId,
+    p_objective_id: exerciseObjectiveBinding.objectiveId,
+    p_objective_version: exerciseObjectiveBinding.objectiveVersion,
+    p_evidence_use: exerciseObjectiveBinding.evidenceUse,
+  });
+  assert.equal(calls[0].body.p_content_hash, revision.contentHash);
+  assert.equal(calls[2].body.p_revision_content_hash, revision.contentHash, "binding uses Git-owned contentHash, never a DB-generated UUID");
   assert.equal("p_revision_id" in calls[0].body, false, "database-generated revision UUID must not be caller authority");
 });
 

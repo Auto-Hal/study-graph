@@ -2,6 +2,17 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { canonicalizeExerciseRevision } from "../src/lib/review/exercises/revision.ts";
+import {
+  philosophyArcheContentRelease,
+  philosophyArcheObjectiveDefinition,
+  philosophyArcheRevision,
+  philosophyArcheRevisionPayload,
+} from "../src/lib/review/exercises/test-fixtures/philosophy-arche.ts";
+import {
+  canonicalizeObjectiveDefinition,
+  hashObjectiveDefinition,
+} from "../src/lib/review/objectives.ts";
 
 assert.equal(process.env.STUDY_GRAPH_ISOLATED_DB, "1", "explicit isolated DB opt-in required");
 const admin = new URL(process.env.STUDY_GRAPH_TEST_DATABASE_URL ?? "postgresql://postgres@127.0.0.1:55432/postgres");
@@ -57,38 +68,39 @@ function literal(value) {
   return "'" + String(value).replaceAll("'", "''") + "'";
 }
 
-const releaseId = "a".repeat(64);
-const contentHash = "b".repeat(64);
-const objectiveHash = "c".repeat(64);
 const presentationHash = "d".repeat(64);
 const learnerId = "11111111-1111-4111-8111-111111111111";
 const instanceIdWrongLearner = "22222222-2222-4222-8222-222222222222";
-const projectId = "philosophy";
-const exerciseId = "philosophy.anaximander.arche-recall";
-const objectiveId = exerciseId;
-const manifest = JSON.stringify({
-  manifestSchemaVersion: 1,
-  revisionEntries: [{ projectId, exerciseId, exerciseVersion: 1, contentHash, assets: [], grader: { strategyId: "deterministic-text-v1", strategyVersion: 1 }, normalizerVersion: "review-session-ja-v1" }],
-});
-const payload = JSON.stringify({
-  projectId,
-  exerciseId,
-  exerciseVersion: 1,
-  objectiveId,
-  status: "approved",
-  gradingSpec: { strategyId: "deterministic-text-v1", strategyVersion: 1, normalization: "review-session-ja-v1" },
-});
-const objectivePayload = JSON.stringify({ projectId, objectiveId, objectiveVersion: 1 });
+const { manifest: contentReleaseManifest, manifestHash: releaseId } = philosophyArcheContentRelease;
+const projectId = philosophyArcheRevision.projectId;
+const exerciseId = philosophyArcheRevision.exerciseId;
+const objectiveId = philosophyArcheRevision.objectiveId;
+const contentHash = philosophyArcheRevision.contentHash;
+const canonicalPayload = canonicalizeExerciseRevision(philosophyArcheRevisionPayload);
+const manifest = JSON.stringify(contentReleaseManifest);
+const payload = JSON.stringify(philosophyArcheRevisionPayload);
+const objectivePayload = JSON.stringify(philosophyArcheObjectiveDefinition);
+const objectiveCanonicalPayload = canonicalizeObjectiveDefinition(philosophyArcheObjectiveDefinition);
+const objectiveHash = hashObjectiveDefinition(philosophyArcheObjectiveDefinition);
 
-function archiveCall({ manifestValue = manifest, payloadValue = payload, release = releaseId } = {}) {
+function archiveCall({
+  manifestValue = manifest,
+  payloadValue = payload,
+  release = releaseId,
+  content = contentHash,
+  canonicalPayloadValue = canonicalPayload,
+  project = projectId,
+  exercise = exerciseId,
+  objective = objectiveId,
+} = {}) {
   return [
     "set plpgsql.variable_conflict = error;",
     "set role service_role;",
     "select row_to_json(r) from public.study_graph_register_objective_archive(",
     [
-      literal(release), "1", literal(release), literal(manifestValue) + "::jsonb", literal("phase5a-3a-test"),
-      literal(projectId), literal(exerciseId), "1", literal(contentHash), "1", literal("fixture-canonical-payload"),
-      literal(payloadValue) + "::jsonb", literal(objectiveId),
+      literal(release), String(contentReleaseManifest.manifestSchemaVersion), literal(release), literal(manifestValue) + "::jsonb", literal(philosophyArcheContentRelease.provenance?.sourceGitSha ?? "phase5a-3a-test"),
+      literal(project), literal(exercise), String(philosophyArcheRevision.exerciseVersion), literal(content), String(philosophyArcheRevisionPayload.canonicalizationVersion), literal(canonicalPayloadValue),
+      literal(payloadValue) + "::jsonb", literal(objective),
     ].join(","),
     ") r;",
   ].join("\n");
@@ -97,7 +109,7 @@ function objectiveDefinitionCall() {
   return [
     "set role service_role;",
     "select row_to_json(r) from public.study_graph_register_objective_definition(",
-    [literal(projectId), literal(objectiveId), "1", "1", literal("fixture-objective-canonical"), literal(objectiveHash), literal(objectivePayload) + "::jsonb"].join(","),
+    [literal(philosophyArcheObjectiveDefinition.projectId), literal(philosophyArcheObjectiveDefinition.objectiveId), String(philosophyArcheObjectiveDefinition.objectiveVersion), "1", literal(objectiveCanonicalPayload), literal(objectiveHash), literal(objectivePayload) + "::jsonb"].join(","),
     ") r;",
   ].join("\n");
 }
@@ -105,7 +117,7 @@ function objectiveBindingCall() {
   return [
     "set role service_role;",
     "select row_to_json(r) from public.study_graph_register_exercise_objective_binding(",
-    [literal(contentHash), literal(projectId), literal(objectiveId), "1", literal("srs")].join(","),
+    [literal(philosophyArcheRevision.contentHash), literal(projectId), literal(objectiveId), "1", literal("srs")].join(","),
     ") r;",
   ].join("\n");
 }
@@ -127,6 +139,12 @@ assert.equal(files.length, 21);
 assert.equal(files.at(-1), "20260922100000_phase_5a_3a_generic_objective_archive.sql");
 const historicalFiles = files.slice(0, 20);
 assert.equal(historicalFiles.length, 20);
+assert.equal(philosophyArcheRevision.pilotMetadata, null);
+assert.deepEqual(philosophyArcheRevision.stimuli, []);
+assert.deepEqual(philosophyArcheRevision.visualAssets, []);
+assert.deepEqual(contentReleaseManifest.revisionEntries[0].assets, []);
+assert.equal(contentReleaseManifest.revisionEntries[0].grader.strategyId, "legacy-text-v1");
+assert.equal(contentReleaseManifest.revisionEntries[0].normalizerVersion, "review-session-ja-v1");
 
 let archiveRevisionId;
 let issuedInstanceId;
@@ -190,6 +208,30 @@ try {
   archiveRevisionId = registered.revision_id;
   assert.equal(registered.release_id, releaseId);
   assert.match(archiveRevisionId, /^[0-9a-f-]{36}$/i);
+  const persistedArchive = json([
+    "select json_build_object(",
+    "'manifest_hash',(select cr.manifest_hash from private.content_releases cr where cr.release_id = " + literal(releaseId) + "),",
+    "'manifest',(select cr.manifest from private.content_releases cr where cr.release_id = " + literal(releaseId) + "),",
+    "'source_git_sha',(select cr.source_git_sha from private.content_releases cr where cr.release_id = " + literal(releaseId) + "),",
+    "'content_hash',er.content_hash,",
+    "'canonicalization_version',er.canonicalization_version,",
+    "'canonical_payload',er.canonical_payload,",
+    "'payload',er.payload,",
+    "'objective_id',er.objective_id,",
+    "'entry_count',(select count(*) from private.content_release_entries e where e.release_id = " + literal(releaseId) + "))",
+    "from private.exercise_revisions er where er.revision_id = " + literal(archiveRevisionId) + "::uuid;",
+  ].join("\n"));
+  assert.deepEqual(persistedArchive, {
+    manifest_hash: releaseId,
+    manifest: contentReleaseManifest,
+    source_git_sha: philosophyArcheContentRelease.provenance.sourceGitSha,
+    content_hash: philosophyArcheRevision.contentHash,
+    canonicalization_version: philosophyArcheRevisionPayload.canonicalizationVersion,
+    canonical_payload: canonicalPayload,
+    payload: philosophyArcheRevisionPayload,
+    objective_id: objectiveId,
+    entry_count: 1,
+  });
   assert.deepEqual(json("select json_build_object('releases',(select count(*) from private.content_releases),'revisions',(select count(*) from private.exercise_revisions),'entries',(select count(*) from private.content_release_entries));"), { releases: 1, revisions: 1, entries: 1 });
   console.log("PASS non-Kuzushiji Philosophy archive registration creates one release, revision, and entry");
 
@@ -230,6 +272,9 @@ try {
   assert.equal(resolved.revision_id, archiveRevisionId);
   assert.equal(resolved.release_id, releaseId);
   assert.equal(resolved.srs_target, "objective");
+  assert.equal(resolved.content_hash, philosophyArcheRevision.contentHash);
+  assert.deepEqual(resolved.revision_payload, philosophyArcheRevisionPayload);
+  assert.equal(resolved.revision_payload.objectiveId, philosophyArcheRevision.objectiveId);
   assert.deepEqual(resolved.presentation, { source: "generic-archive" });
   const wrongLearner = json(`select coalesce(json_agg(r), '[]'::json) from public.study_graph_resolve_objective_instance_archive(${literal(issuedInstanceId)}::uuid, ${literal(instanceIdWrongLearner)}::uuid) r;`);
   assert.deepEqual(wrongLearner, []);

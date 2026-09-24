@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from "node:fs";
 const migrationDirectory = new URL("../supabase/migrations/", import.meta.url);
 const files = readdirSync(migrationDirectory).filter((file) => file.endsWith(".sql")).sort();
 const migration21 = "20260922100000_phase_5a_3a_generic_objective_archive.sql";
-const reviewedBase = "22f2de997dea8a1442ba6d8993f4acaabebc8d10";
+const reviewedBase = "18fe2f6a3f95827e7bf6f5a80b82fc0d127dd65a";
 
 assert.equal(files.length, 21, "Phase 5A-3a must add exactly one migration");
 assert.equal(files.at(-1), migration21);
@@ -75,5 +75,20 @@ assert.doesNotMatch(helper, /p_revision_id/);
 assert.doesNotMatch(helper, /kuzushiji/i);
 assert.match(helper, /assertValidObjectiveDefinition/);
 assert.match(helper, /assertValidExerciseObjectiveBinding/);
+
+const helperTest = readFileSync(new URL("../src/lib/supabase/objective-archive.test.ts", import.meta.url), "utf8");
+const databaseTest = readFileSync(new URL("./phase5a-3a-generic-objective-archive-db.test.mjs", import.meta.url), "utf8");
+const philosophyFixture = readFileSync(new URL("../src/lib/review/exercises/test-fixtures/philosophy-arche.ts", import.meta.url), "utf8");
+for (const source of [helperTest, databaseTest, philosophyFixture]) {
+  assert.doesNotMatch(source, /\bas\s+never\b|\bas\s+unknown\s+as\s+|:\s*any\b|\bas\s+any\b|deterministic-text-v1/);
+}
+assert.match(helperTest, /philosophyArcheContentRelease/);
+assert.match(helperTest, /canonicalizeExerciseRevision\(revisionPayload\)/);
+assert.match(helperTest, /p_revision_content_hash:\s*revision\.contentHash/);
+assert.match(databaseTest, /philosophyArcheContentRelease/);
+assert.match(databaseTest, /canonicalizeExerciseRevision\(philosophyArcheRevisionPayload\)/);
+assert.match(philosophyFixture, /createExerciseRevision\([\s\S]*?null,?\s*\)/);
+assert.match(philosophyFixture, /createContentReleaseManifest\(\[philosophyArcheRevision\]\)/);
+assert.match(philosophyFixture, /createContentRelease\(/);
 
 console.log("PASS Phase 5A-3a migration 21 is additive and generic archive boundaries are guarded");
