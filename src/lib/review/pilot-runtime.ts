@@ -258,7 +258,12 @@ function assertRetryMatches(
   }
 }
 
-export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptRequest): Promise<PilotAttemptResult> {
+/** Shared retry gate: accepted authority is restored before project routing. */
+export async function recoverAcceptedPilotAttempt(request: ExerciseAttemptRequest): Promise<{
+  immutableRequest: Readonly<ExerciseAttemptRequest>;
+  requestHash: string;
+  result: PilotAttemptResult | null;
+}> {
   if (!getPilotRuntimeConfig()) throw new PilotRpcError("pilot_runtime_not_configured", 503, "pilot_runtime_not_configured");
   // Validate and hash the immutable six-field request before any instance,
   // routing, grading, Scope, epoch or Objective state read.
@@ -276,7 +281,7 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
   if (existing) {
     assertRetryMatches(existing, immutableRequest, requestHash);
     try {
-      return receiptResultFromStoredAttempt(existing.receipt, request.instanceId);
+      return { immutableRequest, requestHash, result: receiptResultFromStoredAttempt(existing.receipt, request.instanceId) };
     } catch (error) {
       if (error instanceof StoredReceiptIncompleteError) {
         throw new PilotRpcError(error.code, 409, error.code);
@@ -284,6 +289,12 @@ export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptReques
       throw error;
     }
   }
+  return { immutableRequest, requestHash, result: null };
+}
+
+export async function submitKuzushijiPilotAttempt(request: ExerciseAttemptRequest): Promise<PilotAttemptResult> {
+  const { immutableRequest, requestHash, result } = await recoverAcceptedPilotAttempt(request);
+  if (result) return result;
 
   const instance = assertResolvedKuzushijiPilotInstance(
     await resolveKuzushijiPilotInstance(request.instanceId),

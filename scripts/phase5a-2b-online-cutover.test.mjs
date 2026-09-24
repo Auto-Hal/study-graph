@@ -47,10 +47,12 @@ test("new and reused v2 issuance resolve persisted presentation and attribution"
 
 test("receipt recovery precedes instance routing, grading, Scope and epoch", () => {
   const submit = functionBody(runtime, "submitKuzushijiPilotAttempt");
-  const receipt = submit.indexOf("const existing = await getKuzushijiPilotAttemptReceipt");
+  const recovery = functionBody(runtime, "recoverAcceptedPilotAttempt");
+  const receipt = recovery.indexOf("const existing = await getKuzushijiPilotAttemptReceipt");
   const instance = submit.indexOf("const instance = assertResolvedKuzushijiPilotInstance");
-  assert.ok(receipt >= 0 && instance > receipt);
-  assert.ok(submit.indexOf("receiptResultFromStoredAttempt(existing.receipt") > receipt);
+  assert.ok(receipt >= 0 && recovery.indexOf("receiptResultFromStoredAttempt(existing.receipt") > receipt);
+  assert.ok(submit.indexOf("await recoverAcceptedPilotAttempt(request)") >= 0);
+  assert.ok(submit.indexOf("if (result) return result") < instance);
   assert.match(runtime, /resultFromStoredObjectiveReceipt/);
   assert.match(runtime, /resultFromStoredReceipt/);
 });

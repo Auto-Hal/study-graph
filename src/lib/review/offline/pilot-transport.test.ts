@@ -494,6 +494,42 @@ test("validation failure or validation network failure prevents the actual attem
   }
 });
 
+test("Philosophy Objective v2 uses the unchanged six-field outbox and retries the identical tuple", async () => {
+  const indexedDB = new FakeIndexedDb();
+  const options = opts(indexedDB, "philosophy-objective-v2-retry");
+  await commitPilotOfflineAttempt({
+    attemptId, instanceId, rawAnswer: "アペイロン", selfEvaluation: "good", responseMs: 1800, usedHint: false,
+  }, { ...options, cryptoProvider: browserCrypto });
+  const sent: Record<string, unknown>[] = [];
+  const first = await sendPilotOutboxAttempt(attemptId, {
+    ...options, receiptKind: "objective",
+    fetchImpl: async (input, init) => {
+      assert.equal(String(input), "/api/review/pilot/attempt");
+      sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      throw new Error("synthetic network outage");
+    },
+  });
+  assert.equal(first?.kind, "pending");
+  const second = await sendPilotOutboxAttempt(attemptId, {
+    ...options, receiptKind: "objective",
+    fetchImpl: async (input, init) => {
+      assert.equal(String(input), "/api/review/pilot/attempt");
+      sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({ saved: true, receipt: {
+        receiptVersion: 2, attemptId, instanceId, acceptedAt: "2030-01-01T00:00:00.000Z",
+        projectId: "philosophy", objectiveId: "philosophy.anaximander.arche-recall", objectiveVersion: 1,
+        srsEpoch: 1, evidenceUse: "srs", gradingStatus: "graded", isCorrect: true,
+        applied: true, reason: "applied", effectiveGrade: "good", stateRevision: 1,
+        dueAt: "2030-01-02T00:00:00.000Z",
+      } });
+    },
+  });
+  assert.equal(second?.kind, "accepted");
+  assert.deepEqual(sent[0], sent[1]);
+  assert.deepEqual(Object.keys(sent[0]).sort(), ["attemptId", "instanceId", "rawAnswer", "responseMs", "selfEvaluation", "usedHint"]);
+  assert.equal((await getOfflineAttempt(attemptId, options))?.record.status, "accepted-applied");
+});
+
 test("explicit manual send keeps blocked on transport failures and stores safe diagnostics", async () => {
   for (const [name, response] of [
     ["400", new Response(JSON.stringify({ error: "invalid_response_ms" }), { status: 400 })],

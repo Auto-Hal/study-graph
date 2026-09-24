@@ -23,6 +23,10 @@ export function validatePilotAttemptInput(value: unknown):
   | { ok: false; error: PilotAttemptValidationErrorCode } {
   if (!value || typeof value !== "object" || Array.isArray(value)) return { ok: false, error: "invalid_body" };
   const body = value as Record<string, unknown>;
+  const fields = ["attemptId", "instanceId", "rawAnswer", "selfEvaluation", "responseMs", "usedHint"];
+  if (Object.keys(body).length !== fields.length || fields.some((field) => !Object.hasOwn(body, field))) {
+    return { ok: false, error: "invalid_body" };
+  }
   if (typeof body.attemptId !== "string" || !UUID_PATTERN.test(body.attemptId)) return { ok: false, error: "invalid_attempt_id" };
   if (typeof body.instanceId !== "string" || !UUID_PATTERN.test(body.instanceId)) return { ok: false, error: "invalid_instance_id" };
   const rawAnswer = body.rawAnswer;
@@ -54,4 +58,3 @@ export function validatePilotAttemptInput(value: unknown):
     },
   };
 }
-
