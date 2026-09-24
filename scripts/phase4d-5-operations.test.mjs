@@ -7,6 +7,7 @@ import test from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const operations = readFileSync(resolve(root, "src/lib/review/pilot-operations.ts"), "utf8");
 const attemptRoute = readFileSync(resolve(root, "app/api/review/pilot/attempt/route.ts"), "utf8");
+const attemptDispatcher = readFileSync(resolve(root, "src/lib/review/pilot-attempt-dispatch.ts"), "utf8");
 const issueRoute = readFileSync(resolve(root, "app/api/review/pilot/issue/route.ts"), "utf8");
 const runtime = readFileSync(resolve(root, "src/lib/review/pilot-runtime.ts"), "utf8");
 const progress = readFileSync(resolve(root, "app/projects/kuzushiji/progress/page.tsx"), "utf8");
@@ -22,7 +23,10 @@ test("Objective issuance keeps the existing fail-closed operational switch", () 
 
 test("containment never disables accepted-attempt retry handling", () => {
   assert.doesNotMatch(attemptRoute, /isPilotIssuanceEnabled/);
-  assert.match(attemptRoute, /submitKuzushijiPilotAttempt/);
+  assert.match(attemptRoute, /submitVersionedPilotAttempt/);
+  assert.match(attemptDispatcher, /recoverAcceptedPilotAttempt/);
+  assert.match(attemptDispatcher, /submitKuzushijiPilotAttempt/);
+  assert.doesNotMatch(attemptDispatcher, /isPilotIssuanceEnabled/);
   assert.match(runtime, /resultFromStoredObjectiveReceipt/);
   assert.match(runtime, /resultFromStoredReceipt/);
 });

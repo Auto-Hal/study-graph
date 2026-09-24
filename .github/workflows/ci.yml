@@ -135,6 +135,9 @@ jobs:
       - name: Phase 5A-2b online Objective cutover wiring tests
         run: npm run test:phase5a-2b
 
+      - name: Phase 5A-3b Western Philosophy Objective v2 pilot tests
+        run: npm run test:phase5a-3b
+
       - name: TypeScript noEmit
         run: npx tsc --noEmit
 

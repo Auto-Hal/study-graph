@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { submitKuzushijiPilotAttempt, validatePilotAttemptInput } from "@/src/lib/review/pilot-runtime";
+import { validatePilotAttemptInput } from "@/src/lib/review/pilot-runtime";
+import { submitVersionedPilotAttempt } from "@/src/lib/review/pilot-attempt-dispatch";
 import { PilotRpcError } from "@/src/lib/supabase/pilot";
 import { pilotWriteSameOriginFailure } from "@/src/lib/review/pilot-auth";
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
   try {
-    return NextResponse.json(await submitKuzushijiPilotAttempt(parsed.request));
+    return NextResponse.json(await submitVersionedPilotAttempt(parsed.request));
   } catch (error) {
     const pilotError = error instanceof PilotRpcError ? error : null;
     const status = pilotError?.code === "attempt_conflict" || pilotError?.code === "instance_already_answered"

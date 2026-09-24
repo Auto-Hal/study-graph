@@ -10,6 +10,7 @@ const operations = readFileSync(resolve(root, "src/lib/review/pilot-operations.t
 const registry = readFileSync(resolve(root, "src/lib/review/registry.ts"), "utf8");
 const issueRoute = readFileSync(resolve(root, "app/api/review/pilot/issue/route.ts"), "utf8");
 const attemptRoute = readFileSync(resolve(root, "app/api/review/pilot/attempt/route.ts"), "utf8");
+const attemptDispatcher = readFileSync(resolve(root, "src/lib/review/pilot-attempt-dispatch.ts"), "utf8");
 const envExample = readFileSync(resolve(root, ".env.example"), "utf8");
 
 test("Phase 4C-5 keeps the dormant compatibility session without making it native access", () => {
@@ -28,7 +29,10 @@ test("new pilot issuance has an operational kill switch", () => {
 
 test("rollback disables issuance without disabling existing attempt handling", () => {
   assert.doesNotMatch(attemptRoute, /isPilotIssuanceEnabled/);
-  assert.match(attemptRoute, /submitKuzushijiPilotAttempt/);
+  assert.match(attemptRoute, /submitVersionedPilotAttempt/);
+  assert.match(attemptDispatcher, /recoverAcceptedPilotAttempt/);
+  assert.match(attemptDispatcher, /submitKuzushijiPilotAttempt/);
+  assert.doesNotMatch(attemptDispatcher, /isPilotIssuanceEnabled/);
   assert.match(registry, /never falls back to[\s\S]{0,100}the legacy writer/);
 });
 

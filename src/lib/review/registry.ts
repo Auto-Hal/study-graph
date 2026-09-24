@@ -9,6 +9,9 @@ import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
 import { isPilotIssuanceEnabled } from "@/src/lib/review/pilot-operations";
 import { isKuzushijiPilotDefinition, issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
+import { PHILOSOPHY_ARCHE_TERM_ID } from "@/src/lib/review/exercises/philosophy-anaximander";
+import { isPhilosophyPilotIssuanceEnabled, issuePhilosophyObjectiveCard } from "@/src/lib/review/philosophy-pilot-runtime";
+import { ObjectiveRuntimeError } from "@/src/lib/review/objective-runtime-core";
 import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
@@ -125,12 +128,23 @@ async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<Rev
   };
 }
 
-async function loadGraphPractice(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
-  const graph = await loadReviewGraphPracticeSource(project.id as "philosophy" | "western-art-history");
+export async function loadGraphPractice(
+  project: StudyProjectDefinition,
+  dependencies: {
+    loadGraph?: typeof loadReviewGraphPracticeSource;
+    issuePhilosophyCard?: typeof issuePhilosophyObjectiveCard;
+  } = {},
+): Promise<ReviewProjectPayload> {
+  const graph = await (dependencies.loadGraph ?? loadReviewGraphPracticeSource)(project.id as "philosophy" | "western-art-history");
   const scope = buildGraphScopeSnapshot(project.id as "philosophy" | "western-art-history", graph);
   const eligibleIds = eligibleNodeIds(scope);
   const eligibleKinds = new Set(project.review.eligibleKinds);
-  const eligibleNodes = graph.nodes.filter((node) => eligibleKinds.has(node.kind) && eligibleIds.has(node.id));
+  const philosophyPilotOn = project.id === "philosophy" && isPhilosophyPilotIssuanceEnabled();
+  const legacyEligibleIds = new Set(eligibleIds);
+  if (philosophyPilotOn) legacyEligibleIds.delete(PHILOSOPHY_ARCHE_TERM_ID);
+  // Once selected for Objective authority, the term never falls back to the
+  // legacy queue, including when issuance is not due or temporarily fails.
+  const eligibleNodes = graph.nodes.filter((node) => eligibleKinds.has(node.kind) && legacyEligibleIds.has(node.id));
   let persistence: ReviewPersistenceMode = "fallback";
   let states: ReviewState[] = [];
 
@@ -154,21 +168,36 @@ async function loadGraphPractice(project: StudyProjectDefinition): Promise<Revie
     ? [...dueTracked.map((entry) => ({ node: entry.node, state: entry.state })), ...unseen.map((node) => ({ node, state: undefined }))]
     : eligibleNodes.map((node) => ({ node, state: undefined }));
 
-  const cards = selected
-    .map(({ node, state }) => createDomainExercise(project, graph, node, state, eligibleIds))
+  const legacyCards = selected
+    .map(({ node, state }) => createDomainExercise(project, graph, node, state, legacyEligibleIds))
     .filter((card): card is ReviewCard => Boolean(card))
     .slice(0, project.review.sessionSize);
+  let philosophyCard: ReviewCard | null = null;
+  if (philosophyPilotOn && graph.mode === "notion" && scope.sourceState === "ready") {
+    try {
+      philosophyCard = await (dependencies.issuePhilosophyCard ?? issuePhilosophyObjectiveCard)(scope);
+    } catch (error) {
+      // Not due is a normal scheduling result. Other failures are bounded and
+      // never expose an answer, learner ID, Notion payload or raw SQL body.
+      if (!(error instanceof ObjectiveRuntimeError && error.code === "objective_not_due")) {
+        console.warn("Study Graph: Philosophy Objective issuance unavailable", {
+          code: error instanceof ObjectiveRuntimeError ? error.code : "philosophy_pilot_unavailable",
+        });
+      }
+    }
+  }
+  const cards = [...(philosophyCard ? [philosophyCard] : []), ...legacyCards].slice(0, project.review.sessionSize);
   return {
     project,
     projects: getActiveStudyProjects(),
     cards: attachReviewAssets(cards, reviewAssetProvider),
-    persistence,
+    persistence: philosophyCard ? "supabase" : persistence,
     sourceMode: graph.mode,
     session: {
       projectId: project.id,
       projectTitle: project.title,
       projectHref: project.href,
-      mode: "practice",
+      mode: philosophyCard ? "scheduled" : "practice",
       emptyReason: scope.sourceState === "ready" ? "no-eligible-exercise" : "scope-unavailable",
     },
   };

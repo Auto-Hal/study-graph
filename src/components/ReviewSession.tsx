@@ -121,10 +121,9 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
   }
 
   useEffect(() => {
-    // The outbox belongs to the versioned Kuzushiji pilot. Keep other Review
-    // domains free of pilot transport work while still flushing old pilot
-    // records whenever a Kuzushiji session is opened.
-    if (session.projectId !== "kuzushiji") return;
+    // Both online versioned pilots share the durable outbox. Philosophy never
+    // reads or refreshes the Kuzushiji-only Objective state mirror.
+    if (session.projectId !== "kuzushiji" && session.projectId !== "philosophy") return;
     let cancelled = false;
     const refreshOutbox = async () => {
       try {
@@ -133,12 +132,14 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         console.error("Study Graph: pilot outbox sync failed", error);
       }
       await refreshOutboxCounts(() => !cancelled);
-      try {
-        // The mirror may only observe state after the attempt flush has
-        // settled; it is never an authorization or scheduling source.
-        await syncObjectiveStateMirror();
-      } catch (error) {
-        console.error("Study Graph: Objective state mirror refresh failed", error);
+      if (session.projectId === "kuzushiji") {
+        try {
+          // The mirror may only observe state after the attempt flush has
+          // settled; it is never an authorization or scheduling source.
+          await syncObjectiveStateMirror();
+        } catch (error) {
+          console.error("Study Graph: Objective state mirror refresh failed", error);
+        }
       }
     };
     void refreshOutbox();
@@ -151,7 +152,7 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
       window.removeEventListener("online", onOnline);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [session.projectId]);
 
   const summary = useMemo(() => {
     const counts: Record<Grade, number> = { again: 0, hard: 0, good: 0, easy: 0 };
@@ -279,12 +280,14 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         const outcome = await sendPilotOutboxAttempt(committed.record.attemptId, { receiptKind: "objective" });
         if (!outcome) throw new Error("pilot_outbox_record_missing");
         await refreshOutboxCounts();
-        try {
-          // The attempt transaction and receipt are complete before this
-          // display-only Objective mirror is refreshed.
-          await syncObjectiveStateMirror();
-        } catch (error) {
-          console.error("Study Graph: Objective state mirror refresh failed", error);
+        if (session.projectId === "kuzushiji") {
+          try {
+            // The attempt transaction and receipt are complete before this
+            // display-only Objective mirror is refreshed.
+            await syncObjectiveStateMirror();
+          } catch (error) {
+            console.error("Study Graph: Objective state mirror refresh failed", error);
+          }
         }
         if (outcome.kind === "accepted") {
           advance({

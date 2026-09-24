@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import {
   getKuzushijiPilotAttemptReceipt,
   PilotRpcError,
-  resolveKuzushijiPilotInstance,
 } from "@/src/lib/supabase/pilot";
+import { getObjectiveRuntimeConfig } from "@/src/lib/supabase/objective-runtime";
+import { resolveObjectiveInstanceArchive } from "@/src/lib/supabase/objective-archive";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,15 @@ export async function GET(request: Request) {
     return noStore(NextResponse.json({ error: "invalid_instance_id" }, { status: 400 }));
   }
   try {
-    const instance = await resolveKuzushijiPilotInstance(instanceId);
+    const learnerId = getObjectiveRuntimeConfig().learnerId;
+    const instance = await resolveObjectiveInstanceArchive(instanceId, learnerId);
+    if (!instance) return noStore(NextResponse.json({ error: "receipt_not_found" }, { status: 404 }));
+    if (instance.instance_id !== instanceId || instance.learner_id !== learnerId) {
+      return noStore(NextResponse.json({ error: "pilot_receipt_unavailable" }, { status: 409 }));
+    }
+    if (instance.srs_target !== "objective" && instance.srs_target !== "legacy-item") {
+      return noStore(NextResponse.json({ error: "pilot_receipt_unavailable" }, { status: 409 }));
+    }
     const stored = await getKuzushijiPilotAttemptReceipt(instanceId);
     if (!stored) return noStore(NextResponse.json({ error: "receipt_not_found" }, { status: 404 }));
     return noStore(NextResponse.json({

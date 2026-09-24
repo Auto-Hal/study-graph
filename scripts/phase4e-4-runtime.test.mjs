@@ -36,7 +36,8 @@ test("browser hash uses Web Crypto while server request hash exports remain inta
 test("receipt lookup is no-login, read-only, and server-derived", () => {
   const route = read("app/api/review/pilot/receipt/route.ts");
   assert.doesNotMatch(route, /isPilotSessionRequestAuthenticated|pilot_authorization_required/);
-  assert.match(route, /resolveKuzushijiPilotInstance/);
+  assert.match(route, /const learnerId = getObjectiveRuntimeConfig\(\)\.learnerId/);
+  assert.match(route, /resolveObjectiveInstanceArchive\(instanceId, learnerId\)/);
   assert.match(route, /getKuzushijiPilotAttemptReceipt/);
   assert.match(route, /receiptKind: instance\.srs_target/);
   assert.match(route, /private, no-store/);
