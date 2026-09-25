@@ -9,8 +9,11 @@ import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
 import { isPilotIssuanceEnabled } from "@/src/lib/review/pilot-operations";
 import { isKuzushijiPilotDefinition, issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
+import { ObjectiveRuntimeError } from "@/src/lib/review/objective-runtime-core";
 import { philosophyObjectiveScopeSubjectIds } from "@/src/lib/review/philosophy-objective-registry";
 import { isPhilosophyPilotIssuanceEnabled, issuePhilosophyObjectiveCards } from "@/src/lib/review/philosophy-pilot-runtime";
+import { westernArtObjective } from "@/src/lib/review/western-art-objective-registry";
+import { isWesternArtPilotIssuanceEnabled, issueWesternArtObjectiveCard } from "@/src/lib/review/western-art-pilot-runtime";
 import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
@@ -132,6 +135,7 @@ export async function loadGraphPractice(
   dependencies: {
     loadGraph?: typeof loadReviewGraphPracticeSource;
     issuePhilosophyCards?: typeof issuePhilosophyObjectiveCards;
+    issueWesternArtCard?: typeof issueWesternArtObjectiveCard;
   } = {},
 ): Promise<ReviewProjectPayload> {
   const graph = await (dependencies.loadGraph ?? loadReviewGraphPracticeSource)(project.id as "philosophy" | "western-art-history");
@@ -139,8 +143,10 @@ export async function loadGraphPractice(
   const eligibleIds = eligibleNodeIds(scope);
   const eligibleKinds = new Set(project.review.eligibleKinds);
   const philosophyPilotOn = project.id === "philosophy" && isPhilosophyPilotIssuanceEnabled();
+  const westernArtPilotOn = project.id === "western-art-history" && isWesternArtPilotIssuanceEnabled();
   const legacyEligibleIds = new Set(eligibleIds);
   if (philosophyPilotOn) for (const id of philosophyObjectiveScopeSubjectIds) legacyEligibleIds.delete(id);
+  if (westernArtPilotOn) legacyEligibleIds.delete(westernArtObjective.scopeSubjectId);
   // Once selected for Objective authority, these terms never fall back to the
   // legacy queue, including when issuance is not due or temporarily fails.
   const eligibleNodes = graph.nodes.filter((node) => eligibleKinds.has(node.kind) && legacyEligibleIds.has(node.id));
@@ -181,18 +187,37 @@ export async function loadGraphPractice(
       });
     }
   }
-  const cards = [...philosophyCards, ...legacyCards].slice(0, project.review.sessionSize);
+  let westernArtCards: ReviewCard[] = [];
+  if (westernArtPilotOn && graph.mode === "notion" && scope.sourceState === "ready") {
+    try {
+      const card = await (dependencies.issueWesternArtCard ?? issueWesternArtObjectiveCard)(scope);
+      if (card) westernArtCards = [card];
+    } catch (error) {
+      if (!(error instanceof ObjectiveRuntimeError && error.code === "objective_not_due")) {
+        console.warn("Study Graph: Western Art Objective issuance unavailable", {
+          code: error instanceof ObjectiveRuntimeError ? error.code : "western_art_pilot_unavailable",
+        });
+      }
+    }
+  }
+  const cards = (
+    project.id === "philosophy"
+      ? [...philosophyCards, ...legacyCards]
+      : [...westernArtCards, ...legacyCards]
+  ).slice(0, project.review.sessionSize);
+  const objectiveCardCount =
+    project.id === "philosophy" ? philosophyCards.length : westernArtCards.length;
   return {
     project,
     projects: getActiveStudyProjects(),
     cards: attachReviewAssets(cards, reviewAssetProvider),
-    persistence: philosophyCards.length > 0 ? "supabase" : persistence,
+    persistence: objectiveCardCount > 0 ? "supabase" : persistence,
     sourceMode: graph.mode,
     session: {
       projectId: project.id,
       projectTitle: project.title,
       projectHref: project.href,
-      mode: philosophyCards.length > 0 ? "scheduled" : "practice",
+      mode: objectiveCardCount > 0 ? "scheduled" : "practice",
       emptyReason: scope.sourceState === "ready" ? "no-eligible-exercise" : "scope-unavailable",
     },
   };
