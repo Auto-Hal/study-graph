@@ -138,6 +138,9 @@ jobs:
       - name: Phase 5A-3b Western Philosophy Objective v2 pilot tests
         run: npm run test:phase5a-3b
 
+      - name: Phase 5A-3c Western Philosophy multi-Objective tests
+        run: npm run test:phase5a-3c
+
       - name: TypeScript noEmit
         run: npx tsc --noEmit
 
