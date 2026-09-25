@@ -6,6 +6,9 @@ import { ObjectiveRuntimeError, objectiveRuntimeFailure } from "./objective-runt
 import { recoverAcceptedPilotAttempt, submitKuzushijiPilotAttempt } from "./pilot-runtime.ts";
 import { submitPhilosophyObjectiveAttempt } from "./philosophy-pilot-runtime.ts";
 import { PhilosophyPilotInvariantError } from "./philosophy-pilot-core.ts";
+import { getWesternArtObjectiveByExerciseId } from "./western-art-objective-registry.ts";
+import { WesternArtPilotInvariantError } from "./western-art-pilot-core.ts";
+import { submitWesternArtObjectiveAttempt } from "./western-art-pilot-runtime.ts";
 import { getObjectiveRuntimeConfig } from "../supabase/objective-runtime.ts";
 import { resolveObjectiveInstanceArchive, ObjectiveArchiveRpcError } from "../supabase/objective-archive.ts";
 import { PilotRpcError } from "../supabase/pilot.ts";
@@ -28,6 +31,9 @@ export async function submitVersionedPilotAttempt(request: ExerciseAttemptReques
     if (persisted.project_id === "philosophy" && getPhilosophyObjectiveByExerciseId(persisted.exercise_id)) {
       return await submitPhilosophyObjectiveAttempt(recovered.immutableRequest, persisted);
     }
+    if (persisted.project_id === "western-art-history" && getWesternArtObjectiveByExerciseId(persisted.exercise_id)) {
+      return await submitWesternArtObjectiveAttempt(recovered.immutableRequest, persisted);
+    }
     throw new PilotRpcError("unsupported_pilot_instance", 409, "unsupported_pilot_instance");
   } catch (error) {
     if (error instanceof PilotRpcError) throw error;
@@ -35,7 +41,7 @@ export async function submitVersionedPilotAttempt(request: ExerciseAttemptReques
       const failure = objectiveRuntimeFailure(error);
       throw new PilotRpcError(failure.error, failure.status, failure.error);
     }
-    if (error instanceof PhilosophyPilotInvariantError) {
+    if (error instanceof PhilosophyPilotInvariantError || error instanceof WesternArtPilotInvariantError) {
       throw new PilotRpcError("pilot_instance_mismatch", 409, "pilot_instance_mismatch");
     }
     if (error instanceof ObjectiveArchiveRpcError) {

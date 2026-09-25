@@ -45,7 +45,8 @@
     "test:phase5a-3a": "node --experimental-strip-types --import ./scripts/objective-runtime-test-loader.mjs --test src/lib/supabase/objective-archive.test.ts && node --test scripts/phase5a-3a-generic-objective-archive.test.mjs",
     "test:phase5a-3a:db": "node --experimental-strip-types scripts/phase5a-3a-generic-objective-archive-db.test.mjs",
     "test:phase5a-3b": "node --experimental-strip-types --test src/lib/review/philosophy-pilot-core.test.ts && node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/philosophy-registry.test.ts src/lib/review/philosophy-pilot-runtime.test.ts && node --test scripts/phase5a-3b-philosophy-contract.test.mjs",
-    "test:phase5a-3c": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/philosophy-multi-objective.test.ts && node --test scripts/phase5a-3c-philosophy-contract.test.mjs"
+    "test:phase5a-3c": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/philosophy-multi-objective.test.ts && node --test scripts/phase5a-3c-philosophy-contract.test.mjs",
+    "test:phase5a-3d": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/western-art-pilot.test.ts && node --test scripts/phase5a-3d-western-art-contract.test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",
