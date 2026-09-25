@@ -1,5 +1,5 @@
 import { canonicalizeJson, sha256Hex, hashExerciseRevision, type ExerciseRevisionPayload } from "./exercises/revision.ts";
-import { PHILOSOPHY_ARCHE_EXERCISE_ID, PHILOSOPHY_ARCHE_SRS_EPOCH, PHILOSOPHY_ARCHE_TERM_ID, PHILOSOPHY_ARCHE_TERM_URL } from "./exercises/philosophy-anaximander.ts";
+import { getPhilosophyObjectiveByExerciseId, philosophyObjectiveRegistry, type PhilosophyObjectiveEntry } from "./philosophy-objective-registry.ts";
 import type { ResolvedObjectiveInstanceArchive } from "../supabase/objective-archive.ts";
 import type { ReviewCard } from "./types.ts";
 
@@ -14,8 +14,8 @@ export type PhilosophyPresentation = Readonly<{
   sourceUrl: string;
 }>;
 
-export function createPhilosophyPresentation(revision: ExerciseRevisionPayload): PhilosophyPresentation {
-  return { presentationVersion: 1, prompt: revision.prompt, front: revision.front, sourceUrl: PHILOSOPHY_ARCHE_TERM_URL };
+export function createPhilosophyPresentation(revision: ExerciseRevisionPayload, entry: PhilosophyObjectiveEntry = philosophyObjectiveRegistry[1]): PhilosophyPresentation {
+  return { presentationVersion: 1, prompt: revision.prompt, front: revision.front, sourceUrl: entry.scopeSubjectUrl };
 }
 
 export function hashPhilosophyPresentation(presentation: PhilosophyPresentation): string {
@@ -31,10 +31,10 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 /** The database JSON is untrusted until its supported immutable grading contract is checked. */
-export function decodePhilosophyRevision(value: unknown, instance: ResolvedObjectiveInstanceArchive): ExerciseRevisionPayload {
+export function decodePhilosophyRevision(value: unknown, instance: ResolvedObjectiveInstanceArchive, entry: PhilosophyObjectiveEntry): ExerciseRevisionPayload {
   if (!record(value) || !record(value.answerSpec) || !record(value.gradingSpec)
-    || value.projectId !== "philosophy" || value.exerciseId !== PHILOSOPHY_ARCHE_EXERCISE_ID
-    || value.exerciseVersion !== instance.exercise_version || value.objectiveId !== PHILOSOPHY_ARCHE_EXERCISE_ID
+    || value.projectId !== "philosophy" || value.exerciseId !== entry.exerciseId
+    || value.exerciseVersion !== instance.exercise_version || value.objectiveId !== entry.objectiveId
     || value.status !== "approved" || value.answerSpec.type !== "text"
     || !Array.isArray(value.answerSpec.acceptedAnswers)
     || value.answerSpec.acceptedAnswers.length === 0
@@ -49,7 +49,12 @@ export function decodePhilosophyRevision(value: unknown, instance: ResolvedObjec
     || !Array.isArray(value.visualAssets) || value.visualAssets.length !== 0
     || !record(value.explanation) || typeof value.explanation.summary !== "string"
     || !Array.isArray(value.sources) || value.sources.length === 0
-    || value.pilotMetadata !== null) throw new PhilosophyPilotInvariantError();
+    || value.pilotMetadata !== null
+    || !Array.isArray(value.relatedKnowledgeBindings)
+    || !value.relatedKnowledgeBindings.some((binding) => record(binding)
+      && binding.source === "notion" && binding.externalId === entry.scopeSubjectId && binding.role === "scope-subject")) {
+    throw new PhilosophyPilotInvariantError();
+  }
   const revision = value as ExerciseRevisionPayload;
   if (hashExerciseRevision(revision) !== instance.content_hash) throw new PhilosophyPilotInvariantError();
   return revision;
@@ -58,31 +63,33 @@ export function decodePhilosophyRevision(value: unknown, instance: ResolvedObjec
 export function decodePhilosophyInstance(instance: ResolvedObjectiveInstanceArchive, issued?: {
   instanceId: string; releaseId: string; revisionId: string;
 }) {
-  if (instance.project_id !== "philosophy" || instance.exercise_id !== PHILOSOPHY_ARCHE_EXERCISE_ID
+  const entry = getPhilosophyObjectiveByExerciseId(instance.exercise_id);
+  if (!entry || instance.project_id !== "philosophy"
     || instance.revision_status !== "approved"
     || typeof instance.release_id !== "string" || !instance.release_id.trim()
     || typeof instance.revision_id !== "string" || !instance.revision_id.trim()
     || !Number.isSafeInteger(instance.exercise_version) || instance.exercise_version < 1
     || instance.srs_target !== "objective"
-    || String(instance.srs_epoch) !== String(PHILOSOPHY_ARCHE_SRS_EPOCH)
-    || instance.legacy_item_id !== PHILOSOPHY_ARCHE_TERM_ID
+    || String(instance.srs_epoch) !== String(entry.srsEpoch)
+    || instance.legacy_item_id !== entry.scopeSubjectId
     || instance.legacy_item_kind !== "knowledge"
-    || instance.legacy_exercise_id !== PHILOSOPHY_ARCHE_EXERCISE_ID
+    || instance.legacy_exercise_id !== entry.exerciseId
     || (issued && (instance.instance_id !== issued.instanceId || instance.release_id !== issued.releaseId || instance.revision_id !== issued.revisionId))) {
     throw new PhilosophyPilotInvariantError();
   }
-  const revision = decodePhilosophyRevision(instance.revision_payload, instance);
+  const revision = decodePhilosophyRevision(instance.revision_payload, instance, entry);
   const presentation = instance.presentation;
   if (!record(presentation) || presentation.presentationVersion !== 1
     || typeof presentation.prompt !== "string" || !presentation.prompt.trim()
     || typeof presentation.front !== "string" || !presentation.front.trim()
-    || typeof presentation.sourceUrl !== "string"
+    || presentation.sourceUrl !== entry.scopeSubjectUrl
     || !revision.sources.some((source) => source.url === presentation.sourceUrl && source.url.startsWith("https://"))
     || presentation.prompt !== revision.prompt || presentation.front !== revision.front
     || sha256Hex(canonicalizeJson(presentation)) !== instance.presentation_hash) {
     throw new PhilosophyPilotInvariantError();
   }
   return {
+    entry,
     instance,
     revision,
     presentation: {
@@ -96,7 +103,7 @@ export function decodePhilosophyInstance(instance: ResolvedObjectiveInstanceArch
 
 export function philosophyCardFromPersisted(value: ReturnType<typeof decodePhilosophyInstance>, opportunityKind: "unseen" | "due" | "practice"): ReviewCard {
   return {
-    id: PHILOSOPHY_ARCHE_TERM_ID,
+    id: value.entry.scopeSubjectId,
     exerciseId: value.instance.exercise_id,
     projectId: "philosophy",
     kind: "knowledge",

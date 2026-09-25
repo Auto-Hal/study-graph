@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { ExerciseAttemptRequest } from "./exercises/attempt.ts";
-import { PHILOSOPHY_ARCHE_EXERCISE_ID } from "./exercises/philosophy-anaximander.ts";
+import { getPhilosophyObjectiveByExerciseId } from "./philosophy-objective-registry.ts";
 import { ObjectiveRuntimeError, objectiveRuntimeFailure } from "./objective-runtime-core.ts";
 import { recoverAcceptedPilotAttempt, submitKuzushijiPilotAttempt } from "./pilot-runtime.ts";
 import { submitPhilosophyObjectiveAttempt } from "./philosophy-pilot-runtime.ts";
@@ -25,7 +25,7 @@ export async function submitVersionedPilotAttempt(request: ExerciseAttemptReques
     if (persisted.project_id === "kuzushiji") {
       return await submitKuzushijiPilotAttempt(recovered.immutableRequest);
     }
-    if (persisted.project_id === "philosophy" && persisted.exercise_id === PHILOSOPHY_ARCHE_EXERCISE_ID) {
+    if (persisted.project_id === "philosophy" && getPhilosophyObjectiveByExerciseId(persisted.exercise_id)) {
       return await submitPhilosophyObjectiveAttempt(recovered.immutableRequest, persisted);
     }
     throw new PilotRpcError("unsupported_pilot_instance", 409, "unsupported_pilot_instance");

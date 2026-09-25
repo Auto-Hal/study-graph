@@ -12,8 +12,8 @@ const session = read("src/components/ReviewSession.tsx");
 test("Philosophy activation is a separate exact-true server flag; legacy target is excluded before selection", () => {
   assert.match(philosophy, /STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED/);
   assert.match(philosophy, /newObjectiveIssuanceVersion\(\) !== "v2"/);
-  assert.ok(registry.indexOf("legacyEligibleIds.delete(PHILOSOPHY_ARCHE_TERM_ID)") < registry.indexOf("const dueTracked ="));
-  assert.match(registry, /objective_not_due/);
+  assert.ok(registry.indexOf("legacyEligibleIds.delete(id)") < registry.indexOf("const dueTracked ="));
+  assert.match(philosophy, /objective_not_due/);
   assert.match(registry, /\.slice\(0, project\.review\.sessionSize\)/);
   assert.match(read(".env.example"), /^STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED=$/m);
   assert.doesNotMatch(read(".env.example"), /STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED=true/);
