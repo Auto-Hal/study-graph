@@ -215,22 +215,22 @@ test("registry excludes Cromlech before legacy selection and prepends the Object
   const project = getStudyProject("western-art-history")!;
   const objectiveCard = westernArtCardFromPersisted(decodeWesternArtInstance(persisted()), "unseen");
   delete process.env.STUDY_GRAPH_WESTERN_ART_HISTORY_PILOT_ISSUANCE_ENABLED;
-  const off = await loadGraphPractice(project, { loadGraph: async () => graph(), issueWesternArtCard: async () => { throw new Error("must not issue"); } });
+  const off = await loadGraphPractice(project, { loadGraph: async () => graph(), issueWesternArtCards: async () => { throw new Error("must not issue"); } });
   assert.ok(off.cards.some((card) => card.id === WESTERN_ART_CROMLECH_SCOPE_SUBJECT_ID));
 
   process.env.STUDY_GRAPH_WESTERN_ART_HISTORY_PILOT_ISSUANCE_ENABLED = "true";
-  const on = await loadGraphPractice(project, { loadGraph: async () => graph(), issueWesternArtCard: async () => objectiveCard });
+  const on = await loadGraphPractice(project, { loadGraph: async () => graph(), issueWesternArtCards: async () => [objectiveCard] });
   assert.equal(on.cards[0].persistenceKind, "versioned-pilot");
   assert.equal(on.cards.filter((card) => card.id === WESTERN_ART_CROMLECH_SCOPE_SUBJECT_ID).length, 1);
 
   const originalWarn = console.warn;
   console.warn = () => {};
   try {
-    const failed = await loadGraphPractice(project, { loadGraph: async () => graph(), issueWesternArtCard: async () => { throw new Error("issuer failed"); } });
+    const failed = await loadGraphPractice(project, { loadGraph: async () => graph(), issueWesternArtCards: async () => { throw new Error("issuer failed"); } });
     assert.ok(failed.cards.every((card) => card.id !== WESTERN_ART_CROMLECH_SCOPE_SUBJECT_ID));
     const notDue = await loadGraphPractice(project, {
       loadGraph: async () => graph(),
-      issueWesternArtCard: async () => { throw new ObjectiveRuntimeError("objective_not_due"); },
+      issueWesternArtCards: async () => { throw new ObjectiveRuntimeError("objective_not_due"); },
     });
     assert.ok(notDue.cards.every((card) => card.id !== WESTERN_ART_CROMLECH_SCOPE_SUBJECT_ID));
   } finally { console.warn = originalWarn; }
