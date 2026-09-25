@@ -15,6 +15,12 @@ import {
   WESTERN_ART_TRILITHON_EXERCISE_ID, WESTERN_ART_TRILITHON_SUBJECT_ID, WESTERN_ART_TRILITHON_SUBJECT_URL,
   westernArtMenhir, westernArtDolmen, westernArtTrilithon,
 } from "./exercises/western-art-megalith-additions.ts";
+import {
+  WESTERN_ART_PALEOLITHIC_EXERCISE_ID, WESTERN_ART_PALEOLITHIC_SUBJECT_ID, WESTERN_ART_PALEOLITHIC_SUBJECT_URL,
+  WESTERN_ART_EXAGGERATION_EXERCISE_ID, WESTERN_ART_EXAGGERATION_SUBJECT_ID, WESTERN_ART_EXAGGERATION_SUBJECT_URL,
+  WESTERN_ART_ABSTRACTION_EXERCISE_ID, WESTERN_ART_ABSTRACTION_SUBJECT_ID, WESTERN_ART_ABSTRACTION_SUBJECT_URL,
+  westernArtPaleolithic, westernArtExaggeration, westernArtAbstraction,
+} from "./exercises/western-art-prehistory-additions.ts";
 import type { ContentRelease, ExerciseRevision, ExerciseRevisionPayload } from "./exercises/revision.ts";
 import type { ExerciseObjectiveBinding, ObjectiveDefinition } from "./objectives.ts";
 
@@ -46,6 +52,27 @@ export type WesternArtObjectiveEntry = Readonly<{
 
 /** Trusted curriculum order. Each Objective retains independent DB scheduling authority. */
 export const westernArtObjectiveRegistry: readonly WesternArtObjectiveEntry[] = Object.freeze([
+  {
+    exerciseId: WESTERN_ART_PALEOLITHIC_EXERCISE_ID, objectiveId: WESTERN_ART_PALEOLITHIC_EXERCISE_ID,
+    scopeSubjectId: WESTERN_ART_PALEOLITHIC_SUBJECT_ID, scopeSubjectUrl: WESTERN_ART_PALEOLITHIC_SUBJECT_URL,
+    srsEpoch: 1, revision: westernArtPaleolithic.revision, revisionPayload: westernArtPaleolithic.revisionPayload,
+    contentRelease: westernArtPaleolithic.contentRelease, objectiveDefinition: westernArtPaleolithic.objectiveDefinition,
+    objectiveBinding: westernArtPaleolithic.objectiveBinding,
+  },
+  {
+    exerciseId: WESTERN_ART_EXAGGERATION_EXERCISE_ID, objectiveId: WESTERN_ART_EXAGGERATION_EXERCISE_ID,
+    scopeSubjectId: WESTERN_ART_EXAGGERATION_SUBJECT_ID, scopeSubjectUrl: WESTERN_ART_EXAGGERATION_SUBJECT_URL,
+    srsEpoch: 1, revision: westernArtExaggeration.revision, revisionPayload: westernArtExaggeration.revisionPayload,
+    contentRelease: westernArtExaggeration.contentRelease, objectiveDefinition: westernArtExaggeration.objectiveDefinition,
+    objectiveBinding: westernArtExaggeration.objectiveBinding,
+  },
+  {
+    exerciseId: WESTERN_ART_ABSTRACTION_EXERCISE_ID, objectiveId: WESTERN_ART_ABSTRACTION_EXERCISE_ID,
+    scopeSubjectId: WESTERN_ART_ABSTRACTION_SUBJECT_ID, scopeSubjectUrl: WESTERN_ART_ABSTRACTION_SUBJECT_URL,
+    srsEpoch: 1, revision: westernArtAbstraction.revision, revisionPayload: westernArtAbstraction.revisionPayload,
+    contentRelease: westernArtAbstraction.contentRelease, objectiveDefinition: westernArtAbstraction.objectiveDefinition,
+    objectiveBinding: westernArtAbstraction.objectiveBinding,
+  },
   {
     exerciseId: WESTERN_ART_MENHIR_EXERCISE_ID, objectiveId: WESTERN_ART_MENHIR_EXERCISE_ID,
     scopeSubjectId: WESTERN_ART_MENHIR_SUBJECT_ID, scopeSubjectUrl: WESTERN_ART_MENHIR_SUBJECT_URL,

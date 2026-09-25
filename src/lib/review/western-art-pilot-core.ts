@@ -117,7 +117,7 @@ export function westernArtCardFromPersisted(
     exerciseId: value.instance.exercise_id,
     projectId: "western-art-history",
     kind: "knowledge",
-    kindLabel: "用語",
+    kindLabel: value.entry.exerciseId === "western-art-history.paleolithic.period-recall" ? "時代" : "用語",
     eyebrow: "OBJECTIVE",
     label: value.presentation.front,
     prompt: value.presentation.prompt,
