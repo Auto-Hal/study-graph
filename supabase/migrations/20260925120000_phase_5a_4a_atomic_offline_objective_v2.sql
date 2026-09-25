@@ -147,6 +147,10 @@ begin
     where eob.revision_id = p_revision_id;
   if v_revision.revision_id is null
     or v_revision.project_id is distinct from 'kuzushiji'
+    or p_release_id is distinct from
+      'a6346dcb6b1b7a6df890f032ec3974e0c95ac3e631367ab022707d09c6357446'
+    or v_revision.content_hash is distinct from
+      'fca3edc54f17aa731c53cedd1130ff83d51a318ee07696c3310129f67a8db86d'
     or v_revision.exercise_id is distinct from
       'kuzushiji.visual-reading.eitaigura-u3042-00032-1'
     or v_revision.exercise_version is distinct from 2
@@ -266,17 +270,35 @@ begin
     or v_asset ->> 'checksum' !~ '^[0-9a-f]{64}$' then
     raise exception using errcode = 'P0001', message = 'offline_asset_integrity_unavailable';
   end if;
-  if v_instance.presentation -> 'asset' is distinct from
+  if v_revision.content_hash is distinct from
+       'fca3edc54f17aa731c53cedd1130ff83d51a318ee07696c3310129f67a8db86d'
+    or v_asset ->> 'assetId' is distinct from
+      'kuzushiji.glyph.eitaigura-u3042-00032-1'
+    or v_asset ->> 'assetVersion' is distinct from '2'
+    or v_asset ->> 'mediaType' is distinct from 'image/png'
+    or v_asset ->> 'src' is distinct from '/assets/kuzushiji/a-eitaigura-hires.png'
+    or v_asset ->> 'width' is distinct from '222'
+    or v_asset ->> 'height' is distinct from '290'
+    or jsonb_typeof(v_asset -> 'source') <> 'object'
+    or nullif(v_asset #>> '{source,url}', '') is null
+    or nullif(v_asset #>> '{source,attribution}', '') is null
+    or nullif(v_asset #>> '{source,license}', '') is null
+    or v_instance.presentation -> 'asset' is distinct from
        (v_asset - 'source') || jsonb_build_object(
          'source', (v_asset -> 'source') - 'originalFile'
        )
     or v_revision.payload #>> '{answerSpec,type}' is distinct from 'text'
     or jsonb_typeof(v_revision.payload #> '{answerSpec,acceptedAnswers}') <> 'array'
     or jsonb_array_length(v_revision.payload #> '{answerSpec,acceptedAnswers}') < 1
+    or exists (
+      select 1 from jsonb_array_elements(v_revision.payload #> '{answerSpec,acceptedAnswers}') answer
+      where jsonb_typeof(answer) <> 'string' or length(btrim(answer #>> '{}')) = 0
+    )
     or v_revision.payload #>> '{gradingSpec,strategyId}' is distinct from 'legacy-text-v1'
     or v_revision.payload #>> '{gradingSpec,strategyVersion}' is distinct from '1'
     or v_revision.payload #>> '{gradingSpec,normalization}' is distinct from 'review-session-ja-v1'
     or v_revision.payload #>> '{pilotMetadata,motherCharacter,value}' is distinct from '阿'
+    or nullif(v_revision.payload #>> '{explanation,summary}', '') is null
     or v_instance.presentation ->> 'prompt' is distinct from v_revision.payload ->> 'prompt'
     or v_instance.presentation ->> 'front' is distinct from v_revision.payload ->> 'front' then
     raise exception using errcode = 'P0001', message = 'offline_persisted_content_mismatch';
