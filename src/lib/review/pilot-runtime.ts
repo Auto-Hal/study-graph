@@ -10,7 +10,7 @@ import {
   KUZUSHIJI_PILOT_SRS_EPOCH,
   kuzushijiPilotObjectiveBinding,
 } from "@/src/lib/review/exercises/kuzushiji-objective";
-import { kuzushijiPilotRevision, kuzushijiPilotRevisionPayload } from "@/src/lib/review/exercises/kuzushiji-revision";
+import { kuzushijiPilotRevision, kuzushijiPilotRevisionPayload, kuzushijiPilotRevisionV2, kuzushijiPilotRevisionV2Payload } from "@/src/lib/review/exercises/kuzushiji-revision";
 import type { ObjectiveSrsApplicationReason } from "@/src/lib/review/objective-srs";
 import {
   issueObjectiveInstanceV2,
@@ -24,10 +24,9 @@ import {
   objectiveRuntimeFailure,
 } from "@/src/lib/review/objective-runtime-core";
 import {
-  ensureKuzushijiPilotArchive,
+  ensureKuzushijiPilotOfflineArchive,
   getKuzushijiPilotAttemptReceipt,
   getPilotRuntimeConfig,
-  issueKuzushijiPilotInstance,
   PilotRpcError,
   recordKuzushijiObjectivePilotAttempt,
   recordKuzushijiPilotAttempt,
@@ -67,7 +66,7 @@ export function isPilotScopeEligible(scope: ScopeSnapshot, characterId: string) 
 }
 
 export function createPilotPresentationForRevision() {
-  return createPilotPresentation(kuzushijiPilotRevisionPayload);
+  return createPilotPresentation(kuzushijiPilotRevisionV2Payload);
 }
 
 function objectivePilotError(error: unknown): PilotRpcError {
@@ -138,68 +137,58 @@ export async function issueKuzushijiPilotReview(input: {
   if (!isPilotScopeEligible(input.scope, input.character.id)) {
     throw new PilotRpcError("pilot_scope_not_eligible", 409, "pilot_scope_not_eligible");
   }
-  if (kuzushijiPilotRevision.status === "draft" || kuzushijiPilotRevision.status === "retired") {
+  if (kuzushijiPilotRevisionV2.status === "draft" || kuzushijiPilotRevisionV2.status === "retired") {
     throw new PilotRpcError("revision_not_issuable", 409, "revision_not_issuable");
   }
-  const archive = await ensureKuzushijiPilotArchive();
+  if (newObjectiveIssuanceVersion() !== "v2") {
+    throw new PilotRpcError("pilot_issuance_disabled", 409, "pilot_issuance_disabled");
+  }
+  const archive = await ensureKuzushijiPilotOfflineArchive();
   const presentation = createPilotPresentationForRevision();
 
-  if (newObjectiveIssuanceVersion() === "v2") {
-    try {
-      const issued = await issueObjectiveInstanceV2({
-        releaseId: archive.releaseId,
-        revisionId: archive.revisionId,
-        presentation: presentation as unknown as Record<string, unknown>,
-        presentationHash: hashPilotPresentation(presentation),
-        rendererVersion: null,
-        adapterVersion: null,
-        locale: "ja-JP",
-        scopeEvidence: buildPilotScopeEvidence(input.scope, input.character.id) as unknown as Record<string, unknown>,
-        knowledgeBinding: null,
-        legacyItemId: input.character.id,
-        legacyItemKind: "character",
-        legacyExerciseId: input.legacyExerciseId,
-        srsEpoch: KUZUSHIJI_PILOT_SRS_EPOCH,
-        intent: "scheduled",
-      });
+  try {
+    const issued = await issueObjectiveInstanceV2({
+      releaseId: archive.releaseId,
+      revisionId: archive.revisionId,
+      presentation: presentation as unknown as Record<string, unknown>,
+      presentationHash: hashPilotPresentation(presentation),
+      rendererVersion: null,
+      adapterVersion: null,
+      locale: "ja-JP",
+      scopeEvidence: buildPilotScopeEvidence(input.scope, input.character.id) as unknown as Record<string, unknown>,
+      knowledgeBinding: null,
+      legacyItemId: input.character.id,
+      legacyItemKind: "character",
+      legacyExerciseId: input.legacyExerciseId,
+      srsEpoch: KUZUSHIJI_PILOT_SRS_EPOCH,
+      intent: "scheduled",
+    });
 
-      // The generic issuer may reuse an active opportunity belonging to a
-      // different immutable revision. The returned instance is the sole
-      // presentation authority for both new and reused issuance.
-      const persisted = assertResolvedKuzushijiPilotInstance(
-        await resolveKuzushijiPilotInstance(issued.instanceId),
-      );
-      if (
-        persisted.instance_id !== issued.instanceId
-        || persisted.srs_target !== "objective"
-        || persisted.release_id !== issued.releaseId
-        || persisted.revision_id !== issued.revisionId
-      ) {
-        throw new PilotRpcError("pilot_instance_mismatch", 502, "pilot_instance_mismatch");
-      }
-      return {
-        instanceId: persisted.instance_id,
-        releaseId: persisted.release_id,
-        revisionId: persisted.revision_id,
-        presentation: assertPersistedPilotPresentation(persisted.presentation),
-        reused: issued.reused,
-      };
-    } catch (error) {
-      if (error instanceof ObjectiveRuntimeError) throw objectivePilotError(error);
-      throw error;
+    // The generic issuer may reuse an active opportunity belonging to a
+    // different immutable revision. The returned instance is the sole
+    // presentation authority for both new and reused issuance.
+    const persisted = assertResolvedKuzushijiPilotInstance(
+      await resolveKuzushijiPilotInstance(issued.instanceId),
+    );
+    if (
+      persisted.instance_id !== issued.instanceId
+      || persisted.srs_target !== "objective"
+      || persisted.release_id !== issued.releaseId
+      || persisted.revision_id !== issued.revisionId
+    ) {
+      throw new PilotRpcError("pilot_instance_mismatch", 502, "pilot_instance_mismatch");
     }
+    return {
+      instanceId: persisted.instance_id,
+      releaseId: persisted.release_id,
+      revisionId: persisted.revision_id,
+      presentation: assertPersistedPilotPresentation(persisted.presentation),
+      reused: issued.reused,
+    };
+  } catch (error) {
+    if (error instanceof ObjectiveRuntimeError) throw objectivePilotError(error);
+    throw error;
   }
-
-  const issue = await issueKuzushijiPilotInstance({
-    releaseId: archive.releaseId,
-    revisionId: archive.revisionId,
-    presentation: presentation as unknown as Record<string, unknown>,
-    presentationHash: hashPilotPresentation(presentation),
-    scopeEvidence: buildPilotScopeEvidence(input.scope, input.character.id) as unknown as Record<string, unknown>,
-    legacyItemId: input.character.id,
-    legacyExerciseId: input.legacyExerciseId,
-  });
-  return { ...issue, presentation, reused: false };
 }
 
 export type PilotAttemptResult = StoredPilotReceiptResult;

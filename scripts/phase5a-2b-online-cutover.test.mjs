@@ -18,13 +18,14 @@ function functionBody(source, name) {
 test("the outer pilot kill switch remains before online issuer selection", () => {
   assert.match(issueRoute, /isPilotIssuanceEnabled\(\)/);
   assert.match(issueRoute, /pilot_issuance_disabled/);
-  assert.match(runtime, /newObjectiveIssuanceVersion\(\) === "v2"/);
-  assert.match(runtime, /issueKuzushijiPilotInstance\(/);
+  assert.match(runtime, /newObjectiveIssuanceVersion\(\) !== "v2"/);
+  assert.match(runtime, /ensureKuzushijiPilotOfflineArchive\(/);
+  assert.doesNotMatch(runtime, /issueKuzushijiPilotInstance\(/);
   assert.match(runtime, /issueObjectiveInstanceV2\(/);
 });
 
 test("v2 issuance sends only server-owned Kuzushiji facts", () => {
-  const branch = runtime.slice(runtime.indexOf('if (newObjectiveIssuanceVersion() === "v2")'), runtime.indexOf("const issue = await issueKuzushijiPilotInstance"));
+  const branch = runtime.slice(runtime.indexOf("const archive = await ensureKuzushijiPilotOfflineArchive()"), runtime.indexOf("export type PilotAttemptResult"));
   for (const field of [
     "releaseId: archive.releaseId", "revisionId: archive.revisionId", "presentationHash: hashPilotPresentation(presentation)",
     "rendererVersion: null", "adapterVersion: null", 'locale: "ja-JP"',
@@ -35,7 +36,7 @@ test("v2 issuance sends only server-owned Kuzushiji facts", () => {
 });
 
 test("new and reused v2 issuance resolve persisted presentation and attribution", () => {
-  const branch = runtime.slice(runtime.indexOf('if (newObjectiveIssuanceVersion() === "v2")'), runtime.indexOf("const issue = await issueKuzushijiPilotInstance"));
+  const branch = runtime.slice(runtime.indexOf("const archive = await ensureKuzushijiPilotOfflineArchive()"), runtime.indexOf("export type PilotAttemptResult"));
   assert.match(branch, /resolveKuzushijiPilotInstance\(issued\.instanceId\)/);
   assert.match(branch, /persisted\.srs_target !== "objective"/);
   assert.match(branch, /persisted\.release_id !== issued\.releaseId/);
@@ -117,7 +118,7 @@ test("environment and rollback documentation keep production issuance off", () =
 
 test("migration set keeps 1-20 unchanged and adds only the approved additive migrations", () => {
   const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql"));
-  assert.equal(files.length, 21);
+  assert.equal(files.length, 22);
   for (const name of [
     "20260917021000_phase_5a_1b_objective_opportunity_rpc_foundation.sql",
     "20260918010500_phase_5a_1b_objective_issuer_lock_order.sql",
@@ -125,6 +126,7 @@ test("migration set keeps 1-20 unchanged and adds only the approved additive mig
   ]) assert.ok(files.includes(name));
   assert.ok(files.includes("20260921100000_fix_pilot_archive_conflict_target.sql"));
   assert.ok(files.includes("20260922100000_phase_5a_3a_generic_objective_archive.sql"));
+  assert.ok(files.includes("20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql"));
   // CI checks out a shallow synthetic PR merge, so neither the reviewed base
   // SHA nor a parent is guaranteed to be present locally. Compare to the
   // first parent when available; the exact committed inventory assertions
@@ -142,6 +144,7 @@ test("migration set keeps 1-20 unchanged and adds only the approved additive mig
     const parentHasMigration20 = spawnSync("git", ["cat-file", "-e", "HEAD^1:supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"], { stdio: "ignore" }).status === 0;
     const expected = parentHasMigration20 ? [] : ["supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"];
     if (migration21Tracked) expected.push("supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql");
+    if (changedFiles.includes("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql")) expected.push("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql");
     assert.deepEqual(changedFiles.sort(), expected.sort());
   }
 });
