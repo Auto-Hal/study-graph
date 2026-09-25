@@ -3,6 +3,7 @@ import { after, test } from "node:test";
 import type { GraphData } from "../graph/types.ts";
 import { gradeExerciseRevision, hashExerciseAttemptRequest, type ExerciseAttemptRequest } from "./exercises/attempt.ts";
 import { philosophyAnaximenes, philosophyThales } from "./exercises/philosophy-arche-additions.ts";
+import { createContentRelease, createContentReleaseManifest, createExerciseRevision, getExerciseRevisionPayload } from "./exercises/revision.ts";
 import { PHILOSOPHY_ARCHE_LECTURE_ID } from "./exercises/philosophy-anaximander.ts";
 import { hashObjectiveDefinition } from "./objectives.ts";
 import { philosophyObjectiveRegistry, philosophyObjectiveScopeSubjectIds, type PhilosophyObjectiveEntry } from "./philosophy-objective-registry.ts";
@@ -52,6 +53,7 @@ function setup(handler: (name: string, body: Record<string, unknown>) => unknown
   process.env.STUDY_GRAPH_LEARNER_ID = learnerId;
   process.env.STUDY_GRAPH_OBJECTIVE_V2_ISSUANCE_ENABLED = "true";
   process.env.STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED = "true";
+  delete process.env.NOTION_TOKEN;
   const calls: Array<{ name: string; body: Record<string, unknown> }> = [];
   globalThis.fetch = async (url, init) => {
     const parsed = new URL(String(url));
@@ -135,6 +137,38 @@ test("three independent scheduled issuances are ordered and use their own author
   assert.equal(calls.filter((call) => call.name === "study_graph_resolve_objective_instance_archive").length, 3);
 });
 
+test("active reuse displays the returned persisted immutable revision, not the new candidate", async () => {
+  const entry = philosophyObjectiveRegistry[0];
+  const olderRevision = createExerciseRevision({ ...philosophyThales.definition, exerciseVersion: 2,
+    prompt: "Persisted prior Thales prompt", front: "Persisted Thales front" }, new Map(), null);
+  const olderPayload = getExerciseRevisionPayload(olderRevision);
+  const olderRelease = createContentRelease(createContentReleaseManifest([olderRevision]));
+  const olderPresentation = createPhilosophyPresentation(olderPayload, entry);
+  setup((name) => {
+    if (name === "study_graph_register_objective_archive") return [{ release_id: entry.contentRelease.manifestHash,
+      revision_id: revisionUuid(1) }];
+    if (name === "study_graph_register_objective_definition") return [{ objective_id: entry.objectiveId }];
+    if (name === "study_graph_register_exercise_objective_binding") return [{ binding_id: "55555555-5555-4555-8555-555555555555" }];
+    if (name === "study_graph_issue_objective_instance_v2") return [{ instance_id: uuid(1),
+      release_id: olderRelease.manifestHash, revision_id: revisionUuid(9), opportunity_kind: "due",
+      effective_evidence_use: "srs", expected_state_revision: 2, issued_at: "2030-01-01T00:00:00Z",
+      expires_at: "2030-01-08T00:00:00Z", reused: true }];
+    if (name === "study_graph_resolve_objective_instance_archive") return [persisted(entry, {
+      release_id: olderRelease.manifestHash, revision_id: revisionUuid(9), exercise_version: 2,
+      revision_payload: olderPayload, content_hash: olderRevision.contentHash,
+      presentation: olderPresentation, presentation_hash: hashPhilosophyPresentation(olderPresentation),
+    })];
+    throw new Error(name);
+  });
+  const scope = buildGraphScopeSnapshot("philosophy", graph([entry.scopeSubjectId]));
+  const cards = await issuePhilosophyObjectiveCards(scope);
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].instanceId, uuid(1));
+  assert.equal(cards[0].prompt, olderPresentation.prompt);
+  assert.equal(cards[0].front, olderPresentation.front);
+  assert.notEqual(cards[0].prompt, entry.revisionPayload.prompt);
+});
+
 test("registered persisted identity chooses the decoder; cross-objective and unsupported rows fail closed", () => {
   for (const entry of philosophyObjectiveRegistry) {
     assert.equal(decodePhilosophyInstance(persisted(entry)).entry.exerciseId, entry.exerciseId);
@@ -174,6 +208,34 @@ test("first acceptance rejects an unregistered persisted Philosophy exercise bef
   await assert.rejects(submitVersionedPilotAttempt(request), { code: "unsupported_pilot_instance" });
   assert.deepEqual(calls.map((call) => call.name), ["study_graph_get_kuzushiji_pilot_attempt_receipt",
     "study_graph_resolve_objective_instance_archive"]);
+});
+
+test("dispatcher selects each registered Philosophy writer from persisted project and exercise", async () => {
+  for (const entry of philosophyObjectiveRegistry) {
+    const request: ExerciseAttemptRequest = { attemptId, instanceId: uuid(indexOf(entry)),
+      rawAnswer: entry.revisionPayload.answerSpec.acceptedAnswers[0], selfEvaluation: "good",
+      responseMs: 1000, usedHint: false };
+    const calls = setup((name, body) => {
+      if (name === "study_graph_get_kuzushiji_pilot_attempt_receipt") return [];
+      if (name === "study_graph_resolve_objective_instance_archive") return [persisted(entry)];
+      if (name === "study_graph_resolve_objective_instance_routing") return [{
+        instance_id: request.instanceId, project_id: "philosophy", objective_id: entry.objectiveId,
+        objective_version: 1, srs_epoch: 1, evidence_use: "srs", scheduling_context_version: 1,
+        opportunity_kind: "unseen", expected_state_revision: 0,
+        grade_policy_version: "deterministic-correctness-cap-v1", activation_policy_version: "on-publication-v1",
+        issued_at: "2030-01-01T00:00:00Z", expires_at: "2030-01-08T00:00:00Z", due_at_observed: null,
+      }];
+      assert.equal(name, "study_graph_record_objective_attempt_v2");
+      assert.equal(body.p_scope_accepted, false); // No Notion token, so fresh Scope is unavailable.
+      return [{ receipt: { receiptVersion: 2, attemptId, instanceId: request.instanceId,
+        acceptedAt: "2030-01-01T00:01:00Z", projectId: "philosophy", objectiveId: entry.objectiveId,
+        objectiveVersion: 1, srsEpoch: 1, evidenceUse: "srs", gradingStatus: "graded", isCorrect: true,
+        applied: false, reason: "scope-not-eligible", effectiveGrade: null, stateRevision: null, dueAt: null } }];
+    });
+    assert.equal((await submitVersionedPilotAttempt(request)).srsApplied, false);
+    assert.equal(calls.filter((call) => call.name === "study_graph_record_objective_attempt_v2").length, 1);
+    assert.equal(calls.some((call) => call.name === "study_graph_record_exercise_attempt"), false);
+  }
 });
 
 test("not-due and failed issuance are isolated; neither falls back to another Objective", async () => {
