@@ -144,6 +144,9 @@ jobs:
       - name: Phase 5A-3d Western Art History Objective v2 pilot tests
         run: npm run test:phase5a-3d
 
+      - name: Phase 5A-3e Western Art History multi-Objective tests
+        run: npm run test:phase5a-3e
+
       - name: TypeScript noEmit
         run: npx tsc --noEmit
 

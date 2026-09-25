@@ -12,8 +12,8 @@ import { isKuzushijiPilotDefinition, issueKuzushijiPilotReview } from "@/src/lib
 import { ObjectiveRuntimeError } from "@/src/lib/review/objective-runtime-core";
 import { philosophyObjectiveScopeSubjectIds } from "@/src/lib/review/philosophy-objective-registry";
 import { isPhilosophyPilotIssuanceEnabled, issuePhilosophyObjectiveCards } from "@/src/lib/review/philosophy-pilot-runtime";
-import { westernArtObjective } from "@/src/lib/review/western-art-objective-registry";
-import { isWesternArtPilotIssuanceEnabled, issueWesternArtObjectiveCard } from "@/src/lib/review/western-art-pilot-runtime";
+import { westernArtObjectiveScopeSubjectIds } from "@/src/lib/review/western-art-objective-registry";
+import { isWesternArtPilotIssuanceEnabled, issueWesternArtObjectiveCards } from "@/src/lib/review/western-art-pilot-runtime";
 import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
@@ -135,7 +135,7 @@ export async function loadGraphPractice(
   dependencies: {
     loadGraph?: typeof loadReviewGraphPracticeSource;
     issuePhilosophyCards?: typeof issuePhilosophyObjectiveCards;
-    issueWesternArtCard?: typeof issueWesternArtObjectiveCard;
+    issueWesternArtCards?: typeof issueWesternArtObjectiveCards;
   } = {},
 ): Promise<ReviewProjectPayload> {
   const graph = await (dependencies.loadGraph ?? loadReviewGraphPracticeSource)(project.id as "philosophy" | "western-art-history");
@@ -146,7 +146,7 @@ export async function loadGraphPractice(
   const westernArtPilotOn = project.id === "western-art-history" && isWesternArtPilotIssuanceEnabled();
   const legacyEligibleIds = new Set(eligibleIds);
   if (philosophyPilotOn) for (const id of philosophyObjectiveScopeSubjectIds) legacyEligibleIds.delete(id);
-  if (westernArtPilotOn) legacyEligibleIds.delete(westernArtObjective.scopeSubjectId);
+  if (westernArtPilotOn) for (const id of westernArtObjectiveScopeSubjectIds) legacyEligibleIds.delete(id);
   // Once selected for Objective authority, these terms never fall back to the
   // legacy queue, including when issuance is not due or temporarily fails.
   const eligibleNodes = graph.nodes.filter((node) => eligibleKinds.has(node.kind) && legacyEligibleIds.has(node.id));
@@ -190,8 +190,7 @@ export async function loadGraphPractice(
   let westernArtCards: ReviewCard[] = [];
   if (westernArtPilotOn && graph.mode === "notion" && scope.sourceState === "ready") {
     try {
-      const card = await (dependencies.issueWesternArtCard ?? issueWesternArtObjectiveCard)(scope);
-      if (card) westernArtCards = [card];
+      westernArtCards = await (dependencies.issueWesternArtCards ?? issueWesternArtObjectiveCards)(scope);
     } catch (error) {
       if (!(error instanceof ObjectiveRuntimeError && error.code === "objective_not_due")) {
         console.warn("Study Graph: Western Art Objective issuance unavailable", {

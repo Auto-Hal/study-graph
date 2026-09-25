@@ -9,7 +9,7 @@ const runtime = read("src/lib/review/western-art-pilot-runtime.ts");
 const content = read("src/lib/review/exercises/western-art-cromlech.ts");
 
 test("Art Objective authority is selected before legacy scheduling", () => {
-  assert.ok(registry.indexOf("legacyEligibleIds.delete(westernArtObjective.scopeSubjectId)") < registry.indexOf("const dueTracked ="));
+  assert.ok(registry.indexOf("legacyEligibleIds.delete(id)") < registry.indexOf("const dueTracked ="));
   assert.match(registry, /\.\.\.philosophyCards, \.\.\.legacyCards/);
   assert.match(registry, /\.\.\.westernArtCards, \.\.\.legacyCards/);
   assert.match(registry, /\.slice\(0, project\.review\.sessionSize\)/);

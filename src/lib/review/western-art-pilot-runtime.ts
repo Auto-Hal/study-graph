@@ -8,7 +8,7 @@ import { gradeExerciseRevision, type ExerciseAttemptRequest } from "./exercises/
 import { issueObjectiveInstanceV2, newObjectiveIssuanceVersion, submitObjectiveAttemptV2 } from "./objective-runtime.ts";
 import { ObjectiveRuntimeError, type ObjectiveInstanceRouting } from "./objective-runtime-core.ts";
 import { buildGraphScopeSnapshot, type ScopeSnapshot } from "./scope.ts";
-import { westernArtObjective, type WesternArtObjectiveEntry } from "./western-art-objective-registry.ts";
+import { westernArtObjective, westernArtObjectiveRegistry, type WesternArtObjectiveEntry } from "./western-art-objective-registry.ts";
 import {
   createWesternArtPresentation,
   decodeWesternArtInstance,
@@ -66,7 +66,29 @@ export async function issueWesternArtObjectiveCard(
   const persisted = await resolveObjectiveInstanceArchive(issued.instanceId, learnerId);
   if (!persisted) throw new ObjectiveRuntimeError("instance_unavailable");
   if (persisted.learner_id !== learnerId) throw new ObjectiveRuntimeError("invalid_authority_response");
-  return westernArtCardFromPersisted(decodeWesternArtInstance(persisted, issued), issued.opportunityKind);
+  const decoded = decodeWesternArtInstance(persisted, issued);
+  if (decoded.entry.exerciseId !== entry.exerciseId) throw new ObjectiveRuntimeError("invalid_authority_response");
+  return westernArtCardFromPersisted(decoded, issued.opportunityKind);
+}
+
+/** A failure or not-due result for one Objective cannot suppress another. */
+export async function issueWesternArtObjectiveCards(scope: ScopeSnapshot) {
+  const cards = [];
+  for (const entry of westernArtObjectiveRegistry) {
+    if (!scopeEligible(scope, entry)) continue;
+    try {
+      const card = await issueWesternArtObjectiveCard(scope, entry);
+      if (card) cards.push(card);
+    } catch (error) {
+      if (!(error instanceof ObjectiveRuntimeError && error.code === "objective_not_due")) {
+        console.warn("Study Graph: Western Art Objective issuance unavailable", {
+          code: error instanceof ObjectiveRuntimeError ? error.code : "western_art_pilot_unavailable",
+          exerciseId: entry.exerciseId,
+        });
+      }
+    }
+  }
+  return cards;
 }
 
 function assertWesternArtRouting(
