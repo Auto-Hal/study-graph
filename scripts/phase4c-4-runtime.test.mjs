@@ -59,7 +59,7 @@ test("archive registration and instance issuance are idempotent/conflict aware",
 
 test("pilot attempt route accepts only server-relevant submission fields", () => {
   assert.match(attemptRoute, /validatePilotAttemptInput/);
-  assert.match(attemptRoute, /submitKuzushijiPilotAttempt/);
+  assert.match(attemptRoute, /submitVersionedPilotAttempt/);
   assert.match(attemptRoute, /pilotWriteSameOriginFailure/);
   assert.match(issueRoute, /pilotWriteSameOriginFailure/);
   assert.doesNotMatch(attemptRoute, /isCorrect/);
@@ -115,7 +115,7 @@ test("all native reads and writes use the no-login policy without weakening orig
   assert.match(snapshotRoute, /getCurrentScopeKnowledgeSnapshotModel\("kuzushiji"\)/);
   assert.match(objectiveStateRoute, /getKuzushijiPilotObjectiveState/);
   assert.match(issueRoute, /issueKuzushijiPilotReview/);
-  assert.match(attemptRoute, /submitKuzushijiPilotAttempt/);
+  assert.match(attemptRoute, /submitVersionedPilotAttempt/);
   assert.match(receiptRoute, /getKuzushijiPilotAttemptReceipt/);
   assert.match(prefetchRoute, /prefetchKuzushijiOfflineInstance/);
   assert.match(validateRoute, /validatePilotAttemptInput/);
@@ -179,7 +179,7 @@ test("receipt restoration is receipt-first and fails closed when legacy fields a
   assert.match(receipt, /effectiveSrsGrade/);
   assert.match(receipt, /StoredReceiptIncompleteError/);
   assert.match(runtime, /const existing = await getKuzushijiPilotAttemptReceipt/);
-  assert.match(runtime, /return (?:receiptResult\(existing\.receipt,\s*request\.instanceId,\s*instance\.srs_target\)|receiptResultFromStoredAttempt\(existing\.receipt,\s*request\.instanceId\))/);
+  assert.match(runtime, /result:\s*receiptResultFromStoredAttempt\(existing\.receipt,\s*request\.instanceId\)/);
   assert.doesNotMatch(runtime, /receiptField/);
   assert.doesNotMatch(runtime, /gradingStatus: receipt/);
   assert.doesNotMatch(runtime, /srsApplied: receipt/);

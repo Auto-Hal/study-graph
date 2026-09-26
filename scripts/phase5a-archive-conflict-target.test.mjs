@@ -6,9 +6,9 @@ const migrationDirectory = new URL("../supabase/migrations/", import.meta.url);
 const allFiles = readdirSync(migrationDirectory).filter((file) => file.endsWith(".sql")).sort();
 const fixFile = "20260921100000_fix_pilot_archive_conflict_target.sql";
 const genericArchiveFile = "20260922100000_phase_5a_3a_generic_objective_archive.sql";
-assert.equal(allFiles.length, 21);
-assert.equal(allFiles.at(-1), genericArchiveFile);
-assert.equal(allFiles.at(-2), fixFile);
+assert.equal(allFiles.length, 22);
+assert.equal(allFiles.at(-2), genericArchiveFile);
+assert.equal(allFiles.at(-3), fixFile);
 const files = allFiles.slice(0, 20);
 
 const baseline = "22f2de997dea8a1442ba6d8993f4acaabebc8d10";

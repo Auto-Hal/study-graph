@@ -203,9 +203,9 @@ try {
     .sort();
   const migration20 = "20260921100000_fix_pilot_archive_conflict_target.sql";
   const migration21 = "20260922100000_phase_5a_3a_generic_objective_archive.sql";
-  assert.equal(files.at(-2), migration20);
-  assert.equal(files.at(-1), migration21);
-  assert.equal(files.length, 21);
+  assert.equal(files.at(-3), migration20);
+  assert.equal(files.at(-2), migration21);
+  assert.equal(files.length, 22);
   const firstNineteen = files.slice(0, 19);
   assert.equal(firstNineteen.length, 19);
   for (const file of firstNineteen) {
