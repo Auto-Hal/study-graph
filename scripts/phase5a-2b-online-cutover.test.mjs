@@ -140,10 +140,10 @@ test("migration set keeps 1-20 unchanged and adds only the approved additive mig
   }
   const changedFiles = migrationDiff.trim() ? migrationDiff.trim().split(/\r?\n/).filter(Boolean) : [];
   if (migrationDiff.trim()) {
-    const migration21Tracked = spawnSync("git", ["ls-files", "--error-unmatch", "supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql"], { stdio: "ignore" }).status === 0;
     const parentHasMigration20 = spawnSync("git", ["cat-file", "-e", "HEAD^1:supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"], { stdio: "ignore" }).status === 0;
+    const parentHasMigration21 = spawnSync("git", ["cat-file", "-e", "HEAD^1:supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql"], { stdio: "ignore" }).status === 0;
     const expected = parentHasMigration20 ? [] : ["supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"];
-    if (migration21Tracked) expected.push("supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql");
+    if (!parentHasMigration21) expected.push("supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql");
     if (changedFiles.includes("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql")) expected.push("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql");
     assert.deepEqual(changedFiles.sort(), expected.sort());
   }
