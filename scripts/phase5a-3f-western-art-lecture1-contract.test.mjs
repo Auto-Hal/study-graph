@@ -35,7 +35,7 @@ test("receipt recovery precedes persisted project dispatch; offline and migratio
   assert.match(dispatcher, /getWesternArtObjectiveByExerciseId\(persisted\.exercise_id\)/);
   assert.doesNotMatch(dispatcher, /request\.projectId|body\.projectId/);
   assert.doesNotMatch(runtime, /study_graph_record_review|p_srs_plan/);
-  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 21);
+  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 22);
   assert.match(read("src/lib/review/offline/attempt-outbox.ts"), /ATTEMPT_OUTBOX_DB_VERSION = 1/);
   assert.match(read("src/lib/review/offline/model-core.ts"), /OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1/);
 });

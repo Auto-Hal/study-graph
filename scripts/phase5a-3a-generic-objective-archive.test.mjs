@@ -7,8 +7,8 @@ const files = readdirSync(migrationDirectory).filter((file) => file.endsWith(".s
 const migration21 = "20260922100000_phase_5a_3a_generic_objective_archive.sql";
 const reviewedBase = "18fe2f6a3f95827e7bf6f5a80b82fc0d127dd65a";
 
-assert.equal(files.length, 21, "Phase 5A-3a must add exactly one migration");
-assert.equal(files.at(-1), migration21);
+assert.equal(files.length, 22, "Phase 5A-4a adds only migration 22");
+assert.equal(files.at(-2), migration21);
 const historicalFiles = files.slice(0, 20);
 const canReadAllAt = (ref) => historicalFiles.every((file) =>
   spawnSync("git", ["cat-file", "-e", `${ref}:supabase/migrations/${file}`], { stdio: "ignore" }).status === 0,

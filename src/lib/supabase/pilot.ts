@@ -59,7 +59,7 @@ export function getPilotRuntimeConfig(): PilotRuntimeConfig | null {
 }
 
 function errorCode(message: string) {
-  const known = /(?:archive_conflict|attempt_conflict|instance_already_answered|instance_not_found|learner_mismatch|revision_not_issuable|revision_not_allowed|pilot_archive_not_registered|pilot_[a-z_]+|objective_[a-z_]+|instance_objective_[a-z_]+|revision_objective_[a-z_]+|grading_[a-z_]+|invalid_[a-z_]+|unsupported_[a-z_]+)/.exec(message);
+  const known = /(?:archive_conflict|attempt_conflict|instance_already_answered|instance_not_found|learner_mismatch|revision_not_issuable|revision_not_allowed|pilot_archive_not_registered|pilot_[a-z_]+|offline_[a-z_]+|objective_[a-z_]+|instance_objective_[a-z_]+|revision_objective_[a-z_]+|grading_[a-z_]+|invalid_[a-z_]+|unsupported_[a-z_]+)/.exec(message);
   return known?.[0] ?? null;
 }
 
@@ -159,8 +159,9 @@ export async function ensureKuzushijiPilotArchive(): Promise<PilotArchiveRegistr
 
 /**
  * Register the checksum-pinned v2 pilot archive idempotently.  This is a
- * server-only boundary used by the offline prefetch issuer; the existing v1
- * archive registration remains the authority for the normal Review path.
+ * server-only boundary shared by future new online and offline Objective v2
+ * issuance. An already-active v1 instance remains the generic issuer's reuse
+ * authority and is never rewritten by this registration.
  */
 export async function ensureKuzushijiPilotOfflineArchive(): Promise<PilotArchiveRegistration> {
   const config = getPilotRuntimeConfig();
@@ -212,6 +213,63 @@ export type OfflinePrefetchInstance = {
   device_id: string;
   prefetched_at: string;
 };
+
+export type OfflinePrefetchInstanceV2 = OfflinePrefetchInstance & {
+  revision_payload: unknown;
+  revision_content_hash: string;
+};
+
+/** Empty rows mean only that a recovery-only lookup found no mapping. */
+export async function prefetchKuzushijiPilotInstanceV2(input: {
+  requestId: string;
+  deviceId: string;
+  createIfMissing: boolean;
+  newIssuanceAllowed: boolean;
+  releaseId?: string;
+  revisionId?: string;
+  snapshotId?: string;
+  snapshotGeneration?: number;
+  presentation?: Record<string, unknown>;
+  presentationHash?: string;
+  scopeEvidence?: Record<string, unknown>;
+  legacyItemId?: string;
+}): Promise<OfflinePrefetchInstanceV2 | null> {
+  const config = getPilotRuntimeConfig();
+  if (!config) throw new PilotRpcError("pilot_runtime_not_configured", 503, "pilot_runtime_not_configured");
+  let rows: OfflinePrefetchInstanceV2[];
+  try {
+    rows = await callPilotRpc<OfflinePrefetchInstanceV2[]>(
+      "study_graph_prefetch_kuzushiji_objective_instance_v2",
+      {
+        p_request_id: input.requestId,
+        p_learner_id: config.learnerId,
+        p_project_id: "kuzushiji",
+        p_device_id: input.deviceId,
+        p_create_if_missing: input.createIfMissing,
+        p_new_issuance_allowed: input.newIssuanceAllowed,
+        p_release_id: input.releaseId ?? null,
+        p_revision_id: input.revisionId ?? null,
+        p_snapshot_id: input.snapshotId ?? null,
+        p_snapshot_generation: input.snapshotGeneration ?? null,
+        p_presentation: input.presentation ?? null,
+        p_presentation_hash: input.presentationHash ?? null,
+        p_scope_evidence: input.scopeEvidence ?? null,
+        p_legacy_item_id: input.legacyItemId ?? null,
+        p_legacy_exercise_id: "kuzushiji.visual-reading.eitaigura-u3042-00032-1",
+        p_srs_epoch: KUZUSHIJI_PILOT_SRS_EPOCH,
+      },
+    );
+  } catch (error) {
+    if (error instanceof PilotRpcError && error.code === "offline_asset_integrity_unavailable") {
+      throw new PilotRpcError(error.code, 409, error.code);
+    }
+    throw error;
+  }
+  if (!Array.isArray(rows) || rows.length > 1 || (input.createIfMissing && rows.length !== 1)) {
+    throw new PilotRpcError("pilot_prefetch_unavailable", 502, "pilot_prefetch_unavailable");
+  }
+  return rows[0] ?? null;
+}
 
 /** Call the v2 server-issued prefetch function with no client-controlled facts. */
 export async function prefetchKuzushijiPilotInstance(input: {

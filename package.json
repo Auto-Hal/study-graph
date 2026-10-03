@@ -48,7 +48,9 @@
     "test:phase5a-3c": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/philosophy-multi-objective.test.ts && node --test scripts/phase5a-3c-philosophy-contract.test.mjs",
     "test:phase5a-3d": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/western-art-pilot.test.ts && node --test scripts/phase5a-3d-western-art-contract.test.mjs",
     "test:phase5a-3e": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/western-art-multi-objective.test.ts && node --test scripts/phase5a-3e-western-art-contract.test.mjs",
-    "test:phase5a-3f": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/western-art-lecture1.test.ts && node --test scripts/phase5a-3f-western-art-lecture1-contract.test.mjs"
+    "test:phase5a-3f": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/western-art-lecture1.test.ts && node --test scripts/phase5a-3f-western-art-lecture1-contract.test.mjs",
+    "test:phase5a-4a": "node --experimental-strip-types --test scripts/phase5a-4a-offline-v2-contract.test.mjs",
+    "test:phase5a-4a:db": "node --experimental-strip-types scripts/phase5a-4a-offline-v2-db.test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",

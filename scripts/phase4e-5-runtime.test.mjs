@@ -70,7 +70,8 @@ test("prefetch keeps the operational kill switch server-owned and uses the exact
   const route = read("app/api/review/pilot/prefetch/route.ts");
   assert.match(pilot, /KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID\s*=\s*"3ccd2793-4134-815f-95f0-cc64dcdb86c7"/);
   assert.match(issuer, /isPilotIssuanceEnabled/);
-  assert.match(issuer, /newIssuanceAllowed:\s*isPilotIssuanceEnabled\(\)/);
+  assert.match(issuer, /!isPilotIssuanceEnabled\(\) \|\| newObjectiveIssuanceVersion\(\) !== "v2"/);
+  assert.match(issuer, /newIssuanceAllowed:\s*true/);
   assert.match(supabase, /p_new_issuance_allowed:\s*input\.newIssuanceAllowed/);
   assert.doesNotMatch(route, /learnerId|objectiveId|srsEpoch|revisionId|snapshotId|issuanceAllowed|newIssuanceAllowed/);
   const scope = read("src/lib/review/offline/pilot-scope.ts");

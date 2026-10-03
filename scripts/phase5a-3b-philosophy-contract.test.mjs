@@ -39,7 +39,7 @@ test("ReviewSession uses existing durable Objective outbox and only Kuzushiji re
 });
 
 test("this slice adds no database migration or offline protocol version", () => {
-  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 21);
+  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 22);
   assert.match(read("src/lib/review/offline/attempt-outbox.ts"), /ATTEMPT_OUTBOX_DB_VERSION = 1/);
   assert.match(read("src/lib/review/offline/model-core.ts"), /OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1/);
   assert.doesNotMatch(philosophy, /recordKuzushijiPilotAttempt|recordKuzushijiObjectivePilotAttempt|p_srs_plan/);

@@ -135,8 +135,8 @@ function issueCall() {
 }
 
 const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((file) => file.endsWith(".sql")).sort();
-assert.equal(files.length, 21);
-assert.equal(files.at(-1), "20260922100000_phase_5a_3a_generic_objective_archive.sql");
+assert.equal(files.length, 22);
+assert.equal(files.at(-2), "20260922100000_phase_5a_3a_generic_objective_archive.sql");
 const historicalFiles = files.slice(0, 20);
 assert.equal(historicalFiles.length, 20);
 assert.equal(philosophyArcheRevision.pilotMetadata, null);
