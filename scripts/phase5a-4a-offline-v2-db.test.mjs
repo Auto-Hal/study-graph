@@ -51,9 +51,9 @@ const rev1 = "66666666-6666-4666-8666-666666666661";
 const rev2 = "66666666-6666-4666-8666-666666666662";
 const scope = { authority: "server-issuance", snapshotId, complete: true, status: "eligible", sourceReadStartedAt: "2026-09-25T00:00:00Z", sourceReadCompletedAt: "2026-09-25T00:00:01Z", reasonCodes: [] };
 function presentation(version) { const value = createPilotPresentation(version === 1 ? kuzushijiPilotRevisionPayload : kuzushijiPilotRevisionV2Payload); return [j(value), q(hashPilotPresentation(value))]; }
-function issue(learnerId = learner, version = 2) {
+function issue(learnerId = learner, version = 2, legacyId = KUZUSHIJI_PILOT_EXERCISE_ID) {
   const [p, hash] = presentation(version);
-  return `set role service_role; select row_to_json(r) from public.study_graph_issue_objective_instance_v2(${q(learnerId)},${q(version === 1 ? release1 : release2)},${q(version === 1 ? rev1 : rev2)},${p},${hash},null,null,'ja-JP',${j(scope)},null,${q(KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID)},'character',${q(KUZUSHIJI_PILOT_EXERCISE_ID)},1,'scheduled') r;`;
+  return `set role service_role; select row_to_json(r) from public.study_graph_issue_objective_instance_v2(${q(learnerId)},${q(version === 1 ? release1 : release2)},${q(version === 1 ? rev1 : rev2)},${p},${hash},null,null,'ja-JP',${j(scope)},null,${q(KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID)},'character',${q(legacyId)},1,'scheduled') r;`;
 }
 function prefetch(requestId, deviceId = device1, learnerId = learner, create = true, version = 2, corrupt = false, snapshot = snapshotId, generation = 1) {
   const [basePresentation, hash] = presentation(version);
@@ -74,13 +74,76 @@ sql(`create database ${database};`, "postgres");
 try {
   sql(`do $$ begin if not exists(select from pg_roles where rolname='anon') then create role anon nologin; end if; if not exists(select from pg_roles where rolname='authenticated') then create role authenticated nologin; end if; if not exists(select from pg_roles where rolname='service_role') then create role service_role nologin bypassrls; end if; end $$; create schema extensions;`);
   const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((x) => x.endsWith(".sql")).sort();
-  assert.equal(files.length, 22);
-  for (const file of files) sql(readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"));
+  assert.equal(files.length, 23);
+  for (const file of files.slice(0, 22)) sql(readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"));
   assert.equal(sql("show server_version;").split(".")[0], "17");
-  console.log("PASS migration 1-22 on isolated PostgreSQL 17");
+  console.log("PASS migration 1-22 on isolated PostgreSQL 17 before regression repair");
   sql(`insert into private.objective_definitions(project_id,objective_id,objective_version,canonicalization_version,canonical_payload,content_hash,payload) values ('kuzushiji',${q(objective)},1,1,${q(canonicalizeObjectiveDefinition(kuzushijiPilotObjectiveDefinition))},${q(hashObjectiveDefinition(kuzushijiPilotObjectiveDefinition))},${j(kuzushijiPilotObjectiveDefinition)});`);
   sql(archive(1, rev1) + archive(2, rev2));
   sql(`insert into private.scope_knowledge_snapshots(snapshot_id,project_id,generation,schema_version,source_read_started_at,source_read_completed_at,published_at,valid_until,scope_policy_version,knowledge_projection_version,source_evidence,scope_decisions,knowledge_projection,content_hash) values (${q(snapshotId)},'kuzushiji',1,1,now()-interval '2 minutes',now()-interval '1 minute',now()-interval '1 minute',now()+interval '1 day','policy','projection','{"paginationComplete":true,"relationCompleteness":true}',${j([{subjectId:KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID,status:"eligible"}])},'{}',repeat('a',64)); insert into private.project_snapshot_sync_state(project_id,current_snapshot_id,current_generation,next_generation) values ('kuzushiji',${q(snapshotId)},1,2);`);
+  // Model the actual online ReviewCard identity and a naturally due epoch-1
+  // state. Demonstrate failure before the forward migration, not merely success.
+  const compatLearner = "aaaaaaa6-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const compatA = "88888888-8888-4888-8888-888888888890";
+  const compatB = "88888888-8888-4888-8888-888888888891";
+  const legacyId = `${KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID}:visual-reading:eitaigura-u3042-00032-1:v1`;
+  sql(`insert into private.objective_review_state(learner_id,project_id,objective_id,srs_epoch,last_grade,repetitions,interval_days,last_reviewed_at,due_at,scheduler_version,state_revision) values (${q(compatLearner)},'kuzushiji',${q(objective)},1,'good',1,2,now()-interval '3 days',now()-interval '1 day','objective-four-grade-v1',2);`);
+  const compatOnline = row(issue(compatLearner, 2, legacyId));
+  const immutableQuery = `select row_to_json(i)::text from private.exercise_instances i where instance_id=${q(compatOnline.instance_id)};`;
+  const bindingQuery = `select row_to_json(i)::text from private.instance_objective_bindings i where instance_id=${q(compatOnline.instance_id)};`;
+  const immutableBefore = sql(immutableQuery), bindingBefore = sql(bindingQuery);
+  const functionsQuery = "select coalesce(jsonb_agg(jsonb_build_array(p.oid::regprocedure::text,md5(pg_get_functiondef(p.oid)),p.proacl::text,p.proconfig::text) order by p.oid::regprocedure::text)::text,'[]') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.prokind='f' and p.proname not in ('study_graph_prefetch_kuzushiji_objective_instance','study_graph_prefetch_kuzushiji_objective_instance_v2');";
+  const functionsBefore = sql(functionsQuery);
+  const dataQuery = "select jsonb_agg(jsonb_build_array(table_name, rows) order by table_name)::text from (" + ["exercise_instances", "instance_objective_bindings", "objective_srs_opportunities", "objective_review_state", "objective_definitions", "exercise_revisions", "content_releases", "content_release_entries", "exercise_objective_bindings", "scope_knowledge_snapshots", "offline_instance_issuance_requests"].map((table) => `select ${q(table)} as table_name, (select coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text), '[]'::jsonb) from private.${table} t) as rows`).join(" union all ") + ") t;";
+  const dataBefore = sql(dataQuery);
+  fail(prefetch(compatA, device1, compatLearner), "offline_persisted_authority_mismatch");
+  fail(prefetch(compatA, device1, compatLearner).replace(q(KUZUSHIJI_PILOT_EXERCISE_ID), q(legacyId)), "invalid_offline_prefetch_request");
+  assert.equal(count("private.offline_instance_issuance_requests"), 0);
+  assert.equal(sql(immutableQuery), immutableBefore);
+  assert.equal(sql(bindingQuery), bindingBefore);
+  sql(readFileSync(new URL(`../supabase/migrations/${files[22]}`, import.meta.url), "utf8"));
+  assert.equal(sql(dataQuery), dataBefore, "function-only migration leaves all protected data unchanged");
+  assert.equal(sql(functionsQuery), functionsBefore, "generic issuer, acceptance/Receipt, SRS and archive function definitions/ACL unchanged");
+  assert.equal(sql(immutableQuery), immutableBefore, "migration never rewrites immutable instance");
+  assert.equal(sql(bindingQuery), bindingBefore);
+  const compatMappedA = row(prefetch(compatA, device1, compatLearner));
+  const compatMappedB = row(prefetch(compatB, device2, compatLearner));
+  assert.equal(compatMappedA.instance_id, compatOnline.instance_id);
+  assert.equal(compatMappedB.instance_id, compatOnline.instance_id);
+  assert.deepEqual(row(prefetch(compatA, device1, compatLearner, false)), compatMappedA);
+  assert.deepEqual(row(prefetch(compatA, device1, compatLearner)), compatMappedA);
+  assert.deepEqual(row(prefetch(compatB, device2, compatLearner)), compatMappedB);
+  assert.equal(count("private.offline_instance_issuance_requests", `learner_id=${q(compatLearner)}`), 2);
+  assert.equal(count("private.exercise_instances", `learner_id=${q(compatLearner)}`), 1);
+  assert.equal(count("private.objective_srs_opportunities", `learner_id=${q(compatLearner)} and status='active'`), 1);
+  assert.equal(sql(immutableQuery), immutableBefore);
+  assert.equal(sql(bindingQuery), bindingBefore);
+  fail(prefetch(compatA, device2, compatLearner), "offline_prefetch_request_conflict");
+  fail(prefetch(compatA, device1, learner), "offline_prefetch_request_conflict");
+  for (const badId of [legacyId, legacyId + ':extra', 'other:visual-reading:eitaigura-u3042-00032-1:v1']) {
+    fail(prefetch("88888888-8888-4888-8888-888888888892", device1, compatLearner).replace(q(KUZUSHIJI_PILOT_EXERCISE_ID), q(badId)), "invalid_offline_prefetch_request");
+  }
+  const invalidAuthority = prefetch("88888888-8888-4888-8888-888888888892", device1, compatLearner);
+  fail(invalidAuthority.replace("'kuzushiji'", "'other-project'"), "invalid_offline_prefetch_request");
+  fail(invalidAuthority.replace(/,1\) r;/, ',2) r;'), "invalid_offline_prefetch_request");
+  const badLearner = "aaaaaaa7-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  row(issue(badLearner, 2, legacyId + ':extra'));
+  fail(prefetch("88888888-8888-4888-8888-888888888893", device1, badLearner), "offline_persisted_authority_mismatch");
+  assert.equal(count("private.offline_instance_issuance_requests", `learner_id=${q(badLearner)}`), 0);
+  // Acceptance and Receipt exercise the existing functions only in this
+  // synthetic disposable DB; this is never a Production canary answer.
+  const attempt = "bbbbbbb6-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const acceptQuery = `set role service_role; select r from public.study_graph_record_objective_attempt_v2(${q(attempt)},${q(compatOnline.instance_id)},${q(compatLearner)},repeat('d',64),'"fixture"'::jsonb,'"fixture"'::jsonb,'graded','server','legacy-text-v1',1,'review-session-ja-v1',true,'good',1000,false,true,true) r;`;
+  const accepted = row(acceptQuery);
+  const receiptQuery = `set role service_role; select row_to_json(r) from public.study_graph_get_kuzushiji_pilot_attempt_receipt(${q(compatOnline.instance_id)},${q(compatLearner)}) r;`;
+  const receipt = row(receiptQuery);
+  assert.equal(receipt.attempt_id, attempt);
+  assert.deepEqual(row(acceptQuery), accepted);
+  assert.deepEqual(row(receiptQuery), receipt);
+  assert.deepEqual(row(prefetch(compatA, device1, compatLearner, false)), compatMappedA);
+  assert.equal(count("private.exercise_attempts", `instance_id=${q(compatOnline.instance_id)}`), 1);
+  assert.equal(sql(immutableQuery), immutableBefore);
+  console.log("PASS regression reproduced before migration 23; exact legacy identity shares online instance; immutable rows, retry, validation, acceptance and Receipt preserved");
   const signature = "public.study_graph_prefetch_kuzushiji_objective_instance_v2(uuid,uuid,text,uuid,boolean,boolean,text,uuid,uuid,bigint,jsonb,text,jsonb,text,text,integer)";
   assert.equal(sql(`select prosecdef from pg_proc where oid=${q(signature)}::regprocedure;`), "t");
   assert.equal(sql(`select proconfig::text from pg_proc where oid=${q(signature)}::regprocedure;`), "{search_path=pg_catalog}");
@@ -92,7 +155,7 @@ try {
   fail(prefetch(request1), "offline_asset_integrity_unavailable");
   assert.equal(row(issue(learner, 2)).instance_id, v1.instance_id);
   assert.equal(count("private.exercise_instances", `learner_id=${q(learner)}`), 1);
-  assert.equal(count("private.offline_instance_issuance_requests"), 0);
+  assert.equal(count("private.offline_instance_issuance_requests", `learner_id=${q(learner)}`), 0);
   assert.equal(count("private.objective_srs_opportunities", `learner_id=${q(learner)} and status='active'`), 1);
   console.log("PASS active checksum-null v1 reuse, bounded offline failure, no mapping or duplicate");
   // Simulate accepted historical v1 lifecycle to test future-due gating and
@@ -181,6 +244,7 @@ try {
   for (const table of ["private.offline_instance_issuance_requests", "private.exercise_instances", "private.objective_srs_opportunities"]) {
     assert.equal(count(table, `learner_id=${q(failureLearner)}`), 0);
   }
+  assert.equal(count("private.instance_objective_bindings", `instance_id in (select instance_id from private.exercise_instances where learner_id=${q(failureLearner)})`), 0);
   assert.equal(row(prefetch(failureId, device1, failureLearner)).revision_id, rev2);
   console.log("PASS post-issuer descriptor failure rolls back instance, opportunity and mapping; uncommitted request may retry");
   const oldMissing = "88888888-8888-4888-8888-888888888887";
