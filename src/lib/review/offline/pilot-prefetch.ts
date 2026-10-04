@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createPilotPresentation, hashPilotPresentation } from "../exercises/attempt.ts";
+import { legacyKuzushijiExerciseId } from "../exercises/kuzushiji-adapter.ts";
 import {
   KUZUSHIJI_PILOT_EXERCISE_ID,
   KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID,
@@ -152,7 +153,10 @@ function decodePersistedPrefetchRow(row: OfflinePrefetchInstanceV2, input: {
     || row.srs_epoch !== KUZUSHIJI_PILOT_SRS_EPOCH
     || row.evidence_use !== "srs"
     || row.legacy_item_id !== KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID
-    || row.legacy_exercise_id !== KUZUSHIJI_PILOT_EXERCISE_ID
+    || (
+      row.legacy_exercise_id !== KUZUSHIJI_PILOT_EXERCISE_ID
+      && row.legacy_exercise_id !== legacyKuzushijiExerciseId(KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID)
+    )
     || !UUID_PATTERN.test(row.revision_id)
     || row.release_id.length === 0
     || row.device_id !== input.deviceId
