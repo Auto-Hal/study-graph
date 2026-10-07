@@ -106,6 +106,7 @@ export default async function ProjectWorkspacePage({
         </div>
       </details>
 
+      <section className="phase5-workspace-section"><div className="phase5-section-heading"><h2>学習の振り返り</h2><Link href={`/history?project=${workspace.id}`}>回答履歴を見る</Link></div><p className="phase5-context">保存した回答と自己評価から、学び直すところを選べます。</p></section>
       <PrimaryNav active="learn" />
     </main>
   );

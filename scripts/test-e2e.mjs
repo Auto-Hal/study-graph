@@ -35,7 +35,7 @@ const appRoot = path.join(workspace, 'app');
 const logPath = path.join(workspace, 'next.log');
 let pool, server, next, log, databaseCreated = false, passed = false;
 let fixtureRequests = 0;
-let scheduleReadFailure = false, scopeReadFailure = false;
+let scheduleReadFailure = false, scopeReadFailure = false, historyReadFailure = false;
 
 function safeProcessEnv() {
   const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR', 'HOME', 'USERPROFILE',
@@ -98,9 +98,10 @@ async function rpc(name, body, key) {
   try {
     await client.query('begin');
     await client.query(key === serviceKey ? 'set local role service_role' : 'set local role anon');
-    const result = await client.query(`select * from public.${name}(${parameters.join(',')})`, values);
+    const isHistory = name === 'study_graph_learning_history';
+    const result = await client.query(`select ${isHistory ? 'to_jsonb(history_row) as data' : '*'} from public.${name}(${parameters.join(',')}) history_row`, values);
     await client.query('commit');
-    return result.rows;
+    return isHistory ? result.rows.map(row => row.data) : result.rows;
   } catch (error) { await client.query('rollback'); throw error; }
   finally { client.release(); }
 }
@@ -184,7 +185,13 @@ async function startApp(env) {
 async function answer(page, project, doubleClick = false) {
   await page.goto(appUrl + '/review');
   await page.locator(`a[href="/review/session?project=${project.id}"]`).last().click();
-  await page.getByRole('textbox', { name: '回答', exact: true }).fill(project.answer);
+  const input = page.getByRole('textbox', { name: '回答', exact: true });
+  // Streamed HTML can expose the input before its client handlers are ready.
+  // Repeat only the unsaved input operation; never retry submission or grading here.
+  await eventually(async () => {
+    await input.fill(''); await input.fill(project.answer);
+    assert.equal(await page.getByRole('button', { name: '回答する', exact: true }).isEnabled(), true);
+  }, 'Answer input did not become interactive');
   await page.getByRole('button', { name: '回答する', exact: true }).click();
   await page.locator('.answer-verdict.correct').waitFor();
   const grade = page.getByRole('button', { name: /^できた/ });
@@ -208,7 +215,7 @@ try {
       const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
       let result;
       if (pathname.startsWith('/notion/')) { fixtureRequests++; if (scopeReadFailure) throw new Error('Fixture scope unavailable'); result = notionResponse(pathname); }
-      else if (request.method === 'POST' && pathname.startsWith('/rest/v1/rpc/')) { if (scheduleReadFailure && pathname.endsWith('/study_graph_objective_review_schedule')) throw new Error('Fixture schedule unavailable'); result = await rpc(pathname.split('/').at(-1), JSON.parse(payload), request.headers.apikey); }
+      else if (request.method === 'POST' && pathname.startsWith('/rest/v1/rpc/')) { if (scheduleReadFailure && pathname.endsWith('/study_graph_objective_review_schedule')) throw new Error('Fixture schedule unavailable'); if (historyReadFailure && pathname.endsWith('/study_graph_learning_history')) throw new Error('Fixture history unavailable'); result = await rpc(pathname.split('/').at(-1), JSON.parse(payload), request.headers.apikey); }
       else throw new Error('Unsupported fixture endpoint');
       response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(result));
     } catch (error) {
@@ -270,6 +277,12 @@ try {
       console.log(`PASS entry ${failure} failure: unknown remains unknown for three subjects`);
     } finally { scheduleReadFailure = false; scopeReadFailure = false; await context.close(); }
   }
+  {
+    const context = await launchContext(path.join(workspace,'profiles','empty-history'));
+    try { const page=context.pages()[0];const before=await learningFingerprint();await page.goto(appUrl+'/history');await page.getByRole('heading',{name:'保存済みの回答はまだありません',exact:true}).waitFor();assert.equal(await page.locator('main').getAttribute('data-history-state'),'ready');assert.deepEqual(await learningFingerprint(),before);console.log('PASS history empty state: successful read is distinct from unavailable and no writes'); }
+    finally {await context.close();}
+  }
+
   for (const width of [390, 820]) for (const project of projects) {
     await resetLearning();
     const context = await launchContext(path.join(workspace, 'profiles', project.id + '-' + width), width);
@@ -445,6 +458,25 @@ try {
       await page.getByText('回答と自己評価を保存しました。単元練習は復習予定を変更しません。',{exact:true}).waitFor();
       assert.deepEqual(await learningFingerprint(),beforeReload,'Viewing a completed run must not issue or save again');
       console.log(`PASS ${unit.id} ${width}px: complete unit, paraphrases self-evaluated, history saved, existing schedule preserved, result restored`);
+      const beforeHistory = await learningFingerprint();
+      await page.getByRole('link',{name:'回答履歴を見る',exact:true}).click();
+      await page.locator('[data-history-state="ready"]').waitFor();
+      assert.equal(await page.locator('[data-history-record]').count(),unit.answers.length);
+      const explanationCount=(await pool.query("select count(*)::int as count from private.exercise_attempts a join private.exercise_instances i using(instance_id) where i.presentation->>'unitId'=$1 and a.grading_status='ungraded'",[unit.id])).rows[0].count;
+      assert.equal(await page.locator('[data-evaluation-kind="explanation"]').count(),explanationCount);
+      await page.screenshot({path:path.join(workspace,`history-${unit.id}-${width}.png`),fullPage:true});
+      const record=(await pool.query("select a.attempt_id,a.raw_answer,a.grading_status from private.exercise_attempts a join private.exercise_instances i using(instance_id) where i.presentation->>'unitId'=$1 order by a.submitted_at desc limit 1",[unit.id])).rows[0];
+      await page.locator(`a[data-history-record="${record.attempt_id}"]`).click();
+      await page.locator('[data-history-detail]').waitFor();assert.equal(await page.locator('[data-history-raw-answer]').textContent(),record.raw_answer);
+      await page.getByText('追加練習として保存・復習予定は変更なし',{exact:true}).waitFor();
+      if(record.grading_status==='ungraded') {await page.getByText('説明・自己評価',{exact:true}).waitFor();await page.getByRole('heading',{name:'許容する言い換え',exact:true}).waitFor();}
+      await page.screenshot({path:path.join(workspace,`history-detail-${unit.id}-${width}.png`),fullPage:true});
+      await page.getByRole('link',{name:'学習履歴',exact:true}).click();await page.locator('[data-history-state="ready"]').waitFor();
+      assert.equal(new URL(page.url()).searchParams.get('unit'),unit.id);
+      await page.getByLabel('要再確認の回答だけ').check();await page.getByRole('button',{name:'絞り込む',exact:true}).click();
+      await page.getByRole('heading',{name:'この条件の履歴はありません',exact:true}).waitFor();
+      assert.deepEqual(await learningFingerprint(),beforeHistory,'Viewing/filtering history must not issue, save or alter any learning state');
+      console.log(`PASS history ${unit.id} ${width}px: list, saved original/rubric, practice receipt, preserved filters, recheck/empty, no writes`);
     } finally {setUnitFixtures(false); await context.close();}
   }
   for (const unit of units) for (const failure of ['before-send','after-acceptance']) {
@@ -523,8 +555,13 @@ try {
     } finally { await context.close(); }
   }
   assert.ok(fixtureRequests > 0, 'App did not read fixed Notion Scope');
+  {
+    const context=await launchContext(path.join(workspace,'profiles','history-read-failure'));
+    try { const page=context.pages()[0];const before=await learningFingerprint();historyReadFailure=true;await page.goto(appUrl+'/history');await page.getByRole('heading',{name:'学習履歴を取得できません',exact:true}).waitFor();assert.equal(await page.locator('[data-history-record]').count(),0);assert.equal(await page.getByText('保存済みの回答はまだありません',{exact:true}).count(),0);historyReadFailure=false;await page.getByRole('button',{name:'もう一度読み込む',exact:true}).click();await page.locator('[data-history-state="ready"]').waitFor();assert.deepEqual(await learningFingerprint(),before);console.log('PASS history read failure/recovery: no false zero, retry is read-only'); }
+    finally {historyReadFailure=false;await context.close();}
+  }
   passed = true;
-  console.log('PASS 40 browser scenarios (24 review + 6 complete units + 6 unit restart/recovery + 1 start retry + 3 start feedback); no hosted credentials or production database used');
+  console.log('PASS 48 browser scenarios (40 previous + 6 unit histories + 1 empty history + 1 history read recovery); no hosted credentials or production database used');
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);

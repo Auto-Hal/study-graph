@@ -118,7 +118,9 @@ test("environment and rollback documentation keep production issuance off", () =
 
 test("migration set keeps 1-20 unchanged and adds only the approved additive migrations", () => {
   const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql"));
-  assert.equal(files.length, 23);
+  assert.equal(files.length, 24);
+  const historyMigration = files.find(name => /^\d{14}_learning_history_read\.sql$/.test(name));
+  assert.ok(historyMigration, 'approved history reader migration missing');
   for (const name of [
     "20260917021000_phase_5a_1b_objective_opportunity_rpc_foundation.sql",
     "20260918010500_phase_5a_1b_objective_issuer_lock_order.sql",
@@ -149,6 +151,9 @@ test("migration set keeps 1-20 unchanged and adds only the approved additive mig
     // An applied MCP migration receives its server timestamp. A local parent
     // may contain the pre-application filename; only this known rename is allowed.
     if (changedFiles.includes("supabase/migrations/20261007110253_review_schedule_read.sql")) expected.push("supabase/migrations/20261007110253_review_schedule_read.sql");
+    for (const file of new Set([historyMigration, '20261007224317_learning_history_read.sql'])) {
+      if (changedFiles.includes('supabase/migrations/' + file)) expected.push('supabase/migrations/' + file);
+    }
     assert.deepEqual(changedFiles.sort(), expected.sort());
   }
 });

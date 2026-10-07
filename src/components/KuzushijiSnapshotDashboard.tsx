@@ -203,6 +203,7 @@ function DashboardView({ dashboard, cached, snapshotState, syncing, syncError, o
         </div>
       </details>
 
+      <section className="phase5-workspace-section"><div className="phase5-section-heading"><h2>学習の振り返り</h2><Link href="/history?project=kuzushiji">回答履歴を見る</Link></div><p className="phase5-context">保存した字形の問題と回答を見返せます。</p></section>
       <PrimaryNav active="learn" />
     </main>
   );
