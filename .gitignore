@@ -6,3 +6,5 @@ out/
 .env.*.local
 .DS_Store
 *.log
+.tools/
+*.tsbuildinfo

@@ -2,9 +2,26 @@
 
 Notionを知識の正本として使い、毎日の学習・復習・弱点管理・学習履歴・知識関係の可視化を扱う個人学習アプリです。
 
-## Current phase
+## 現在の状態（2026-10-07）
 
-Phase 1の **くずし字MVP** と、Phase 2の **複数プロジェクトKnowledge Graph** は完成済みです。現在はPhase 3で、美術史・哲学史を含むCross-project Active Learningへ拡張しています。
+main は Phase 5A-4a まで実装されています。3科目の workspace / Graph、snapshot 表示、Objective ごとの出題・回答・SRS、限定的なオフライン復習を備えています。本番への反映は環境ごとに確認が必要です。
+
+開発状況・優先順位・今回の検証結果は [開発計画](docs/DEVELOPMENT_PLAN.md)、起動・資格情報・Windows 環境の手順は [セットアップ](docs/DEVELOPMENT_SETUP.md) を参照してください。
+
+```sh
+npm ci
+npm run doctor
+npm run check
+npm run dev
+```
+
+Node 22.18+ または24系を使用します。この Codex Windows ホストでは `./scripts/npm-local.ps1` を `npm` の代わりに使用できます。
+外部接続は `npm run check:connections`、この Windows ホストの隔離 DB 検証は `./scripts/test-db-local.ps1` で確認できます。資格情報の同期と本番への設定反映は完了しています。
+通常の復習セッションは `/review/session?project=...`、オフライン準備は `/review/offline` です。
+
+## 過去の開発記録
+
+以下は Phase 1–3 の導入当時の記録です。現在の仕様は上記の開発計画と各 Phase の文書を優先してください。
 
 ### Phase 1 — Learning MVP ✅
 

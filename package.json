@@ -50,11 +50,21 @@
     "test:phase5a-3e": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/western-art-multi-objective.test.ts && node --test scripts/phase5a-3e-western-art-contract.test.mjs",
     "test:phase5a-3f": "node --experimental-strip-types --import ./scripts/phase5a-3b-test-loader.mjs --test src/lib/review/western-art-lecture1.test.ts && node --test scripts/phase5a-3f-western-art-lecture1-contract.test.mjs",
     "test:phase5a-4a": "node --experimental-strip-types --test scripts/phase5a-4a-offline-v2-contract.test.mjs",
-    "test:phase5a-4a:db": "node --experimental-strip-types scripts/phase5a-4a-offline-v2-db.test.mjs"
+    "test:phase5a-4a:db": "node --experimental-strip-types scripts/phase5a-4a-offline-v2-db.test.mjs",
+    "test": "node scripts/test-all.mjs",
+    "typecheck": "next typegen && tsc --noEmit",
+    "check": "npm run typecheck && npm test && npm run build",
+    "test:db": "node scripts/test-db.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "check:connections": "node scripts/check-connections.mjs",
+    "prepare:token-sync": "node scripts/prepare-token-sync.mjs",
+    "test:e2e": "node --experimental-strip-types scripts/test-e2e.mjs",
+    "test:e2e:local": "pwsh -NoProfile -File scripts/test-db-local.ps1 -Suite e2e",
+    "test:db:local": "pwsh -NoProfile -File scripts/test-db-local.ps1"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",
-    "next": "16.3.4",
+    "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -62,7 +72,12 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "pg": "8.23.1",
+    "playwright": "1.63.0",
     "typescript": "7.0.2"
-  }
+  },
+  "engines": {
+    "node": ">=22.18.0 <23 || >=24 <25"
+  },
+  "type": "module"
 }
-
