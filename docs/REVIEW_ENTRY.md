@@ -27,7 +27,7 @@
 
 ## DB追加と反映順
 
-`20261007110253_review_schedule_read.sql` は既存22 migrationへの追加。読み取り関数 `study_graph_objective_review_schedule(uuid)` だけを作る。既存の回答・予定を更新せず、旧関数・writer・offline契約を変更しない。
+`20261007112918_review_schedule_read.sql` は既存22 migrationへの追加。読み取り関数 `study_graph_objective_review_schedule(uuid)` だけを作る。既存の回答・予定を更新せず、旧関数・writer・offline契約を変更しない。
 
 privateテーブルへの直接SELECTは引き続き禁止。固定search_pathのSECURITY DEFINER関数にし、PUBLIC/anon/authenticatedのEXECUTEを剥がし、service_roleだけに許可する。アプリがサーバーに保持するlearner IDで絞る。サービス資格情報をブラウザに送らない。既存のlearner方式に合わせた境界であり、新しい利用者管理は導入しない。
 

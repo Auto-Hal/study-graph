@@ -145,6 +145,9 @@ test("migration set keeps 1-20 unchanged and adds only the approved additive mig
     const expected = parentHasMigration20 ? [] : ["supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"];
     if (!parentHasMigration21) expected.push("supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql");
     if (changedFiles.includes("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql")) expected.push("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql");
+    if (changedFiles.includes("supabase/migrations/20261007112918_review_schedule_read.sql")) expected.push("supabase/migrations/20261007112918_review_schedule_read.sql");
+    // An applied MCP migration receives its server timestamp. A local parent
+    // may contain the pre-application filename; only this known rename is allowed.
     if (changedFiles.includes("supabase/migrations/20261007110253_review_schedule_read.sql")) expected.push("supabase/migrations/20261007110253_review_schedule_read.sql");
     assert.deepEqual(changedFiles.sort(), expected.sort());
   }

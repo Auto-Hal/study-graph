@@ -135,4 +135,4 @@ Codex の Windows sandbox の制限トークンでは `pg_ctl` が起動でき�
 
 ## 3科目の復習入口
 
-予定読み取りの追加migrationは `20261007110253_review_schedule_read.sql`。`./scripts/test-db-local.ps1` は既存4組と読取境界の計5組、`./scripts/test-db-local.ps1 -Suite e2e` は24ケース。反映順と止め方は [復習入口](REVIEW_ENTRY.md)。出題flagを変更せず、停止状態は準備中と表示する。
+予定読み取りの追加migrationは `20261007112918_review_schedule_read.sql`。`./scripts/test-db-local.ps1` は既存4組と読取境界の計5組、`./scripts/test-db-local.ps1 -Suite e2e` は24ケース。反映順と止め方は [復習入口](REVIEW_ENTRY.md)。出題flagを変更せず、停止状態は準備中と表示する。
