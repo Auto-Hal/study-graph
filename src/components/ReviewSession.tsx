@@ -121,9 +121,9 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
   }
 
   useEffect(() => {
-    // Both online versioned pilots share the durable outbox. Philosophy never
-    // reads or refreshes the Kuzushiji-only Objective state mirror.
-    if (session.projectId !== "kuzushiji" && session.projectId !== "philosophy") return;
+    // All three online versioned pilots share the durable outbox. Other subjects never
+    // read or refresh the Kuzushiji-only Objective state mirror.
+    if (session.projectId !== "kuzushiji" && session.projectId !== "philosophy" && session.projectId !== "western-art-history") return;
     let cancelled = false;
     const refreshOutbox = async () => {
       try {

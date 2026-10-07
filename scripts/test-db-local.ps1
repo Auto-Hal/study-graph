@@ -1,3 +1,4 @@
+param([ValidateSet('db', 'e2e')] [string]$Suite = 'db')
 # Disposable localhost database; never reads .env.local or connects to hosted DBs.
 $ErrorActionPreference = 'Stop'
 $studyGraphRoot = Split-Path -Parent $PSScriptRoot
@@ -40,7 +41,7 @@ try {
     $env:STUDY_GRAPH_TEST_PSQL = $studyGraphPsql
     Push-Location $studyGraphRoot
     try {
-        & node --experimental-strip-types scripts/test-db.mjs
+        & node --experimental-strip-types "scripts/test-$Suite.mjs"
         $studyGraphResult = $LASTEXITCODE
     } finally { Pop-Location }
 } finally {
@@ -59,7 +60,7 @@ try {
         if (-not $studyGraphResolvedCluster.StartsWith($studyGraphResolvedParent, [StringComparison]::OrdinalIgnoreCase) -or
             (Get-Item -LiteralPath $studyGraphResolvedCluster).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Unsafe cluster cleanup path.' }
         Remove-Item -LiteralPath $studyGraphResolvedCluster -Recurse -Force
-        Write-Host 'All isolated DB suites passed. PostgreSQL stopped and disposable cluster removed.'
+        Write-Host 'All isolated suites passed. PostgreSQL stopped and disposable cluster removed.'
     } else {
         Write-Host "Failed test cluster retained for diagnosis: $studyGraphCluster"
     }

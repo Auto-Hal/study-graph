@@ -58,11 +58,13 @@
     "doctor": "node scripts/doctor.mjs",
     "check:connections": "node scripts/check-connections.mjs",
     "prepare:token-sync": "node scripts/prepare-token-sync.mjs",
-    "test:db:local": "powershell -NoProfile -File scripts/test-db-local.ps1"
+    "test:e2e": "node --experimental-strip-types scripts/test-e2e.mjs",
+    "test:e2e:local": "pwsh -NoProfile -File scripts/test-db-local.ps1 -Suite e2e",
+    "test:db:local": "pwsh -NoProfile -File scripts/test-db-local.ps1"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",
-    "next": "16.3.4",
+    "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -70,6 +72,8 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "pg": "8.23.1",
+    "playwright": "1.63.0",
     "typescript": "7.0.2"
   },
   "engines": {

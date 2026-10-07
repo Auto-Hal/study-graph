@@ -172,3 +172,45 @@ jobs:
       - name: Build
         run: npm run build
 
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: isolated-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium and PostgreSQL client
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Browser to isolated PostgreSQL flow
+        run: npm run test:e2e
+        env:
+          STUDY_GRAPH_ISOLATED_DB: '1'
+          STUDY_GRAPH_TEST_DATABASE_URL: postgresql://postgres:isolated-test-only@127.0.0.1:5432/postgres
+      - name: Browser screenshots and isolated app log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e
+          path: |
+            .tools/e2e-workspaces/*/*.png
+            .tools/e2e-workspaces/*/next.log
+          include-hidden-files: true
+          retention-days: 7

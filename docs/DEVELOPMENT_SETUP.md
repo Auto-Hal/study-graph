@@ -127,3 +127,8 @@ Codex の Windows sandbox の制限トークンでは `pg_ctl` が起動でき�
 4. 本番 SHA・migration・flag の読み取り確認後、必要な rollout を別途実施。
 
 資格情報がない状態の画面表示や unit test の成功は、実サービスへの保存成功を保証しない。
+
+
+## 隔離ブラウザ検証
+
+回答保存・再送は [BROWSER_E2E.md](BROWSER_E2E.md) の手順を使用する。本番資格情報は不要。Windows は PowerShell 7 の `./scripts/test-db-local.ps1 -Suite e2e`。既存の DB suite は引数なしで実行できる。
