@@ -31,10 +31,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Complete unit and contract suite
+        run: npm test
 
       - name: Phase 4D-5 operational tests
         run: npm run test:phase4d-5
@@ -160,7 +164,7 @@ jobs:
         run: npm run test:phase5a-4a:db
 
       - name: TypeScript noEmit
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Diff check
         run: git diff --check
