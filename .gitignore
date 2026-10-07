@@ -9,3 +9,7 @@ out/
 .tools/
 /supabase/.temp/
 *.tsbuildinfo
+# Personal answers/snapshots must never enter Git or deployment artifacts.
+*.learning-backup.json
+*.learning-capture.json
+*.restore-report.json

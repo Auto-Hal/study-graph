@@ -1,4 +1,4 @@
-param([ValidateSet('db', 'e2e')] [string]$Suite = 'db')
+param([ValidateSet('db', 'e2e', 'backup')] [string]$Suite = 'db', [string]$BackupFile)
 # Disposable localhost database; never reads .env.local or connects to hosted DBs.
 $ErrorActionPreference = 'Stop'
 $studyGraphRoot = Split-Path -Parent $PSScriptRoot
@@ -22,7 +22,7 @@ $studyGraphListener.Start()
 $studyGraphPort = $studyGraphListener.LocalEndpoint.Port
 $studyGraphListener.Stop()
 $studyGraphSavedEnv = @{}
-foreach ($studyGraphKey in @('STUDY_GRAPH_ISOLATED_DB', 'STUDY_GRAPH_TEST_DATABASE_URL', 'STUDY_GRAPH_TEST_PSQL')) {
+foreach ($studyGraphKey in @('STUDY_GRAPH_ISOLATED_DB', 'STUDY_GRAPH_TEST_DATABASE_URL', 'STUDY_GRAPH_TEST_PSQL', 'STUDY_GRAPH_BACKUP_FILE')) {
     $studyGraphSavedEnv[$studyGraphKey] = [Environment]::GetEnvironmentVariable($studyGraphKey, 'Process')
 }
 $studyGraphStarted = $false
@@ -39,6 +39,9 @@ try {
     $env:STUDY_GRAPH_ISOLATED_DB = '1'
     $env:STUDY_GRAPH_TEST_DATABASE_URL = "postgresql://postgres:$studyGraphPassword@127.0.0.1:$studyGraphPort/postgres"
     $env:STUDY_GRAPH_TEST_PSQL = $studyGraphPsql
+    if ($Suite -eq 'backup') {
+        $env:STUDY_GRAPH_BACKUP_FILE = if ($BackupFile) { (Resolve-Path -LiteralPath $BackupFile).Path } else { $null }
+    }
     Push-Location $studyGraphRoot
     try {
         & node --experimental-strip-types "scripts/test-$Suite.mjs"
