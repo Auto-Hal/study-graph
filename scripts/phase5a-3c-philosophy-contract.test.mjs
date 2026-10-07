@@ -19,7 +19,7 @@ test("trusted Objective order and legacy exclusion precede legacy scheduling", (
   assert.ok(review.indexOf("const excludedIds =") < review.indexOf("const legacyCards = graphLegacyCandidates"));
   assert.match(review, /\.\.\.philosophyCards, \.\.\.legacyCards/);
   assert.match(review, /\.slice\(0, project\.review\.sessionSize\)/);
-  assert.match(runtime, /for \(const entry of philosophyObjectiveRegistry\)/);
+  assert.match(runtime, /prepareReviewExercises\(philosophyObjectiveRegistry\.filter/);
   assert.match(runtime, /objective_not_due/);
 });
 

@@ -83,10 +83,12 @@ test("render and prefetch paths do not publish", () => {
   assert.doesNotMatch(projects, /runProjectSnapshotRefresh|sync[A-Z]|publisher/i);
   assert.match(refresh, /method: "POST"/);
   assert.match(refresh, /useEffect/);
-  assert.match(availability, /prefetch=\{false\}/);
-  const reviewSessionLinks = availability.split("\n").filter((line) => line.includes("<Link") && line.includes("/review/session"));
+  const startLink = read("src/components/ReviewStartLink.tsx");
+  assert.match(startLink, /prefetch=\{false\}/);
+  assert.doesNotMatch(startLink, /fetch\(|createObjective|recordReviewAttempt/);
+  const reviewSessionLinks = availability.split("\n").filter((line) => line.includes("<ReviewStartLink") && line.includes("/review/session"));
   assert.equal(reviewSessionLinks.length, 1);
-  assert.ok(reviewSessionLinks.every((line) => line.includes("prefetch={false}")));
+  assert.ok(reviewSessionLinks.every((line) => line.includes("ReviewStartLink")));
   const progressSessionLinks = progress.split("\n").filter((line) => line.includes("<Link") && line.includes("/review/session"));
   assert.equal(progressSessionLinks.length, 2);
   assert.ok(progressSessionLinks.every((line) => line.includes("prefetch={false}")));
