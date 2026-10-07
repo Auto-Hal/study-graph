@@ -35,7 +35,7 @@
 | サーバーの資格情報で読取RPCを1回呼ぶ | `src/lib/history/runtime.ts` |
 | 一覧と当時の回答詳細 | `app/history/page.tsx`、`app/history/[recordId]/page.tsx` |
 | 絞り込みと読取の再試行 | `HistoryFilters.tsx`、`HistoryRefreshButton.tsx` |
-| 所有者を限定した読取・旧形式の重複抑止 | `supabase/migrations/20261007224317_learning_history_read.sql` |
+| 所有者を限定した読取・旧形式の重複抑止 | `supabase/migrations/20261007233000_learning_history_read.sql` |
 
 24番目のmigrationは、履歴の読取RPC、利用者・日時順の索引と旧履歴の対応付けを探す索引だけを追加する。既存23ファイル、回答・採点・SRSのwriter、資格情報、Notion教材は維持する。RPCは `STABLE`、`SECURITY DEFINER`、`search_path=pg_catalog`、全テーブルをschema修飾し、実行権限を `service_role` のみに限定する。privateテーブルの直接読取権限は追加しない。
 
