@@ -1,4 +1,5 @@
 import "server-only";
+import { prepareReviewExercises } from "./parallel-issuance.ts";
 
 import type { GraphData } from "../graph/types.ts";
 import { getWesternArtHistoryGraph } from "../notion/western-art-history-graph.ts";
@@ -73,12 +74,9 @@ export async function issueWesternArtObjectiveCard(
 
 /** A failure or not-due result for one Objective cannot suppress another. */
 export async function issueWesternArtObjectiveCards(scope: ScopeSnapshot) {
-  const cards = [];
-  for (const entry of westernArtObjectiveRegistry) {
-    if (!scopeEligible(scope, entry)) continue;
+  const cards = await prepareReviewExercises(westernArtObjectiveRegistry.filter((entry) => scopeEligible(scope, entry)), async (entry) => {
     try {
-      const card = await issueWesternArtObjectiveCard(scope, entry);
-      if (card) cards.push(card);
+      return await issueWesternArtObjectiveCard(scope, entry);
     } catch (error) {
       if (!(error instanceof ObjectiveRuntimeError && error.code === "objective_not_due")) {
         console.warn("Study Graph: Western Art Objective issuance unavailable", {
@@ -87,8 +85,9 @@ export async function issueWesternArtObjectiveCards(scope: ScopeSnapshot) {
         });
       }
     }
-  }
-  return cards;
+    return null;
+  });
+  return cards.filter((card) => card !== null);
 }
 
 function assertWesternArtRouting(

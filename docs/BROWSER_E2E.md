@@ -29,7 +29,7 @@ node node_modules/playwright/cli.js install chromium
 
 これはhosted Supabase/PostgRESTの接続検証を代替しない。実サービスのHTTPゲートウェイ・資格情報・Notionの教材、実機Safari、通信なしでの起動、全教材内容は別途確認する。
 
-## 37シナリオ（既存24＋単元13）
+## 40シナリオ（既存24＋単元13＋開始表示3）
 
 | 検証 | ケース数 | 完了条件 |
 | --- | --- | --- |
@@ -57,3 +57,7 @@ node node_modules/playwright/cli.js install chromium
 既存の回答ID・採点・SQL・復習間隔は変更しない。実行結果は `DEVELOPMENT_PLAN.md` に記録する。
 
 単元の自己評価ボタンはoutbox保存・送信完了の後に次問へ進む。DBの確認は画面遷移を待ってから行う。Objective v2の正確な保存理由はReceiptの `reason` と `objective_srs_applications` にあり、旧 `exercise_attempts.srs_reason` の互換用4分類と混同しない。
+
+## 復習開始の応答表示
+
+3科目それぞれで「取り組む」後の遷移要求を保留する。サーバー応答前に「準備中…」が表示され、DBに変更がないことを確認する。要求を開放して問題が表示された後は、問題の発行が1件・回答は0件であることを確認する。入口の先読みで問題を発行する設定は使わない。

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import ReviewStartLink from "./ReviewStartLink";
 import { getActiveStudyProjects, type StudyProjectDefinition } from "@/src/lib/projects/registry";
 import { loadReviewAvailability } from "@/src/lib/review/availability";
 
@@ -22,7 +23,7 @@ async function ProjectReviewAvailability({ project }: { project: StudyProjectDef
       {state.pausedObjectives && state.status !== "paused" && <p className="phase5-context">一部の出題は準備中です。</p>}
       <div className="phase5-review-entry-actions">
         {count > 0 || state.status === "unavailable"
-          ? <Link className="phase5-action" href={`/review/session?project=${project.id}`} prefetch={false}>{count > 0 ? "取り組む" : "出題を確認する"} <span aria-hidden="true">→</span></Link>
+          ? <ReviewStartLink href={`/review/session?project=${project.id}`} label={count > 0 ? "取り組む" : "出題を確認する"} />
           : null}
         <Link className="phase5-secondary-action" href={project.href} prefetch>教材を見る <span aria-hidden="true">→</span></Link>
       </div>

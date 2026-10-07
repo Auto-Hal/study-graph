@@ -24,7 +24,7 @@ test("the seven registered subjects are excluded before legacy selection and iss
   assert.ok(registry.indexOf("const excludedIds =") < registry.indexOf("const legacyCards = graphLegacyCandidates"));
   assert.match(registry, /\.\.\.westernArtCards, \.\.\.legacyCards/);
   assert.match(registry, /\.slice\(0, project\.review\.sessionSize\)/);
-  assert.match(runtime, /for \(const entry of westernArtObjectiveRegistry\)/);
+  assert.match(runtime, /prepareReviewExercises\(westernArtObjectiveRegistry\.filter/);
   assert.match(runtime, /objective_not_due/);
   assert.match(runtime, /decoded\.entry\.exerciseId !== entry\.exerciseId/);
   assert.match(trusted, /westernArtObjectiveRegistry\.find\(\(entry\) => entry\.exerciseId === exerciseId\)/);

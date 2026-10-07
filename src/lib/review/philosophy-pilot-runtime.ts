@@ -1,4 +1,5 @@
 import "server-only";
+import { prepareReviewExercises } from "./parallel-issuance.ts";
 
 import type { GraphData } from "../graph/types.ts";
 import { getPhilosophyGraph } from "../notion/philosophy-graph.ts";
@@ -63,12 +64,9 @@ export async function issuePhilosophyObjectiveCard(scope: ScopeSnapshot, entry: 
 
 /** An independent failure or not-due result never suppresses another eligible Objective. */
 export async function issuePhilosophyObjectiveCards(scope: ScopeSnapshot) {
-  const cards = [];
-  for (const entry of philosophyObjectiveRegistry) {
-    if (!scopeEligible(scope, entry)) continue;
+  const cards = await prepareReviewExercises(philosophyObjectiveRegistry.filter((entry) => scopeEligible(scope, entry)), async (entry) => {
     try {
-      const card = await issuePhilosophyObjectiveCard(scope, entry);
-      if (card) cards.push(card);
+      return await issuePhilosophyObjectiveCard(scope, entry);
     } catch (error) {
       if (!(error instanceof ObjectiveRuntimeError && error.code === "objective_not_due")) {
         console.warn("Study Graph: Philosophy Objective issuance unavailable", {
@@ -77,8 +75,9 @@ export async function issuePhilosophyObjectiveCards(scope: ScopeSnapshot) {
         });
       }
     }
-  }
-  return cards;
+    return null;
+  });
+  return cards.filter((card) => card !== null);
 }
 
 function assertPhilosophyRouting(routing: ObjectiveInstanceRouting, persisted: ResolvedObjectiveInstanceArchive, entry: PhilosophyObjectiveEntry) {

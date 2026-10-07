@@ -340,6 +340,36 @@ try {
       console.log(`PASS ${project.id}: ${failure}, one history entry and one SRS application`);
     } finally { await context.close(); }
   }
+  // Hold the navigation request before it reaches the server. The deliberate
+  // click must be acknowledged without issuing a question or saving an answer.
+  for (const project of projects) {
+    await resetLearning();
+    const context = await launchContext(path.join(workspace, 'profiles', 'start-feedback-' + project.id));
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    let observed;
+    const requested = new Promise((resolve) => { observed = resolve; });
+    try {
+      const page = context.pages()[0];
+      await page.goto(appUrl + '/review');
+      for (const candidate of projects) await checkEntry(page, candidate, 0, 1);
+      const before = await learningFingerprint();
+      await page.route('**/review/session?*', async (route) => {
+        observed(); await gate; await route.continue();
+      });
+      const entry = page.locator('[data-review-project="' + project.id + '"]');
+      const click = entry.getByRole('link', { name: /^取り組む/ }).click();
+      await requested;
+      await entry.locator('[data-review-start-pending="true"]').waitFor();
+      await entry.getByRole('status').filter({ hasText: '準備中…' }).waitFor();
+      assert.deepEqual(await learningFingerprint(), before, 'Pending feedback must not issue or save');
+      release(); await click;
+      await page.locator('.answer-entry').waitFor();
+      assert.equal((await pool.query('select count(*)::int as count from private.exercise_instances')).rows[0].count, 1);
+      assert.equal((await pool.query('select count(*)::int as count from private.exercise_attempts')).rows[0].count, 0);
+      console.log('PASS start feedback ' + project.id + ': immediate pending, deliberate single issuance, no answer');
+    } finally { release(); await context.close(); }
+  }
   const units = [
     { id: 'kuzushiji-kana-1', project: projects[0], answers: ['あ','い','う','い','あ','う'] },
     { id: 'art-prehistory-1', project: projects[2], answers: ['旧石器時代','誇張','抽象化','France','スペイン王国','石灰石','胸やお腹を大きく表している。豊かさを願う像かもしれないが、用途は決まっていない。'] },
@@ -494,7 +524,7 @@ try {
   }
   assert.ok(fixtureRequests > 0, 'App did not read fixed Notion Scope');
   passed = true;
-  console.log('PASS 37 browser scenarios (24 review + 6 complete units + 6 unit restart/recovery + 1 start retry); no hosted credentials or production database used');
+  console.log('PASS 40 browser scenarios (24 review + 6 complete units + 6 unit restart/recovery + 1 start retry + 3 start feedback); no hosted credentials or production database used');
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);

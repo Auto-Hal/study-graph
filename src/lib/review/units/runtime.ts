@@ -1,4 +1,5 @@
 import "server-only";
+import { prepareReviewExercises } from "../parallel-issuance.ts";
 import { getKuzushijiDashboard } from "../../notion/kuzushiji.ts";
 import { getPhilosophyGraph } from "../../notion/philosophy-graph.ts";
 import { getWesternArtHistoryGraph } from "../../notion/western-art-history-graph.ts";
@@ -50,8 +51,7 @@ export async function startStudyUnit(unitId: string) {
   const learnerId = getObjectiveRuntimeConfig().learnerId;
   const scope = await readUnitScope(unit.projectId);
   if (!unitScopeReady(unit, scope)) throw new ObjectiveRuntimeError("instance_unavailable");
-  const cards = [];
-  for (const entry of getUnitExercises(unit.id)) {
+  const cards = await prepareReviewExercises(getUnitExercises(unit.id), async (entry) => {
     const archive = await ensureObjectiveArchive({ contentRelease: entry.contentRelease, revision: entry.revision,
       objectiveDefinition: entry.objectiveDefinition, exerciseObjectiveBinding: entry.objectiveBinding });
     const presentation = unitPresentation(unit.id, entry);
@@ -67,8 +67,8 @@ export async function startStudyUnit(unitId: string) {
     const persisted = await resolveObjectiveInstanceArchive(issued.instanceId, learnerId);
     if (!persisted || persisted.learner_id !== learnerId || persisted.instance_id !== issued.instanceId
       || persisted.release_id !== issued.releaseId || persisted.revision_id !== issued.revisionId) throw new ObjectiveRuntimeError("invalid_authority_response");
-    cards.push(unitCardFromPersisted(decodeUnitInstance(persisted)));
-  }
+    return unitCardFromPersisted(decodeUnitInstance(persisted));
+  });
   const session: ReviewSessionContext = {
     projectId: unit.projectId, projectTitle: unit.projectTitle, projectHref: `/units/${unit.id}`,
     mode: "practice", unitId: unit.id, unitTitle: unit.title, practiceOnly: true,
