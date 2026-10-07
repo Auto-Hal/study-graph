@@ -136,3 +136,9 @@ Codex の Windows sandbox の制限トークンでは `pg_ctl` が起動でき�
 ## 3科目の復習入口
 
 予定読み取りの追加migrationは `20261007112918_review_schedule_read.sql`。`./scripts/test-db-local.ps1` は既存4組と読取境界の計5組、`./scripts/test-db-local.ps1 -Suite e2e` は24ケース。反映順と止め方は [復習入口](REVIEW_ENTRY.md)。出題flagを変更せず、停止状態は準備中と表示する。
+
+## 学習バックアップと復元確認
+
+`node scripts/backup-learning.mjs sql` で読み取りSQLを生成し、Supabaseの読み取りツールから取得したcaptureを `pack` できる。DB接続URLを設定した場合は `npm run backup:learning` でも取得可能。手順と制約は [学習バックアップ](LEARNING_BACKUP.md)。
+
+`pwsh -NoProfile -File scripts/test-db-local.ps1 -Suite backup -BackupFile <backup-file>` は、本番の資格情報を読まず、新しい使い捨てDBへの復元・照合・削除まで実行する。通常の `./scripts/test-db-local.ps1` は既存5組にバックアップ復元を追加した計6組。CIも固定教材で復元・再送・欠損時rollbackを確認し、個人データを含むバックアップは渡さない。

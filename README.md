@@ -19,6 +19,8 @@ Node 22.18+ または24系を使用します。この Codex Windows ホストで
 外部接続は `npm run check:connections`、この Windows ホストの隔離 DB 検証は `./scripts/test-db-local.ps1` で確認できます。資格情報の同期と本番への設定反映は完了しています。
 通常の復習セッションは `/review/session?project=...`、オフライン準備は `/review/offline` です。
 
+学習記録の取得・隔離復元は [バックアップ手順](docs/LEARNING_BACKUP.md)、くずし字の出題再開と止め方は [再開手順](docs/KUZUSHIJI_RESUME.md) を参照してください。
+
 ## 過去の開発記録
 
 以下は Phase 1–3 の導入当時の記録です。現在の仕様は上記の開発計画と各 Phase の文書を優先してください。

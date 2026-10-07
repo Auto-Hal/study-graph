@@ -60,7 +60,12 @@
     "prepare:token-sync": "node scripts/prepare-token-sync.mjs",
     "test:e2e": "node --experimental-strip-types scripts/test-e2e.mjs",
     "test:e2e:local": "pwsh -NoProfile -File scripts/test-db-local.ps1 -Suite e2e",
-    "test:db:local": "pwsh -NoProfile -File scripts/test-db-local.ps1"
+    "test:db:local": "pwsh -NoProfile -File scripts/test-db-local.ps1",
+    "backup:learning": "node scripts/backup-learning.mjs export",
+    "backup:learning:sql": "node scripts/backup-learning.mjs sql",
+    "backup:learning:inspect": "node scripts/backup-learning.mjs inspect",
+    "test:backup": "node --experimental-strip-types scripts/test-backup.mjs",
+    "test:backup:local": "pwsh -NoProfile -File scripts/test-db-local.ps1 -Suite backup"
   },
   "dependencies": {
     "@notionhq/client": "5.26.0",
