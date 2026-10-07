@@ -26,6 +26,7 @@ export default function ReviewLandingPage() {
         <p className="phase5-context">準備済みの問題がある端末で、通信なしで回答できます。</p>
         <Link className="phase5-secondary-action" href="/review/offline" prefetch>準備を確認する <span aria-hidden="true">→</span></Link>
       </section>
+      <section className="phase5-section"><div className="phase5-section-heading"><h2>学習の振り返り</h2><Link href="/history">学習履歴を見る</Link></div><p className="phase5-context">過去の回答・自己評価を見て、もう一度確認する問題を選べます。</p></section>
       <PrimaryNav active="review" />
     </main>
   );

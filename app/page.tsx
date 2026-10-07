@@ -22,6 +22,7 @@ export default function Home() {
           <Link className="phase5-row" href={project.href} prefetch key={project.id}><span className="phase5-row-main"><span className="phase5-row-title">{project.title}</span><span className="phase5-row-meta">{project.context}</span></span><span className="phase5-row-arrow" aria-hidden="true">→</span></Link>
         ))}</div>
       </section>
+      <section className="phase5-section"><div className="phase5-section-heading"><h2>学習の振り返り</h2><Link href="/history">学習履歴を見る</Link></div><p className="phase5-context">保存した回答と自己評価を、科目や単元ごとに見返せます。</p></section>
       <PrimaryNav active="today" />
     </main>
   );
