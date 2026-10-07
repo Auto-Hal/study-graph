@@ -63,7 +63,7 @@ function errorCode(message: string) {
   return known?.[0] ?? null;
 }
 
-async function callPilotRpc<T>(name: string, body: Record<string, unknown>): Promise<T> {
+async function callPilotRpc<T>(name: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const config = getPilotRuntimeConfig();
   if (!config) throw new PilotRpcError("pilot_runtime_not_configured", 503, "pilot_runtime_not_configured");
   const response = await fetch(`${config.url}/rest/v1/rpc/${name}`, {
@@ -75,6 +75,7 @@ async function callPilotRpc<T>(name: string, body: Record<string, unknown>): Pro
     },
     body: JSON.stringify(body),
     cache: "no-store",
+    signal,
   });
   if (!response.ok) {
     const bodyText = await response.text();
@@ -420,6 +421,30 @@ export type PilotObjectiveReviewState = {
   scheduler_version: string;
   state_revision: number;
 };
+
+export async function getObjectiveReviewSchedule() {
+  const config = getPilotRuntimeConfig();
+  if (!config) throw new PilotRpcError("pilot_runtime_not_configured", 503);
+  const rows = await callPilotRpc<unknown>("study_graph_objective_review_schedule", {
+    p_learner_id: config.learnerId,
+  }, AbortSignal.timeout(10_000));
+  if (!Array.isArray(rows)) throw new PilotRpcError("invalid_schedule", 502);
+  const keys = new Set<string>();
+  return rows.map((row: unknown) => {
+    if (!row || typeof row !== "object") throw new PilotRpcError("invalid_schedule", 502);
+    const state = row as Record<string, unknown>;
+    if (typeof state.project_id !== "string" || typeof state.objective_id !== "string"
+      || !Number.isInteger(state.srs_epoch) || (state.srs_epoch as number) < 1
+      || typeof state.due_at !== "string" || !Number.isFinite(Date.parse(state.due_at))) {
+      throw new PilotRpcError("invalid_schedule", 502);
+    }
+    const key = JSON.stringify([state.project_id, state.objective_id, state.srs_epoch]);
+    if (keys.has(key)) throw new PilotRpcError("invalid_schedule", 502);
+    keys.add(key);
+    return { project_id: state.project_id, objective_id: state.objective_id,
+      srs_epoch: state.srs_epoch as number, due_at: state.due_at };
+  });
+}
 
 export async function getKuzushijiPilotObjectiveState(): Promise<PilotObjectiveReviewState | null> {
   const config = getPilotRuntimeConfig();

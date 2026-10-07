@@ -4,7 +4,7 @@ Notionを知識の正本として使い、毎日の学習・復習・弱点管�
 
 ## 現在の状態（2026-10-07）
 
-main は Phase 5A-4a まで実装されています。3科目の workspace / Graph、snapshot 表示、Objective ごとの出題・回答・SRS、限定的なオフライン復習を備えています。本番への反映は環境ごとに確認が必要です。
+main は Phase 5A-4a まで実装されています。3科目の workspace / Graph、snapshot 表示、Objective ごとの出題・回答・SRS、限定的なオフライン復習を備えています。保存・復旧の修正はPR #128（main `f308577`）で本番反映済みです。3科目の今日・復習入口については [入口の仕様と検証](docs/REVIEW_ENTRY.md) を参照してください。
 
 開発状況・優先順位・今回の検証結果は [開発計画](docs/DEVELOPMENT_PLAN.md)、起動・資格情報・Windows 環境の手順は [セットアップ](docs/DEVELOPMENT_SETUP.md) を参照してください。
 
@@ -76,9 +76,10 @@ OpenAI APIは現在使用していません。基本機能はAIなしで成立�
 - `/` — Home
 - `/projects` — Project Registry / 学習プロジェクト
 - `/projects/kuzushiji` — くずし字Project
-- `/review?project=kuzushiji` — くずし字Scheduled Review
-- `/review?project=western-art-history` — 西洋美術史Practice
-- `/review?project=philosophy` — 西洋哲学史Practice
+- `/review` — 3科目の復習・未学習・次回予定
+- `/review/session?project=kuzushiji` — くずし字の復習
+- `/review/session?project=western-art-history` — 西洋美術史の復習・練習
+- `/review/session?project=philosophy` — 西洋哲学史の復習・練習
 - `/projects/kuzushiji/progress` — くずし字学習記録・次回予定
 - `/graph?project=...` — Knowledge Graph
 - `/settings` — 接続状態・Adapter構成

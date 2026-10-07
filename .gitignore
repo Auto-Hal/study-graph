@@ -7,4 +7,5 @@ out/
 .DS_Store
 *.log
 .tools/
+/supabase/.temp/
 *.tsbuildinfo

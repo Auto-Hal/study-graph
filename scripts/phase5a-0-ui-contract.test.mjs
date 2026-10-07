@@ -10,6 +10,8 @@ const nav = read("src/components/PrimaryNav.tsx");
 const home = read("app/page.tsx");
 const projects = read("app/projects/page.tsx");
 const reviewLanding = read("app/review/page.tsx");
+const availability = read("src/components/ReviewAvailability.tsx");
+const scheduleReader = read("src/lib/review/availability.ts");
 const reviewSession = read("app/review/session/page.tsx");
 const dashboard = read("src/components/KuzushijiSnapshotDashboard.tsx");
 const offline = read("app/review/offline/page.tsx");
@@ -37,18 +39,19 @@ test("primary navigation exposes exactly 今日, 学ぶ, 復習", () => {
 test("review landing and focused session are separate routes", () => {
   assert.doesNotMatch(reviewLanding, /import ReviewSession/);
   assert.match(reviewLanding, /復習/);
-  assert.match(reviewLanding, /review\/session\?project=/);
+  assert.match(availability, /review\/session\?project=/);
   assert.match(reviewSession, /import ReviewSession/);
   assert.match(reviewSession, /loadReviewProject/);
 });
 
-test("due language is shown only from authoritative Supabase schedule state", () => {
-  assert.match(home, /scheduleState\.persistence === "supabase"/);
-  assert.match(reviewLanding, /scheduleState\.persistence === "supabase"/);
-  assert.match(home, /filterDueReviewItems/);
-  assert.match(reviewLanding, /filterDueReviewItems/);
-  assert.match(home, /復習予定を確認できません/);
-  assert.match(reviewLanding, /期限はサーバーで確認できていません/);
+test("due and unseen language uses the read-only schedule panel for all subjects", () => {
+  assert.match(home, /ReviewAvailability/);
+  assert.match(reviewLanding, /ReviewAvailability/);
+  assert.match(scheduleReader, /objectiveSchedule/);
+  assert.match(scheduleReader, /legacy.persistence === "supabase"/);
+  assert.match(availability, /復習予定を確認できません/);
+  assert.match(availability, /復習 {state.due}問/);
+  assert.match(availability, /未学習 {state.new}問/);
   assert.doesNotMatch(dashboard, /問が期限です/);
   assert.match(dashboard, /復習候補/);
 });

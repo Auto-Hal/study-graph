@@ -8,6 +8,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 const home = read("app/page.tsx");
 const review = read("app/review/page.tsx");
+const availability = read("src/components/ReviewAvailability.tsx");
+const reader = read("src/lib/review/availability.ts");
 const progress = read("app/projects/kuzushiji/progress/page.tsx");
 const schedule = read("src/lib/supabase/review.ts");
 const registry = read("src/lib/review/registry.ts");
@@ -18,43 +20,31 @@ const refresh = read("src/components/ProjectSnapshotRefresh.tsx");
 const css = read("app/phase5.css");
 const loading = `${read("app/projects/loading.tsx")}\n${read("app/review/loading.tsx")}\n${read("src/components/Phase5DestinationLoading.tsx")}`;
 
-test("Home and Review landing are snapshot-first and never call live Notion", () => {
+test("Home and Review stream independent equal-subject schedule entries", () => {
   for (const page of [home, review]) {
-    assert.doesNotMatch(page, /getKuzushijiDashboard/);
-    assert.match(page, /loadProjectReadState\("kuzushiji"\)/);
-    assert.match(page, /isKuzushijiV2ProjectReadState/);
-    assert.match(page, /ProjectSnapshotRefreshCoordinator projectId="kuzushiji"/);
-    assert.match(page, /Promise\.all/);
+    assert.match(page, /ReviewAvailability/);
+    assert.doesNotMatch(page, /getKuzushijiDashboard|loadReviewProject|filterDueReviewItems/);
   }
-  assert.match(home, /projection(?:\?\.)?\.lectures/);
-  assert.match(home, /projection(?:\?\.)?\.characters/);
-  assert.match(home, /projection(?:\?\.)?\.mistakes/);
-  assert.match(home, /projection\.reviewQueue/);
-  assert.match(review, /projection\.reviewQueue/);
+  assert.match(availability, /getActiveStudyProjects[(][)][.]map/);
+  assert.match(availability, /Suspense/);
+  assert.match(reader, /kuzushijiVisualCandidates/);
+  assert.match(reader, /graphLegacyCandidates/);
 });
 
-test("snapshot candidates remain separate from authoritative due schedule", () => {
+test("entry observations remain separate from the issuer and legacy schedule", () => {
   assert.match(schedule, /export type ReviewScheduleState/);
   assert.match(schedule, /export async function loadReviewScheduleState/);
-  assert.match(schedule, /export function filterDueReviewItems/);
-  assert.match(review, /filterDueReviewItems\(candidates, scheduleState\)/);
-  assert.match(home, /filterDueReviewItems\(projection\.reviewQueue, scheduleState\)/);
-  assert.match(review, /count = scheduleAvailable \? dueItems\.length : null/);
-  assert.match(review, /count \?\? "—"/);
-  assert.doesNotMatch(review, /reviewQueue\.length/);
-  assert.match(schedule, /getDueReviewItems/);
-  assert.match(schedule, /loadReviewScheduleState\(\)/);
+  assert.match(reader, /summarizeReviewAvailability/);
+  assert.match(reader, /getObjectiveReviewSchedule/);
+  assert.match(reader, /scope.sourceState !== "ready"/);
+  assert.doesNotMatch(reader, /issueObjectiveInstanceV2[(]|issuePhilosophyObjectiveCards[(]|issueWesternArtObjectiveCards[(]|recordReviewAttempt[(]/);
 });
 
-test("stale and unavailable states remain learner-safe", () => {
-  assert.match(home, /displayState\?\.kind === "stale"/);
-  assert.match(review, /displayState\?\.kind === "stale"/);
-  assert.match(home, /学習データは現在表示できません/);
-  assert.match(review, /復習候補を取得できません/);
-  assert.match(home, /復習予定を確認できません/);
-  assert.match(review, /復習予定を確認できません/);
-  assert.doesNotMatch(home, /getKuzushijiDashboard|data\.mode/);
-  assert.doesNotMatch(review, /getKuzushijiDashboard|data\.mode/);
+test("unavailable and stopped issuance have distinct learner states", () => {
+  assert.match(availability, /state.status === "unavailable"/);
+  assert.match(availability, /state.status === "paused"/);
+  assert.match(availability, /復習予定を確認できません/);
+  assert.match(availability, /準備中/);
 });
 
 test("Review session keeps live Notion and fresh Scope authority", () => {
@@ -93,9 +83,9 @@ test("render and prefetch paths do not publish", () => {
   assert.doesNotMatch(projects, /runProjectSnapshotRefresh|sync[A-Z]|publisher/i);
   assert.match(refresh, /method: "POST"/);
   assert.match(refresh, /useEffect/);
-  assert.match(home, /prefetch=\{!focus\.href\.startsWith\("\/review\/session"\)\}/);
-  const reviewSessionLinks = review.split("\n").filter((line) => line.includes("<Link") && line.includes("/review/session"));
-  assert.ok(reviewSessionLinks.length >= 3);
+  assert.match(availability, /prefetch=\{false\}/);
+  const reviewSessionLinks = availability.split("\n").filter((line) => line.includes("<Link") && line.includes("/review/session"));
+  assert.equal(reviewSessionLinks.length, 1);
   assert.ok(reviewSessionLinks.every((line) => line.includes("prefetch={false}")));
   const progressSessionLinks = progress.split("\n").filter((line) => line.includes("<Link") && line.includes("/review/session"));
   assert.equal(progressSessionLinks.length, 2);

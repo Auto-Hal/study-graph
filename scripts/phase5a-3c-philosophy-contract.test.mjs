@@ -16,7 +16,7 @@ test("trusted Objective order and legacy exclusion precede legacy scheduling", (
     assert.ok(next > last);
     last = next;
   }
-  assert.ok(review.indexOf("legacyEligibleIds.delete(id)") < review.indexOf("const dueTracked ="));
+  assert.ok(review.indexOf("const excludedIds =") < review.indexOf("const legacyCards = graphLegacyCandidates"));
   assert.match(review, /\.\.\.philosophyCards, \.\.\.legacyCards/);
   assert.match(review, /\.slice\(0, project\.review\.sessionSize\)/);
   assert.match(runtime, /for \(const entry of philosophyObjectiveRegistry\)/);
@@ -29,8 +29,8 @@ test("accepted receipt is recovered before persisted project dispatch", () => {
   assert.doesNotMatch(dispatch, /request\.projectId|body\.projectId/);
 });
 
-test("this slice preserves migration and offline protocol inventory", () => {
-  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 22);
+test("migration inventory includes the additive reader and preserves offline protocols", () => {
+  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 23);
   assert.match(read("src/lib/review/offline/attempt-outbox.ts"), /ATTEMPT_OUTBOX_DB_VERSION = 1/);
   assert.match(read("src/lib/review/offline/model-core.ts"), /OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1/);
   assert.doesNotMatch(runtime, /p_srs_plan|legacyReviewAttemptId/);

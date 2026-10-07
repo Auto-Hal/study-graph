@@ -9,8 +9,8 @@ const dispatcher = read("src/lib/review/pilot-attempt-dispatch.ts");
 const trusted = read("src/lib/review/western-art-objective-registry.ts");
 
 test("all Art Scope subjects are removed before legacy due/unseen selection", () => {
-  assert.ok(registry.indexOf("westernArtObjectiveScopeSubjectIds") < registry.indexOf("const dueTracked ="));
-  assert.ok(registry.indexOf("legacyEligibleIds.delete(id)") < registry.indexOf("const dueTracked ="));
+  assert.ok(registry.indexOf("westernArtObjectiveScopeSubjectIds") < registry.indexOf("const legacyCards = graphLegacyCandidates"));
+  assert.ok(registry.indexOf("const excludedIds =") < registry.indexOf("const legacyCards = graphLegacyCandidates"));
   assert.match(registry, /\.\.\.westernArtCards, \.\.\.legacyCards/);
   assert.match(registry, /\.slice\(0, project\.review\.sessionSize\)/);
   assert.match(runtime, /for \(const entry of westernArtObjectiveRegistry\)/);
@@ -26,8 +26,8 @@ test("Receipt recovery precedes server-owned persisted identity dispatch", () =>
   assert.doesNotMatch(runtime, /study_graph_record_review|p_srs_plan/);
 });
 
-test("migration and durable offline inventories remain unchanged", () => {
-  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 22);
+test("migration inventory adds the reader; durable offline inventory remains unchanged", () => {
+  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 23);
   assert.match(read("src/lib/review/offline/attempt-outbox.ts"), /ATTEMPT_OUTBOX_DB_VERSION = 1/);
   assert.match(read("src/lib/review/offline/model-core.ts"), /OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1/);
 });

@@ -132,3 +132,7 @@ Codex の Windows sandbox の制限トークンでは `pg_ctl` が起動でき�
 ## 隔離ブラウザ検証
 
 回答保存・再送は [BROWSER_E2E.md](BROWSER_E2E.md) の手順を使用する。本番資格情報は不要。Windows は PowerShell 7 の `./scripts/test-db-local.ps1 -Suite e2e`。既存の DB suite は引数なしで実行できる。
+
+## 3科目の復習入口
+
+予定読み取りの追加migrationは `20261007112918_review_schedule_read.sql`。`./scripts/test-db-local.ps1` は既存4組と読取境界の計5組、`./scripts/test-db-local.ps1 -Suite e2e` は24ケース。反映順と止め方は [復習入口](REVIEW_ENTRY.md)。出題flagを変更せず、停止状態は準備中と表示する。

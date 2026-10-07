@@ -13,8 +13,8 @@ const route = read("app/api/review/pilot/prefetch/route.ts");
 
 test("migration 22 is additive and retains immutable v1/v2 content", () => {
   const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).sort();
-  assert.equal(files.length, 22);
-  assert.equal(files.at(-1), "20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql");
+  assert.equal(files.length, 23);
+  assert.equal(files.at(-2), "20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql");
   assert.equal(kuzushijiPilotRevision.visualAssets[0].checksum, null);
   assert.equal(kuzushijiPilotRevisionV2.contentHash, "fca3edc54f17aa731c53cedd1130ff83d51a318ee07696c3310129f67a8db86d");
   assert.equal(kuzushijiPilotContentReleaseV2.manifestHash, "a6346dcb6b1b7a6df890f032ec3974e0c95ac3e631367ab022707d09c6357446");
