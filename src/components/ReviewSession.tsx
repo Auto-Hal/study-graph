@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import ExplanationRubricPanel from "./ExplanationRubricPanel";
 import ExerciseAsset from "@/src/components/ExerciseAsset";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import {
@@ -52,6 +53,13 @@ const gradeOptions: Array<{ grade: Grade; label: string; hint: string }> = [
   { grade: "easy", label: "即答", hint: "迷わず正解できた" },
 ];
 
+const explanationGradeHints: Record<Grade, string> = {
+  again: "要点が足りない・誤解が残る",
+  hard: "要点は一部、説明にまだ迷う",
+  good: "必要な要点を自分の言葉で説明できた",
+  easy: "要点と違いを迷わず説明できた",
+};
+
 function normalizeAnswer(value: string) {
   return value
     .normalize("NFKC")
@@ -62,6 +70,7 @@ function normalizeAnswer(value: string) {
 }
 
 function evaluate(card: ReviewCard, answer: string) {
+  if (card.answer.type === "self-evaluation") return null;
   if (card.answer.type === "single-choice") return answer === card.answer.correctOptionId;
   const normalized = normalizeAnswer(answer);
   return card.answer.acceptedAnswers.some((candidate) => normalizeAnswer(candidate) === normalized);
@@ -81,15 +90,15 @@ function formatNextDue(value: string | null) {
   return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-export default function ReviewSession({ cards, persistence: requestedPersistence, session, onPilotAttemptDurablyCommitted }: { cards: ReviewCard[]; persistence: ReviewPersistenceMode; session: ReviewSessionContext; onPilotAttemptDurablyCommitted?: (instanceId: string, attemptId: string) => Promise<void> | void }) {
-  const [index, setIndex] = useState(0);
+export default function ReviewSession({ cards, persistence: requestedPersistence, session, onPilotAttemptDurablyCommitted, initialResults = [] }: { initialResults?: Result[]; cards: ReviewCard[]; persistence: ReviewPersistenceMode; session: ReviewSessionContext; onPilotAttemptDurablyCommitted?: (instanceId: string, attemptId: string) => Promise<void> | void }) {
+  const [index, setIndex] = useState(Math.min(initialResults.length, cards.length));
   const [revealed, setRevealed] = useState(false);
   const [answerValue, setAnswerValue] = useState("");
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
   const [recommended, setRecommended] = useState<Grade | null>(null);
   const [responseMs, setResponseMs] = useState(0);
-  const [results, setResults] = useState<Result[]>([]);
-  const [finished, setFinished] = useState(false);
+  const [results, setResults] = useState<Result[]>(initialResults);
+  const [finished, setFinished] = useState(cards.length > 0 && initialResults.length === cards.length);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [outboxCounts, setOutboxCounts] = useState({ pending: 0, authRequired: 0, blocked: 0 });
@@ -190,14 +199,16 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
         ? "回答は端末に保存されています。再送待ち " + displayedAuthRequiredCount + "件。"
       : displayedBlockedCount > 0
         ? "セッションは完了しました。確認が必要な回答が " + displayedBlockedCount + "件あります。"
-        : noSrsCount > 0
+        : session.practiceOnly && fullySaved
+          ? "回答と自己評価を保存しました。単元練習は復習予定を変更しません。"
+          : noSrsCount > 0
           ? "回答を保存しました。復習予定が更新されていない回答が " + noSrsCount + "件あります。"
           : fullySaved
             ? "回答と評価を保存し、次回復習日を更新しました。"
             : "セッションは完了しました。この練習の回答は保存の対象外です。";
     const accuracyLabel = accuracy === null ? "—" : String(accuracy) + "%";
     const nextDueLabel = nextDue ?? "—";
-    return <section className="review-stage result-stage" aria-live="polite"><p className="eyebrow">SESSION COMPLETE</p><h1>{session.projectTitle}の{session.mode === "practice" ? "Practice" : "復習"}は完了です。</h1><p className="result-lead">{resultLead}</p>{displayedPendingCount > 0 && <p className="persistence-note" role="status">端末保存済み・未同期 {displayedPendingCount}件</p>}{displayedAuthRequiredCount > 0 && <p className="persistence-note" role="status">端末保存済み・再送待ち {displayedAuthRequiredCount}件</p>}{displayedBlockedCount > 0 && <p className="persistence-note" role="status">確認が必要 {displayedBlockedCount}件。自動再送は停止しています。</p>}<div className="result-grid"><div><strong>{accuracyLabel}</strong><span>正答率</span></div><div><strong>{summary.again + summary.hard}</strong><span>要再確認</span></div><div><strong>{nextDueLabel}</strong><span>最短の次回復習</span></div></div><div className="grade-summary">{gradeOptions.map((option) => <div key={option.grade}><span>{option.label}</span><strong>{summary[option.grade]}</strong></div>)}</div><div className="result-actions">{!versionedPilotSession && <button className="primary-action" type="button" onClick={() => { setIndex(0); setRevealed(false); setAnswerValue(""); setAnswerCorrect(null); setRecommended(null); setResults([]); setFinished(false); setSaveError(null); startedAt.current = Date.now(); }}>もう一度取り組む</button>}<Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.historyHref ? "学習記録を見る" : "Knowledge Graphを見る"}</Link></div></section>;
+    return <section className="review-stage result-stage" aria-live="polite"><p className="eyebrow">SESSION COMPLETE</p><h1>{session.unitTitle ?? session.projectTitle}の{session.unitId ? "単元練習" : session.mode === "practice" ? "Practice" : "復習"}は完了です。</h1><p className="result-lead">{resultLead}</p>{displayedPendingCount > 0 && <p className="persistence-note" role="status">端末保存済み・未同期 {displayedPendingCount}件</p>}{displayedAuthRequiredCount > 0 && <p className="persistence-note" role="status">端末保存済み・再送待ち {displayedAuthRequiredCount}件</p>}{displayedBlockedCount > 0 && <p className="persistence-note" role="status">確認が必要 {displayedBlockedCount}件。自動再送は停止しています。</p>}<div className="result-grid"><div><strong>{accuracyLabel}</strong><span>{session.practiceOnly ? "短答の正答率" : "正答率"}</span></div><div><strong>{summary.again + summary.hard}</strong><span>要再確認</span></div><div><strong>{session.practiceOnly ? results.length + " / " + cards.length : nextDueLabel}</strong><span>{session.practiceOnly ? "回答した問題" : "最短の次回復習"}</span></div></div><div className="grade-summary">{gradeOptions.map((option) => <div key={option.grade}><span>{option.label}</span><strong>{summary[option.grade]}</strong></div>)}</div>{session.unitId && <ul className="unit-result-list" aria-label="今回の振り返り">{results.map((result) => { const question = cards.find((entry) => entry.id === result.id); return <li key={result.attemptId ?? result.id}><strong>{question?.prompt}</strong>{question?.asset && <ExerciseAsset asset={question.asset} />}{question?.answer.type === "text" && <span>正解：{question.answer.acceptedAnswers[0]}</span>}<span>{result.correct === null ? "自己評価" : result.correct ? "正解" : "要確認"} · {gradeOptions.find((option) => option.grade === result.grade)?.label} · {result.syncStatus === "accepted" ? "保存済み" : "端末保存済み・同期を確認"}</span></li>; })}</ul>}<div className="result-actions">{session.practiceOnly && <Link className="secondary-action" href="/review">今日の復習を見る</Link>}{!versionedPilotSession && <button className="primary-action" type="button" onClick={() => { setIndex(0); setRevealed(false); setAnswerValue(""); setAnswerCorrect(null); setRecommended(null); setResults([]); setFinished(false); setSaveError(null); startedAt.current = Date.now(); }}>もう一度取り組む</button>}<Link className="secondary-action" href={session.historyHref ?? session.projectHref}>{session.unitId ? "単元の概要に戻る" : session.historyHref ? "学習記録を見る" : "Knowledge Graphを見る"}</Link></div></section>;
   }
 
   const card = cards[index];
@@ -210,7 +221,7 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
     const correct = evaluate(card, answerValue);
     setResponseMs(elapsed);
     setAnswerCorrect(correct);
-    setRecommended(suggestedGrade(correct, elapsed));
+    setRecommended(correct === null ? null : suggestedGrade(correct, elapsed));
     setRevealed(true);
   }
 
@@ -342,5 +353,5 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
     } finally { setSaving(false); }
   }
 
-  return <section className="review-stage"><div className="review-progress-row"><div><p className="eyebrow">{card.eyebrow}</p><span>{index + 1} / {cards.length}</span>{outboxCounts.pending > 0 && <small role="status">端末保存済み・未同期 {outboxCounts.pending}件</small>}{outboxCounts.authRequired > 0 && <small role="status">端末保存済み・再送待ち {outboxCounts.authRequired}件</small>}{outboxCounts.blocked > 0 && <small role="status">確認が必要 {outboxCounts.blocked}件</small>}</div><Link href={session.projectHref}>終了</Link></div><div className="progress-track" role="progressbar" aria-label="復習進捗" aria-valuemin={1} aria-valuemax={cards.length} aria-valuenow={index + 1}><span style={{ width: `${progress}%` }} /></div><article className={`study-card ${revealed ? "is-revealed" : ""}`}><div className="study-card-front"><span className="review-kind">{card.kindLabel}</span><p className="study-prompt">{card.prompt}</p>{card.asset && <ExerciseAsset asset={card.asset} />}<div className={card.frontStyle === "glyph" ? "study-glyph" : "study-mistake-title"}>{card.front}</div><p className="study-reason">{card.reason}</p></div>{!revealed ? <form className="answer-entry" onSubmit={submitAnswer}>{card.answer.type === "text" ? <input autoFocus value={answerValue} onChange={(event) => setAnswerValue(event.target.value)} placeholder={card.answer.placeholder ?? "回答を入力"} aria-label="回答" /> : <div className="choice-list">{card.answer.options.map((option) => <label key={option.id} className={answerValue === option.id ? "selected" : ""}><input type="radio" name={`answer-${card.exerciseId}`} value={option.id} checked={answerValue === option.id} onChange={() => setAnswerValue(option.id)} /><span>{option.label}</span></label>)}</div>}<button className="reveal-button" type="submit" disabled={!answerValue.trim()}>回答する</button></form> : <div className="answer-panel"><p className={`answer-verdict ${answerCorrect ? "correct" : "incorrect"}`}>{answerCorrect ? "正解" : "不正解"}</p><p className="your-answer">あなたの回答：{card.answer.type === "single-choice" ? card.answer.options.find((option) => option.id === answerValue)?.label ?? answerValue : answerValue}</p><div className="answer-list">{card.answerRows.map((row) => <div key={`${card.exerciseId}-${row.label}`}><span>{row.label}</span><strong>{row.value || "未登録"}</strong></div>)}</div>{card.sourceUrl !== "#" && <a className="notion-source-link" href={card.sourceUrl} target="_blank" rel="noreferrer">Notionで元データを確認</a>}</div>}</article>{revealed && <div className="grade-area"><p>結果を踏まえた推奨評価：<strong>{gradeOptions.find((option) => option.grade === recommended)?.label ?? "—"}</strong></p>{persistence === "fallback" && <p className="persistence-note" role="status">fallbackモードのため、この回答は保存せずに進みます。</p>}{saveError && <p className="save-error" role="alert">{saveError}</p>}<div className="grade-buttons">{gradeOptions.map((option) => <button className={option.grade === recommended ? "recommended-grade" : ""} key={option.grade} type="button" disabled={saving} aria-busy={saving} onClick={() => void gradeCurrent(option.grade)}><strong>{saving ? "保存中…" : option.label}</strong><span>{option.hint}</span></button>)}</div></div>}</section>;
+  return <section className="review-stage"><div className="review-progress-row"><div><p className="eyebrow">{card.eyebrow}</p><span>{index + 1} / {cards.length}</span>{outboxCounts.pending > 0 && <small role="status">端末保存済み・未同期 {outboxCounts.pending}件</small>}{outboxCounts.authRequired > 0 && <small role="status">端末保存済み・再送待ち {outboxCounts.authRequired}件</small>}{outboxCounts.blocked > 0 && <small role="status">確認が必要 {outboxCounts.blocked}件</small>}</div><Link href={session.projectHref}>終了</Link></div><div className="progress-track" role="progressbar" aria-label="復習進捗" aria-valuemin={1} aria-valuemax={cards.length} aria-valuenow={index + 1}><span style={{ width: `${progress}%` }} /></div><article className={`study-card ${revealed ? "is-revealed" : ""}`}><div className="study-card-front"><span className="review-kind">{card.kindLabel}</span><p className="study-prompt">{card.prompt}</p>{card.asset && <ExerciseAsset asset={card.asset} />}<div className={card.frontStyle === "glyph" ? "study-glyph" : "study-mistake-title"}>{card.front}</div><p className="study-reason">{card.reason}</p></div>{!revealed ? <form className="answer-entry" onSubmit={submitAnswer}>{card.answer.type === "self-evaluation" ? <textarea autoFocus rows={4} maxLength={2000} value={answerValue} onChange={(event) => setAnswerValue(event.target.value)} placeholder={card.answer.placeholder} aria-label="回答" /> : card.answer.type === "text" ? <input maxLength={2000} autoFocus value={answerValue} onChange={(event) => setAnswerValue(event.target.value)} placeholder={card.answer.placeholder ?? "回答を入力"} aria-label="回答" /> : <div className="choice-list">{card.answer.options.map((option) => <label key={option.id} className={answerValue === option.id ? "selected" : ""}><input type="radio" name={`answer-${card.exerciseId}`} value={option.id} checked={answerValue === option.id} onChange={() => setAnswerValue(option.id)} /><span>{option.label}</span></label>)}</div>}<button className="reveal-button" type="submit" disabled={!answerValue.trim()}>回答する</button></form> : <div className="answer-panel"><p className={`answer-verdict ${card.answer.type === "self-evaluation" ? "self-evaluation" : answerCorrect ? "correct" : "incorrect"}`}>{card.answer.type === "self-evaluation" ? "要点を確認して自己評価" : answerCorrect ? "正解" : "不正解"}</p><p className="your-answer">あなたの回答：{card.answer.type === "single-choice" ? card.answer.options.find((option) => option.id === answerValue)?.label ?? answerValue : answerValue}</p>{card.answer.type === "self-evaluation" && <ExplanationRubricPanel rubric={card.answer.rubric} />}<div className="answer-list">{card.answerRows.map((row) => <div key={`${card.exerciseId}-${row.label}`}><span>{row.label}</span><strong>{row.value || "未登録"}</strong></div>)}</div>{card.sourceUrl !== "#" && <a className="notion-source-link" href={card.sourceUrl} target="_blank" rel="noreferrer">Notionで元データを確認</a>}</div>}</article>{revealed && <div className="grade-area"><p>{card.answer.type === "self-evaluation" ? "要点と重大な誤解を確認して、自己評価を選んでください。" : <>結果を踏まえた推奨評価：<strong>{gradeOptions.find((option) => option.grade === recommended)?.label ?? "—"}</strong></>}</p>{persistence === "fallback" && <p className="persistence-note" role="status">fallbackモードのため、この回答は保存せずに進みます。</p>}{saveError && <p className="save-error" role="alert">{saveError}</p>}<div className="grade-buttons">{gradeOptions.map((option) => <button className={option.grade === recommended ? "recommended-grade" : ""} key={option.grade} type="button" disabled={saving} aria-busy={saving} onClick={() => void gradeCurrent(option.grade)}><strong>{saving ? "保存中…" : option.label}</strong><span>{card.answer.type === "self-evaluation" ? explanationGradeHints[option.grade] : option.hint}</span></button>)}</div></div>}</section>;
 }

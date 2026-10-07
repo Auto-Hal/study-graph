@@ -56,13 +56,21 @@ export type TextExerciseAnswerSpec = {
 export type ExerciseAnswerSpec = TextExerciseAnswerSpec;
 
 export type ExerciseGradingSpec = {
-  strategyId: "legacy-text-v1";
+  strategyId: "legacy-text-v1" | "rubric-self-evaluation-v1";
   strategyVersion: 1;
   normalization: "review-session-ja-v1";
 };
 
+export type ExplanationRubric = {
+  modelAnswer: string;
+  requiredPoints: string[];
+  allowedParaphrases: string[];
+  majorMisconceptions: string[];
+};
+
 export type ExerciseExplanation = {
   summary: string;
+  rubric?: ExplanationRubric;
 };
 
 export type ExerciseProvenance = {

@@ -16,6 +16,11 @@ export default function ReviewLandingPage() {
         <ReviewAvailability />
         <p className="phase5-context">1回の出題予定です。別の端末で回答した場合や教材が更新された場合は、開始時に確認した内容を出題します。</p>
       </section>
+      <section className="phase5-section" aria-labelledby="unit-practice-title">
+        <div className="phase5-section-heading"><h2 id="unit-practice-title">単元練習</h2></div>
+        <p className="phase5-context">3科目の最初の単元を、5〜15分で練習できます。短答と説明を振り返り、回答を保存します。</p>
+        <Link className="phase5-secondary-action" href="/units">単元を選ぶ <span aria-hidden="true">→</span></Link>
+      </section>
       <section className="phase5-section" aria-labelledby="offline-review-title">
         <div className="phase5-section-heading"><h2 id="offline-review-title">オフライン復習</h2></div>
         <p className="phase5-context">準備済みの問題がある端末で、通信なしで回答できます。</p>
