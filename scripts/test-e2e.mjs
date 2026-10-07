@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { chromium } from 'playwright';
-import { projects, learnerId, notionResponse, displaySnapshots } from './e2e/fixtures.mjs';
+import { projects, learnerId, notionResponse, displaySnapshots, setUnitFixtures } from './e2e/fixtures.mjs';
 
 // PostgREST encodes PostgreSQL bigint as a JSON number. Match that transport;
 // node-postgres normally exposes bigint as a string to protect large values.
@@ -340,6 +340,137 @@ try {
       console.log(`PASS ${project.id}: ${failure}, one history entry and one SRS application`);
     } finally { await context.close(); }
   }
+  const units = [
+    { id: 'kuzushiji-kana-1', project: projects[0], answers: ['あ','い','う','い','あ','う'] },
+    { id: 'art-prehistory-1', project: projects[2], answers: ['旧石器時代','誇張','抽象化','France','スペイン王国','石灰石','胸やお腹を大きく表している。豊かさを願う像かもしれないが、用途は決まっていない。'] },
+    { id: 'philosophy-arche-1', project: projects[1], answers: ['水','アペイロン','空気','世界の多様なものに共通する元を、自然の側から考えた。','水は特定のものだが、アペイロンは性質を限定しない根源だ。','空気が薄まったり、濃く集まったりして、違う物が生じると考えた。'] },
+  ];
+  async function schedules() {
+    return (await pool.query('select to_jsonb(s) as value from private.objective_review_state s order by objective_id')).rows;
+  }
+  async function unitAnswer(page, answer, rubric = false, doubleClick = false) {
+    await page.getByRole('textbox', { name: '回答', exact: true }).fill(answer);
+    await page.getByRole('button', { name: '回答する', exact: true }).click();
+    if (rubric) {
+      await page.getByText('要点を確認して自己評価', { exact: true }).waitFor();
+      assert.equal(await page.locator('.answer-verdict.incorrect').count(), 0, 'Explanation must not be exact-match graded');
+      for (const label of ['必要な要点','許容する言い換え','重大な誤解']) await page.getByRole('heading', { name: label, exact: true }).waitFor();
+      await page.screenshot({ path: path.join(workspace, 'explanation-rubric-' + page.viewportSize().width + '.png'), fullPage: true });
+    } else await page.locator('.answer-verdict.correct').waitFor();
+    const grade = page.getByRole('button', { name: /^できた/ });
+    if (doubleClick) await grade.dblclick(); else await grade.click();
+    await page.locator('.answer-panel').waitFor({ state: 'hidden' });
+  }
+  async function startUnit(page, unit) {
+    await page.goto(appUrl + '/units/' + unit.id);
+    assert.equal(await page.locator('[data-unit-id]').getAttribute('data-unit-status'), 'ready');
+    await page.getByRole('button', { name: '単元を練習する', exact: true }).click();
+    await page.getByRole('textbox', { name: '回答', exact: true }).waitFor();
+  }
+  for (const width of [390, 820]) for (const unit of units) {
+    setUnitFixtures(false); await resetLearning();
+    const context = await launchContext(path.join(workspace, 'profiles', unit.id + '-' + width), width);
+    try {
+      const page = context.pages()[0];
+      // Preserve a real pre-existing future SRS state through the entire unit.
+      await answer(page, unit.project);
+      await page.getByText('回答と評価を保存し、次回復習日を更新しました。', { exact: true }).waitFor();
+      const beforeSchedule = await schedules(); setUnitFixtures(true);
+      const before = await learningFingerprint();
+      await page.goto(appUrl + '/units');
+      assert.equal(await page.locator('.unit-list-card').count(), 3);
+      await page.goto(appUrl + '/units/' + unit.id);
+      assert.equal(await page.locator('[data-unit-id]').getAttribute('data-unit-status'), 'ready');
+      assert.deepEqual(await learningFingerprint(), before, 'Unit overview must be read-only');
+      if (width === 390) {
+        const crossOrigin = await page.request.post(appUrl + '/api/units/start', { data: {unitId:unit.id}, headers:{Origin:'https://unrelated.example'} });
+        assert.equal(crossOrigin.status(),403);
+        const unknown = await page.request.post(appUrl + '/api/units/start', { data:{unitId:'not-a-unit'},headers:{Origin:appUrl} });
+        assert.equal(unknown.status(),400); assert.deepEqual(await learningFingerprint(),before);
+      }
+      await page.getByRole('button', { name: '単元を練習する', exact: true }).click();
+      for (let i = 0; i < unit.answers.length; i++) {
+        await page.getByRole('textbox', { name: '回答', exact: true }).waitFor();
+        const rubric = await page.locator('textarea').count() > 0;
+        await page.getByRole('textbox', { name: '回答', exact: true }).fill(unit.answers[i]);
+        if (rubric) await page.screenshot({ path: path.join(workspace, `${unit.id}-explain-${width}.png`), fullPage: true });
+        await unitAnswer(page, unit.answers[i], rubric);
+        if (rubric) {
+          const stored = (await pool.query('select grading_status,is_correct,self_evaluation,raw_answer from private.exercise_attempts order by submitted_at desc limit 1')).rows[0];
+          assert.equal(stored.grading_status,'ungraded'); assert.equal(stored.is_correct,null);
+          assert.equal(stored.self_evaluation,'good'); assert.equal(stored.raw_answer,unit.answers[i]);
+        }
+      }
+      await page.getByText('回答と自己評価を保存しました。単元練習は復習予定を変更しません。', {exact:true}).waitFor();
+      assert.equal(await page.locator('.unit-result-list li').count(), unit.answers.length);
+      assert.deepEqual(await schedules(),beforeSchedule,'Practice must not move an existing SRS state');
+      const attempts=(await pool.query('select * from private.exercise_attempts')).rows;
+      assert.equal(attempts.length,unit.answers.length+1);
+      assert.equal(attempts.filter(a=>a.srs_applied).length,1);
+      assert.ok(attempts.filter(a=>!a.srs_applied).every(a=>a.receipt.reason==='practice-only'));
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await page.screenshot({path:path.join(workspace,`${unit.id}-complete-${width}.png`),fullPage:true});
+      const beforeReload=await learningFingerprint(); await page.reload();
+      await page.getByRole('button',{name:'前回の結果を見る',exact:true}).click();
+      await page.getByText('回答と自己評価を保存しました。単元練習は復習予定を変更しません。',{exact:true}).waitFor();
+      assert.deepEqual(await learningFingerprint(),beforeReload,'Viewing a completed run must not issue or save again');
+      console.log(`PASS ${unit.id} ${width}px: complete unit, paraphrases self-evaluated, history saved, existing schedule preserved, result restored`);
+    } finally {setUnitFixtures(false); await context.close();}
+  }
+  for (const unit of units) for (const failure of ['before-send','after-acceptance']) {
+    await resetLearning(); setUnitFixtures(true);
+    const profile=path.join(workspace,'profiles',unit.id+'-resume-'+failure);
+    let context=await launchContext(profile), captured;
+    try {
+      let page=context.pages()[0]; await startUnit(page,unit);
+      // Save a prefix so a restart must restore actual position, not start again.
+      await unitAnswer(page,unit.answers[0]); await unitAnswer(page,unit.answers[1]);
+      let interrupted=false;
+      await context.route('**/api/review/pilot/**',async route=>{
+        if(new URL(route.request().url()).pathname==='/api/review/pilot/attempt'&&!interrupted) {
+          captured=route.request().postDataJSON();
+          if(failure==='after-acceptance')assert.equal((await route.fetch()).status(),200);
+          interrupted=true;
+        }
+        await route.abort('internetdisconnected');
+      });
+      await unitAnswer(page,unit.answers[2],false,failure==='before-send');
+      await eventually(async()=>{assert.equal(interrupted,true);assert.equal((await outbox(page)).length,3);},'Unit answer not durably retained');
+      assert.equal((await pool.query('select count(*)::int as count from private.exercise_attempts')).rows[0].count,failure==='before-send'?2:3);
+      await context.close();context=await launchContext(profile);page=context.pages()[0];
+      await page.goto(appUrl+'/units/'+unit.id);
+      await page.getByRole('button',{name:'途中から再開（3 / '+unit.answers.length+'問）',exact:true}).click();
+      await eventually(async()=>{assert.equal((await pool.query('select count(*)::int as count from private.exercise_attempts')).rows[0].count,3);const entries=await outbox(page);assert.ok(entries.every(e=>/^accepted-/.test(e.record.status)));},'Unit restart did not flush original attempt');
+      assert.equal(await page.locator('.review-progress-row > div > span').innerText(),'4 / '+unit.answers.length);
+      if(unit.project.id==='philosophy')assert.equal(await page.locator('textarea').count(),1);
+      const replay=await page.request.post(appUrl+'/api/review/pilot/attempt',{data:captured,headers:{Origin:appUrl}});
+      assert.equal(replay.status(),200);
+      assert.equal((await pool.query('select count(*)::int as count from private.exercise_attempts')).rows[0].count,3);
+      for(let i=3;i<unit.answers.length;i++)await unitAnswer(page,unit.answers[i],await page.locator('textarea').count()>0);
+      await page.getByText('回答と自己評価を保存しました。単元練習は復習予定を変更しません。',{exact:true}).waitFor();
+      assert.equal((await pool.query('select count(*)::int as count from private.exercise_attempts')).rows[0].count,unit.answers.length);
+      assert.equal((await schedules()).length,0);
+      console.log(`PASS ${unit.id}: ${failure}, restart resumes question 4, immutable replay adds no history or SRS`);
+    } finally {setUnitFixtures(false);await context.close();}
+  }
+  await resetLearning();setUnitFixtures(true);
+  {
+    const context=await launchContext(path.join(workspace,'profiles','unit-start-retry'));
+    try {
+      const page=context.pages()[0], unit=units[0],before=await learningFingerprint();
+      await page.goto(appUrl+'/units/'+unit.id);
+      let failed=false;
+      await context.route('**/api/units/start',route=>{failed=true;return route.fulfill({status:503,contentType:'application/json',body:'{"error":"temporary_failure"}'});});
+      await page.getByRole('button',{name:'単元を練習する',exact:true}).click();
+      await page.locator('.unit-overview [role="alert"]').waitFor();assert.equal(failed,true);
+      assert.deepEqual(await learningFingerprint(),before);
+      await context.unroute('**/api/units/start');
+      await page.getByRole('button',{name:'単元を練習する',exact:true}).click();
+      await page.getByRole('textbox',{name:'回答',exact:true}).waitFor();
+      console.log('PASS unit start failure: no writes, clear error, same button retries successfully');
+    } finally {setUnitFixtures(false);await context.close();}
+  }
+
   for (const mode of ['subjects-off', 'v2-off']) {
     await resetLearning(); await stopApp();
     const flags = { ...env,
@@ -363,7 +494,7 @@ try {
   }
   assert.ok(fixtureRequests > 0, 'App did not read fixed Notion Scope');
   passed = true;
-  console.log('PASS 24 browser scenarios (15 save/recovery + 9 entry/schedule/flags); no hosted credentials or production database used');
+  console.log('PASS 37 browser scenarios (24 review + 6 complete units + 6 unit restart/recovery + 1 start retry); no hosted credentials or production database used');
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);

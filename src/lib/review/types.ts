@@ -1,3 +1,5 @@
+import type { ExplanationRubric } from "./exercises/types";
+
 export type ReviewItemKind = "character" | "mistake" | "knowledge";
 
 export type TextAnswerSpec = {
@@ -12,7 +14,13 @@ export type ChoiceAnswerSpec = {
   correctOptionId: string;
 };
 
-export type ReviewAnswerSpec = TextAnswerSpec | ChoiceAnswerSpec;
+export type SelfEvaluationAnswerSpec = {
+  type: "self-evaluation";
+  rubric: ExplanationRubric;
+  placeholder?: string;
+};
+
+export type ReviewAnswerSpec = TextAnswerSpec | ChoiceAnswerSpec | SelfEvaluationAnswerSpec;
 
 export type ReviewAssetRegion = {
   x: number;
@@ -66,6 +74,9 @@ export type ReviewSessionContext = {
   projectTitle: string;
   projectHref: string;
   mode: ReviewSessionMode;
+  unitId?: string;
+  unitTitle?: string;
+  practiceOnly?: boolean;
   historyHref?: string;
   emptyReason?: "scope-unavailable" | "no-eligible-exercise";
 };

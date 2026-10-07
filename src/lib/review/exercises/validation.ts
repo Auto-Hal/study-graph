@@ -42,10 +42,21 @@ export function validateExerciseDefinition(
     if (!value.trim()) errors.push(field + " is required");
   }
 
-  if (definition.answerSpec.type !== "text" || definition.answerSpec.acceptedAnswers.length === 0) {
+  const rubric = definition.explanation.rubric;
+  const selfEvaluated = definition.gradingSpec.strategyId === "rubric-self-evaluation-v1";
+  if (definition.answerSpec.type !== "text" || (!selfEvaluated && definition.answerSpec.acceptedAnswers.length === 0)) {
     errors.push("a non-empty text answerSpec is required");
   }
-  if (definition.gradingSpec.strategyId !== "legacy-text-v1" || definition.gradingSpec.strategyVersion !== 1) {
+  if (selfEvaluated) {
+    if (definition.answerSpec.acceptedAnswers.length !== 0) errors.push("rubric must not use exact-match answers");
+    if (!rubric || typeof rubric.modelAnswer !== "string" || !rubric.modelAnswer.trim()
+      || ![rubric.requiredPoints, rubric.allowedParaphrases, rubric.majorMisconceptions].every((list) =>
+        Array.isArray(list) && list.length > 0 && list.every((point) => typeof point === "string" && point.trim()))) {
+      errors.push("a complete self-evaluation rubric is required");
+    }
+  } else if (rubric !== undefined) errors.push("rubric requires the self-evaluation strategy");
+  if (!["legacy-text-v1", "rubric-self-evaluation-v1"].includes(definition.gradingSpec.strategyId)
+    || definition.gradingSpec.strategyVersion !== 1 || definition.gradingSpec.normalization !== "review-session-ja-v1") {
     errors.push("unsupported grading strategy");
   }
   if (definition.origin !== "curated") errors.push("pilot must be curated");

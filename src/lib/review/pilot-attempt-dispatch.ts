@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { ExerciseAttemptRequest } from "./exercises/attempt.ts";
+import { isUnitInstance } from "./units/core.ts";
+import { submitUnitAttempt } from "./units/runtime.ts";
 import { getPhilosophyObjectiveByExerciseId } from "./philosophy-objective-registry.ts";
 import { ObjectiveRuntimeError, objectiveRuntimeFailure } from "./objective-runtime-core.ts";
 import { recoverAcceptedPilotAttempt, submitKuzushijiPilotAttempt } from "./pilot-runtime.ts";
@@ -24,6 +26,9 @@ export async function submitVersionedPilotAttempt(request: ExerciseAttemptReques
     if (!persisted) throw new PilotRpcError("instance_not_found", 404, "instance_not_found");
     if (persisted.instance_id !== recovered.immutableRequest.instanceId || persisted.learner_id !== learnerId) {
       throw new PilotRpcError("pilot_instance_mismatch", 409, "pilot_instance_mismatch");
+    }
+    if (isUnitInstance(persisted)) {
+      return await submitUnitAttempt(recovered.immutableRequest, persisted);
     }
     if (persisted.project_id === "kuzushiji") {
       return await submitKuzushijiPilotAttempt(recovered.immutableRequest);

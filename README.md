@@ -4,7 +4,7 @@ Notionを知識の正本として使い、毎日の学習・復習・弱点管�
 
 ## 現在の状態（2026-10-07）
 
-main は Phase 5A-4a まで実装されています。3科目の workspace / Graph、snapshot 表示、Objective ごとの出題・回答・SRS、限定的なオフライン復習を備えています。保存・復旧の修正はPR #128（main `f308577`）で本番反映済みです。3科目の今日・復習入口については [入口の仕様と検証](docs/REVIEW_ENTRY.md) を参照してください。
+Phase 5A-4a の保存基盤に、3科目各1単元の練習（くずし字6問、美術史7問、哲学史6問）を追加しています。単元は `/units` から開始でき、説明問題は言い換えを許容する基準と見本を読んで自己評価します。内容・出典・保存と再開の範囲は [単元の仕様](docs/STUDY_UNITS.md) を参照してください。3科目の workspace / Graph、snapshot 表示、Objective ごとの出題・回答・SRS、限定的なオフライン復習を備えています。保存・復旧の修正はPR #128（main `f308577`）で本番反映済みです。3科目の今日・復習入口については [入口の仕様と検証](docs/REVIEW_ENTRY.md) を参照してください。
 
 開発状況・優先順位・今回の検証結果は [開発計画](docs/DEVELOPMENT_PLAN.md)、起動・資格情報・Windows 環境の手順は [セットアップ](docs/DEVELOPMENT_SETUP.md) を参照してください。
 
@@ -78,6 +78,8 @@ OpenAI APIは現在使用していません。基本機能はAIなしで成立�
 - `/` — Home
 - `/projects` — Project Registry / 学習プロジェクト
 - `/projects/kuzushiji` — くずし字Project
+- `/units` — 3科目の単元練習、同じ端末での再開と直近の結果
+- `/units/[unitId]` — 単元の概要・開始・再開
 - `/review` — 3科目の復習・未学習・次回予定
 - `/review/session?project=kuzushiji` — くずし字の復習
 - `/review/session?project=western-art-history` — 西洋美術史の復習・練習

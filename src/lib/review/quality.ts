@@ -38,6 +38,17 @@ export function evaluateReviewCardQuality(
     return { status: "pass", reasonCodes: [] };
   }
 
+  if (card.answer.type === "self-evaluation") {
+    const rubric = card.answer.rubric;
+    if (!rubric || !normalize(rubric.modelAnswer)
+      || ![rubric.requiredPoints, rubric.allowedParaphrases, rubric.majorMisconceptions].every((points) =>
+        Array.isArray(points) && points.length > 0 && points.every((point) => normalize(point)))) {
+      return reject("incomplete-rubric");
+    }
+    if (visible.includes(normalize(rubric.modelAnswer))) return reject("answer-visible");
+    return { status: "pass", reasonCodes: [] };
+  }
+
   const choice = card.answer;
   if (choice.options.length !== 4) return reject("distractor-insufficient");
   const optionIds = choice.options.map((option) => normalize(option.id));

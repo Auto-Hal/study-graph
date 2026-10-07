@@ -12,6 +12,7 @@ import "./graph-philosophy.css";
 import "./graph-learning.css";
 import "./phase5.css";
 import "./phase5-review-session.css";
+import "./study-units.css";
 import OfflineShellRegistration from "@/src/components/OfflineShellRegistration";
 
 export const metadata: Metadata = {

@@ -119,6 +119,9 @@ export function gradeExerciseRevision(
   answer: JsonValue,
 ): ExerciseGradingResult {
   const strategy = revision.gradingSpec;
+  // Rubric practice records a human self-evaluation; neither wording nor
+  // keywords establish server correctness. Keep the nullable receipt contract.
+  if (strategy.strategyId === "rubric-self-evaluation-v1") return ungradedResult(revision);
   if (
     strategy.strategyId !== LEGACY_TEXT_GRADING.strategyId
     || strategy.strategyVersion !== LEGACY_TEXT_GRADING.strategyVersion

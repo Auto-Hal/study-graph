@@ -61,3 +61,5 @@ pwsh -NoProfile -File scripts/test-db-local.ps1 -Suite backup -BackupFile .tools
 自動テストは資格情報の混入・schema drift・ファイル改変・リモート復元先の拒否を確認する。実DBの固定教材でも16テーブルすべてにデータを作り、復元後に同じReceipt、予定、回答再送、オフライン要求再送が復元前と一致すること、履歴IDが2^53を超えても保たれること、依存行の欠損が全体rollbackになることを確認する。CIに個人のバックアップは渡さない。
 
 Supabase全体のバックアップや `pg_dump` は拡張時の選択肢として残す。[Supabase公式](https://supabase.com/docs/guides/platform/backups)、[PostgreSQL公式](https://www.postgresql.org/docs/17/backup-dump.html)も参照。今回、有料機能や追加サービスは導入していない。
+
+3科目の単元練習も既存の問題archive・instance・attempt・Receiptに保存されるため、サーバー保存済みの回答は16テーブルの対象に含まれる。単元の問題の組と再開位置はブラウザのIndexedDBにあるため、このバックアップから端末の「途中から再開」を復元することはできない。通信断で未同期の回答を含め、端末内の保存領域を消さない。

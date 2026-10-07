@@ -40,6 +40,24 @@ function textCard(overrides: { answer?: ReviewCard["answer"]; front?: string; pr
   };
 }
 
+test("quality accepts a complete self-evaluation rubric and rejects a revealed model answer", () => {
+  const card: ReviewCard = { ...textCard(), answer: { type: "self-evaluation", rubric: {
+    modelAnswer: "世界の共通原理を自然の側から説明しようとした。",
+    requiredPoints: ["共通原理の問い"], allowedParaphrases: ["自然の中に原因を求める"],
+    majorMisconceptions: ["現代科学の証明だと考える"],
+  } } };
+  assert.equal(evaluateReviewCardQuality(card, graph(), new Set(["term-1"])).status, "pass");
+  const visible: ReviewCard = { ...card, front: card.answer.type === "self-evaluation" ? card.answer.rubric.modelAnswer : "" };
+  assert.deepEqual(evaluateReviewCardQuality(visible, graph(), new Set(["term-1"])), { status: "reject", reasonCodes: ["answer-visible"] });
+});
+
+test("quality rejects explanation practice without all evaluation viewpoints", () => {
+  const card: ReviewCard = { ...textCard(), answer: { type: "self-evaluation", rubric: {
+    modelAnswer: "説明の一例", requiredPoints: ["必要な要点"], allowedParaphrases: ["言い換え"], majorMisconceptions: [],
+  } } };
+  assert.deepEqual(evaluateReviewCardQuality(card, graph(), new Set(["term-1"])), { status: "reject", reasonCodes: ["incomplete-rubric"] });
+});
+
 test("quality rejects visible self-answer and missing visual asset", () => {
   const selfAnswer = evaluateReviewCardQuality(
     textCard({ front: "正答" }),
