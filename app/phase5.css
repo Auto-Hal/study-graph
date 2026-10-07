@@ -728,3 +728,10 @@ body:has(.phase5-shell), body:has(.phase5-session-shell) {
   .phase5-progress-time { font-size: 11px; }
   .phase5-progress-copy strong { font-size: 13px; }
 }
+
+/* Equal subject entries; each streams independently of the other sources. */
+.phase5-review-entry-list { display: grid; gap: 14px; }
+.phase5-review-entry { padding: 22px; border: 1px solid var(--p5-line); border-radius: 16px; background: var(--p5-surface); min-width: 0; }
+.phase5-review-entry h3 { margin: 0 0 12px; font-size: 1.2rem; }
+.phase5-review-entry-counts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 12px; }
+.phase5-review-entry-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-top: 18px; }

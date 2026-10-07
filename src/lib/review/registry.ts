@@ -1,11 +1,9 @@
 import "server-only";
 
-import type { GraphNode } from "@/src/lib/graph/types";
 import { getKuzushijiDashboard, type ReviewItem } from "@/src/lib/notion/kuzushiji";
 import { defaultStudyProjectId, getActiveStudyProjects, getStudyProject, type StudyProjectDefinition } from "@/src/lib/projects/registry";
 import { reviewAssetProvider } from "@/src/lib/review/assets/manifest";
 import { attachReviewAssets } from "@/src/lib/review/assets/provider";
-import { createDomainExercise } from "@/src/lib/review/domain-exercises";
 import { createKuzushijiPilotReviewCard } from "@/src/lib/review/exercises/kuzushiji-adapter";
 import { isPilotIssuanceEnabled } from "@/src/lib/review/pilot-operations";
 import { isKuzushijiPilotDefinition, issueKuzushijiPilotReview } from "@/src/lib/review/pilot-runtime";
@@ -14,11 +12,12 @@ import { philosophyObjectiveScopeSubjectIds } from "@/src/lib/review/philosophy-
 import { isPhilosophyPilotIssuanceEnabled, issuePhilosophyObjectiveCards } from "@/src/lib/review/philosophy-pilot-runtime";
 import { westernArtObjectiveScopeSubjectIds } from "@/src/lib/review/western-art-objective-registry";
 import { isWesternArtPilotIssuanceEnabled, issueWesternArtObjectiveCards } from "@/src/lib/review/western-art-pilot-runtime";
-import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot, eligibleNodeIds } from "@/src/lib/review/scope";
+import { buildGraphScopeSnapshot, buildKuzushijiScopeSnapshot } from "@/src/lib/review/scope";
 import type { ReviewCard, ReviewPersistenceMode, ReviewSessionContext } from "@/src/lib/review/types";
 import { getReviewStates, isReviewPersistenceConfigured, type ReviewState } from "@/src/lib/supabase/review";
 import { getKuzushijiPilotObjectiveState, getPilotRuntimeConfig } from "@/src/lib/supabase/pilot";
 import { loadReviewGraphPracticeSource } from "./graph-practice-source";
+import { kuzushijiVisualCandidates, graphLegacyCandidates } from "./candidates";
 
 export type ReviewProjectPayload = {
   project: StudyProjectDefinition;
@@ -32,15 +31,7 @@ export type ReviewProjectPayload = {
 async function loadKuzushijiReview(project: StudyProjectDefinition): Promise<ReviewProjectPayload> {
   const data = await getKuzushijiDashboard();
   const scope = buildKuzushijiScopeSnapshot(data);
-  const visualCandidates = data.reviewQueue.filter((item) => {
-    if (item.kind !== "character") return false;
-    const character = data.characters.find((candidate) => candidate.id === item.id);
-    return Boolean(
-      character &&
-      scope.decisions[character.id]?.status === "eligible" &&
-      createKuzushijiPilotReviewCard(project, character, item),
-    );
-  });
+  const visualCandidates = kuzushijiVisualCandidates(project, data, scope);
 
   // Phase 4D-4: this pilot no longer consults legacy review_state for queue
   // authority. No Objective state means the approved no-seed cutover is unseen;
@@ -140,16 +131,11 @@ export async function loadGraphPractice(
 ): Promise<ReviewProjectPayload> {
   const graph = await (dependencies.loadGraph ?? loadReviewGraphPracticeSource)(project.id as "philosophy" | "western-art-history");
   const scope = buildGraphScopeSnapshot(project.id as "philosophy" | "western-art-history", graph);
-  const eligibleIds = eligibleNodeIds(scope);
-  const eligibleKinds = new Set(project.review.eligibleKinds);
   const philosophyPilotOn = project.id === "philosophy" && isPhilosophyPilotIssuanceEnabled();
   const westernArtPilotOn = project.id === "western-art-history" && isWesternArtPilotIssuanceEnabled();
-  const legacyEligibleIds = new Set(eligibleIds);
-  if (philosophyPilotOn) for (const id of philosophyObjectiveScopeSubjectIds) legacyEligibleIds.delete(id);
-  if (westernArtPilotOn) for (const id of westernArtObjectiveScopeSubjectIds) legacyEligibleIds.delete(id);
-  // Once selected for Objective authority, these terms never fall back to the
-  // legacy queue, including when issuance is not due or temporarily fails.
-  const eligibleNodes = graph.nodes.filter((node) => eligibleKinds.has(node.kind) && legacyEligibleIds.has(node.id));
+  // Selected Objective subjects never return to the legacy queue.
+  const excludedIds = philosophyPilotOn ? philosophyObjectiveScopeSubjectIds
+    : westernArtPilotOn ? westernArtObjectiveScopeSubjectIds : [];
   let persistence: ReviewPersistenceMode = "fallback";
   let states: ReviewState[] = [];
 
@@ -162,20 +148,11 @@ export async function loadGraphPractice(
     }
   }
 
-  const statesById = new Map(states.map((state) => [state.item_id, state]));
   const now = Date.now();
-  const dueTracked = eligibleNodes
-    .map((node) => ({ node, state: statesById.get(node.id) }))
-    .filter((entry): entry is { node: GraphNode; state: ReviewState } => Boolean(entry.state) && new Date(entry.state!.due_at).getTime() <= now)
-    .sort((a, b) => new Date(a.state.due_at).getTime() - new Date(b.state.due_at).getTime());
-  const unseen = eligibleNodes.filter((node) => !statesById.has(node.id));
-  const selected = persistence === "supabase"
-    ? [...dueTracked.map((entry) => ({ node: entry.node, state: entry.state })), ...unseen.map((node) => ({ node, state: undefined }))]
-    : eligibleNodes.map((node) => ({ node, state: undefined }));
-
-  const legacyCards = selected
-    .map(({ node, state }) => createDomainExercise(project, graph, node, state, legacyEligibleIds))
-    .filter((card): card is ReviewCard => Boolean(card))
+  const legacyCards = graphLegacyCandidates({ project, graph, scope, excludedIds,
+    states, persisted: persistence === "supabase" })
+    .filter(({ state }) => !state || Date.parse(state.due_at) <= now)
+    .map(({ card }) => card)
     .slice(0, project.review.sessionSize);
   let philosophyCards: ReviewCard[] = [];
   if (philosophyPilotOn && graph.mode === "notion" && scope.sourceState === "ready") {

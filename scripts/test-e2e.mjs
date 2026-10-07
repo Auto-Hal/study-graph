@@ -35,6 +35,7 @@ const appRoot = path.join(workspace, 'app');
 const logPath = path.join(workspace, 'next.log');
 let pool, server, next, log, databaseCreated = false, passed = false;
 let fixtureRequests = 0;
+let scheduleReadFailure = false, scopeReadFailure = false;
 
 function safeProcessEnv() {
   const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR', 'HOME', 'USERPROFILE',
@@ -153,6 +154,33 @@ async function checkSaved(project) {
   assert.equal(applications.rows[0].count, 1, 'Retries must not advance the schedule twice');
   return attempts[0];
 }
+async function learningFingerprint() {
+  const tables = (await pool.query("select tablename from pg_tables where schemaname='private' order by tablename")).rows;
+  const rows = [];
+  for (const { tablename } of tables) {
+    assert.match(tablename, /^[a-z][a-z0-9_]+$/);
+    rows.push((await pool.query(`select md5(coalesce(string_agg(row_to_json(r)::text,'' order by row_to_json(r)::text),'')) as hash from private.${tablename} r`)).rows[0].hash);
+  }
+  return rows;
+}
+async function checkEntry(page, project, due, unseen) {
+  const entry = page.locator(`[data-review-project="${project.id}"]`);
+  await entry.waitFor();
+  assert.equal(await entry.getAttribute('data-review-status'), 'ready');
+  assert.equal(await entry.locator('.phase5-review-entry-counts').innerText(), `復習 ${due}問\n未学習 ${unseen}問`);
+  return entry;
+}
+async function stopApp() {
+  if (!next || next.exitCode !== null) return;
+  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(next.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+  else { try { process.kill(-next.pid, 'SIGTERM'); } catch {} }
+  await Promise.race([new Promise((resolve) => { if (next.exitCode !== null) resolve(); else next.once('exit', resolve); }), new Promise((resolve) => setTimeout(resolve, 5000))]);
+}
+async function startApp(env) {
+  next = spawn(process.execPath, [path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next'), 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', new URL(appUrl).port],
+    { cwd: appRoot, env, stdio: ['ignore', log.fd, log.fd], windowsHide: true, detached: process.platform !== 'win32' });
+  await eventually(async () => { assert.equal(next.exitCode, null); assert.equal((await fetch(appUrl + '/review')).status, 200); }, 'Isolated app did not start', 120_000);
+}
 async function answer(page, project, doubleClick = false) {
   await page.goto(appUrl + '/review');
   await page.locator(`a[href="/review/session?project=${project.id}"]`).last().click();
@@ -179,8 +207,8 @@ try {
       let payload = ''; for await (const chunk of request) payload += chunk;
       const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
       let result;
-      if (pathname.startsWith('/notion/')) { fixtureRequests++; result = notionResponse(pathname); }
-      else if (request.method === 'POST' && pathname.startsWith('/rest/v1/rpc/')) result = await rpc(pathname.split('/').at(-1), JSON.parse(payload), request.headers.apikey);
+      if (pathname.startsWith('/notion/')) { fixtureRequests++; if (scopeReadFailure) throw new Error('Fixture scope unavailable'); result = notionResponse(pathname); }
+      else if (request.method === 'POST' && pathname.startsWith('/rest/v1/rpc/')) { if (scheduleReadFailure && pathname.endsWith('/study_graph_objective_review_schedule')) throw new Error('Fixture schedule unavailable'); result = await rpc(pathname.split('/').at(-1), JSON.parse(payload), request.headers.apikey); }
       else throw new Error('Unsupported fixture endpoint');
       response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(result));
     } catch (error) {
@@ -211,10 +239,37 @@ try {
     NEXT_PUBLIC_STUDY_GRAPH_OFFLINE_SHELL_ENABLED: 'false', STUDY_GRAPH_E2E_FIXTURE_URL: fixtureUrl, STUDY_GRAPH_E2E_APP_URL: appUrl,
     NODE_OPTIONS: '--require=' + JSON.stringify(path.join(root, 'scripts', 'e2e', 'network-guard.cjs')) });
   log = await fs.open(logPath, 'w');
-  next = spawn(process.execPath, [path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next'), 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', new URL(appUrl).port],
-    { cwd: appRoot, env, stdio: ['ignore', log.fd, log.fd], windowsHide: true, detached: process.platform !== 'win32' });
-  await eventually(async () => { assert.equal(next.exitCode, null); assert.equal((await fetch(appUrl + '/review')).status, 200); }, 'Isolated app did not start', 120_000);
+  await startApp(env);
   console.log('PASS isolated app + exact migrations + localhost RPC transport ready');
+  for (const width of [390, 820]) {
+    const context = await launchContext(path.join(workspace, 'profiles', 'entry-' + width), width);
+    try {
+      const page = context.pages()[0], before = await learningFingerprint();
+      for (const route of ['/', '/review']) {
+        await page.goto(appUrl + route);
+        for (const project of projects) await checkEntry(page, project, 0, 1);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+        assert.deepEqual(await learningFingerprint(), before, 'Entry must not create archives/instances/answers or update schedules');
+      }
+      await page.screenshot({ path: path.join(workspace, 'review-entry-' + width + '.png'), fullPage: true });
+      console.log(`PASS entry ${width}px: three equal unseen counts, both routes read-only`);
+    } finally { await context.close(); }
+  }
+  for (const failure of ['schedule', 'scope']) {
+    const context = await launchContext(path.join(workspace, 'profiles', 'entry-failure-' + failure));
+    try {
+      const before = await learningFingerprint();
+      scheduleReadFailure = failure === 'schedule'; scopeReadFailure = failure === 'scope';
+      const page = context.pages()[0]; await page.goto(appUrl + '/review');
+      for (const project of projects) {
+        const entry = page.locator(`[data-review-project="${project.id}"]`); await entry.waitFor();
+        assert.equal(await entry.getAttribute('data-review-status'), 'unavailable');
+        assert.equal(await entry.locator('.phase5-review-entry-counts').count(), 0);
+      }
+      assert.deepEqual(await learningFingerprint(), before);
+      console.log(`PASS entry ${failure} failure: unknown remains unknown for three subjects`);
+    } finally { scheduleReadFailure = false; scopeReadFailure = false; await context.close(); }
+  }
   for (const width of [390, 820]) for (const project of projects) {
     await resetLearning();
     const context = await launchContext(path.join(workspace, 'profiles', project.id + '-' + width), width);
@@ -229,6 +284,23 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Horizontal overflow');
       await page.screenshot({ path: path.join(workspace, `${project.id}-${width}.png`), fullPage: true });
       console.log(`PASS ${project.id} ${width}px: answer → API → PostgreSQL → receipt + next date`);
+      if (width === 390) {
+        let before = await learningFingerprint();
+        await page.goto(appUrl + '/');
+        const entry = await checkEntry(page, project, 0, 0);
+        assert.ok((await entry.innerText()).includes('次回の復習 ' + expectedDate));
+        assert.equal(await entry.locator('a[href^="/review/session"]').count(), 0);
+        assert.deepEqual(await learningFingerprint(), before);
+        // Make the real saved state due in the disposable DB; the API issuer,
+        // rather than the browser fixture, decides whether it can be issued.
+        await pool.query("update private.objective_review_state set due_at=now()-interval '1 minute'");
+        before = await learningFingerprint();
+        await page.goto(appUrl + '/review'); await checkEntry(page, project, 1, 0);
+        assert.deepEqual(await learningFingerprint(), before);
+        await page.locator(`[data-review-project="${project.id}"] a[href^="/review/session"]`).click();
+        await page.getByRole('textbox', { name: '回答', exact: true }).waitFor();
+        console.log(`PASS ${project.id}: saved future → next date; due → one actual issued question`);
+      }
     } finally { await context.close(); }
   }
   for (const project of projects) for (const failure of ['double-click', 'before-send', 'after-acceptance']) {
@@ -268,19 +340,36 @@ try {
       console.log(`PASS ${project.id}: ${failure}, one history entry and one SRS application`);
     } finally { await context.close(); }
   }
+  for (const mode of ['subjects-off', 'v2-off']) {
+    await resetLearning(); await stopApp();
+    const flags = { ...env,
+      STUDY_GRAPH_PILOT_ISSUANCE_ENABLED: mode === 'subjects-off' ? 'false' : 'true',
+      STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED: mode === 'subjects-off' ? 'false' : 'true',
+      STUDY_GRAPH_WESTERN_ART_HISTORY_PILOT_ISSUANCE_ENABLED: mode === 'subjects-off' ? 'false' : 'true',
+      STUDY_GRAPH_OBJECTIVE_V2_ISSUANCE_ENABLED: mode === 'v2-off' ? 'false' : 'true' };
+    await startApp(flags);
+    const context = await launchContext(path.join(workspace, 'profiles', 'entry-' + mode));
+    try {
+      const page = context.pages()[0], before = await learningFingerprint();
+      await page.goto(appUrl + '/review');
+      for (const project of projects) {
+        const entry = page.locator(`[data-review-project="${project.id}"]`); await entry.waitFor();
+        assert.equal(await entry.getAttribute('data-review-status'), mode === 'v2-off' || project.id === 'kuzushiji' ? 'paused' : 'ready');
+        assert.equal(await entry.locator('a[href^="/review/session"]').count(), 0);
+      }
+      assert.deepEqual(await learningFingerprint(), before);
+      console.log(`PASS entry ${mode}: disabled issuance is never advertised as available`);
+    } finally { await context.close(); }
+  }
   assert.ok(fixtureRequests > 0, 'App did not read fixed Notion Scope');
   passed = true;
-  console.log('PASS 15 browser scenarios; no hosted credentials or production database used');
+  console.log('PASS 24 browser scenarios (15 save/recovery + 9 entry/schedule/flags); no hosted credentials or production database used');
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);
   process.exitCode = 1;
 } finally {
-  if (next && next.exitCode === null) {
-    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(next.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
-    else { try { process.kill(-next.pid, 'SIGTERM'); } catch {} }
-    await Promise.race([new Promise((resolve) => { if (next.exitCode !== null) resolve(); else next.once('exit', resolve); }), new Promise((resolve) => setTimeout(resolve, 5000))]);
-  }
+  await stopApp();
   if (log) await log.close();
   if (server) { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }
   if (pool) await pool.end();

@@ -9,7 +9,7 @@ const runtime = read("src/lib/review/western-art-pilot-runtime.ts");
 const content = read("src/lib/review/exercises/western-art-cromlech.ts");
 
 test("Art Objective authority is selected before legacy scheduling", () => {
-  assert.ok(registry.indexOf("legacyEligibleIds.delete(id)") < registry.indexOf("const dueTracked ="));
+  assert.ok(registry.indexOf("const excludedIds =") < registry.indexOf("const legacyCards = graphLegacyCandidates"));
   assert.match(registry, /\.\.\.philosophyCards, \.\.\.legacyCards/);
   assert.match(registry, /\.\.\.westernArtCards, \.\.\.legacyCards/);
   assert.match(registry, /\.slice\(0, project\.review\.sessionSize\)/);
@@ -24,8 +24,8 @@ test("Receipt-first recovery precedes persisted project dispatch", () => {
   assert.doesNotMatch(dispatch, /request\.projectId|body\.projectId/);
 });
 
-test("migration and durable offline protocol inventories are unchanged", () => {
-  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 22);
+test("migration inventory adds only the reader; durable offline protocols are unchanged", () => {
+  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 23);
   assert.match(read("src/lib/review/offline/attempt-outbox.ts"), /ATTEMPT_OUTBOX_DB_VERSION = 1/);
   assert.match(read("src/lib/review/offline/model-core.ts"), /OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1/);
   assert.doesNotMatch(runtime, /p_srs_plan|study_graph_record_review/);

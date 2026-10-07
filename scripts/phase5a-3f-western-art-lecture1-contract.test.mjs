@@ -20,8 +20,8 @@ test("Lecture 1 uses real Notion sources and only the three approved text Object
 });
 
 test("the seven registered subjects are excluded before legacy selection and issued independently", () => {
-  assert.ok(registry.indexOf("westernArtObjectiveScopeSubjectIds") < registry.indexOf("const dueTracked ="));
-  assert.ok(registry.indexOf("legacyEligibleIds.delete(id)") < registry.indexOf("const dueTracked ="));
+  assert.ok(registry.indexOf("westernArtObjectiveScopeSubjectIds") < registry.indexOf("const legacyCards = graphLegacyCandidates"));
+  assert.ok(registry.indexOf("const excludedIds =") < registry.indexOf("const legacyCards = graphLegacyCandidates"));
   assert.match(registry, /\.\.\.westernArtCards, \.\.\.legacyCards/);
   assert.match(registry, /\.slice\(0, project\.review\.sessionSize\)/);
   assert.match(runtime, /for \(const entry of westernArtObjectiveRegistry\)/);
@@ -30,12 +30,12 @@ test("the seven registered subjects are excluded before legacy selection and iss
   assert.match(trusted, /westernArtObjectiveRegistry\.find\(\(entry\) => entry\.exerciseId === exerciseId\)/);
 });
 
-test("receipt recovery precedes persisted project dispatch; offline and migrations are unchanged", () => {
+test("receipt recovery and offline protocols are unchanged with the additive schedule reader", () => {
   assert.ok(dispatcher.indexOf("recoverAcceptedPilotAttempt(request)") < dispatcher.indexOf("resolveObjectiveInstanceArchive("));
   assert.match(dispatcher, /getWesternArtObjectiveByExerciseId\(persisted\.exercise_id\)/);
   assert.doesNotMatch(dispatcher, /request\.projectId|body\.projectId/);
   assert.doesNotMatch(runtime, /study_graph_record_review|p_srs_plan/);
-  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 22);
+  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 23);
   assert.match(read("src/lib/review/offline/attempt-outbox.ts"), /ATTEMPT_OUTBOX_DB_VERSION = 1/);
   assert.match(read("src/lib/review/offline/model-core.ts"), /OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1/);
 });

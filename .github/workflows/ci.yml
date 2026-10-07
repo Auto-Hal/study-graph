@@ -163,6 +163,12 @@ jobs:
           STUDY_GRAPH_TEST_DATABASE_URL: postgresql://postgres:isolated-test-only@127.0.0.1:5432/postgres
         run: npm run test:phase5a-4a:db
 
+      - name: Three-subject schedule read boundary on isolated PostgreSQL
+        env:
+          STUDY_GRAPH_ISOLATED_DB: "1"
+          STUDY_GRAPH_TEST_DATABASE_URL: postgresql://postgres:isolated-test-only@127.0.0.1:5432/postgres
+        run: node scripts/review-schedule-read-db.test.mjs
+
       - name: TypeScript noEmit
         run: npm run typecheck
 

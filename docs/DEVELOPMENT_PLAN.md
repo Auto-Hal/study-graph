@@ -2,6 +2,18 @@
 
 > 2026-10-07 の合意により、今後の開発順序・到達条件は [次の開発サイクル](NEXT_DEVELOPMENT_CYCLE.md) を優先する。以下の P0–P4 は当初計画の記録。ブラウザ検証の実行方法と対象は [BROWSER_E2E.md](BROWSER_E2E.md) を参照。
 
+## 2026-10-07: 本番反映と3科目の復習入口
+
+保存・復旧の修正と環境整備は [PR #128](https://github.com/Auto-Hal/study-graph/pull/128) でmainへ取り込んだ。main `f308577bf6a9603c05382c9b3f245a8c6ed166d3`、Vercel `dpl_2hkXwArcT5N1pxtgBoVR9E1JaSMr` のREADYと本番alias割当を確認。GitHub CI run `37610492350` はbuild/browser-e2eとも成功。通常のTurbopack buildもCIで成功した。
+
+https://study-graph-five.vercel.app の /、/projects、/review、3科目のworkspaceはHTTP 200。これは画面の読み取り確認であり、本番への回答送信は実施していない。DB・Notion・出題flagはこの最初の反映では変更していない。
+
+続けて、3科目の復習・未学習・次回日時・取得不可・出題準備中を同じ構成で表示する入口を実装。出題と候補処理を共有し、Objectiveとlegacyの予定を分離した。予定の読取RPCを追加し、既存22 migration・writerは保持。現在の仕様・反映順・制約は [復習入口](REVIEW_ENTRY.md)。
+
+ローカル検証: 593 unit/contract、実PostgreSQL 5組、24ブラウザケース、型検査、隔離source copyのwebpack build、git diff --checkが成功。次のPRでCIと本番読取を確認してから反映する。
+
+以下の記録は初回のローカル検証時点の結果。
+
 ## 2026-10-07: 保存・復旧の最初の開発サイクル
 
 ### 今回追加・修正した内容

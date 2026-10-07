@@ -74,10 +74,10 @@ sql(`create database ${database};`, "postgres");
 try {
   sql(`do $$ begin if not exists(select from pg_roles where rolname='anon') then create role anon nologin; end if; if not exists(select from pg_roles where rolname='authenticated') then create role authenticated nologin; end if; if not exists(select from pg_roles where rolname='service_role') then create role service_role nologin bypassrls; end if; end $$; create schema extensions;`);
   const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((x) => x.endsWith(".sql")).sort();
-  assert.equal(files.length, 22);
+  assert.equal(files.length, 23);
   for (const file of files) sql(readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"));
   assert.equal(sql("show server_version;").split(".")[0], "17");
-  console.log("PASS migration 1-22 on isolated PostgreSQL 17");
+  console.log("PASS migration 1-23 on isolated PostgreSQL 17");
   sql(`insert into private.objective_definitions(project_id,objective_id,objective_version,canonicalization_version,canonical_payload,content_hash,payload) values ('kuzushiji',${q(objective)},1,1,${q(canonicalizeObjectiveDefinition(kuzushijiPilotObjectiveDefinition))},${q(hashObjectiveDefinition(kuzushijiPilotObjectiveDefinition))},${j(kuzushijiPilotObjectiveDefinition)});`);
   sql(archive(1, rev1) + archive(2, rev2));
   sql(`insert into private.scope_knowledge_snapshots(snapshot_id,project_id,generation,schema_version,source_read_started_at,source_read_completed_at,published_at,valid_until,scope_policy_version,knowledge_projection_version,source_evidence,scope_decisions,knowledge_projection,content_hash) values (${q(snapshotId)},'kuzushiji',1,1,now()-interval '2 minutes',now()-interval '1 minute',now()-interval '1 minute',now()+interval '1 day','policy','projection','{"paginationComplete":true,"relationCompleteness":true}',${j([{subjectId:KUZUSHIJI_PILOT_SCOPE_SUBJECT_ID,status:"eligible"}])},'{}',repeat('a',64)); insert into private.project_snapshot_sync_state(project_id,current_snapshot_id,current_generation,next_generation) values ('kuzushiji',${q(snapshotId)},1,2);`);

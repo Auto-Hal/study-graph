@@ -12,7 +12,7 @@ const session = read("src/components/ReviewSession.tsx");
 test("Philosophy activation is a separate exact-true server flag; legacy target is excluded before selection", () => {
   assert.match(philosophy, /STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED/);
   assert.match(philosophy, /newObjectiveIssuanceVersion\(\) !== "v2"/);
-  assert.ok(registry.indexOf("legacyEligibleIds.delete(id)") < registry.indexOf("const dueTracked ="));
+  assert.ok(registry.indexOf("const excludedIds =") < registry.indexOf("const legacyCards = graphLegacyCandidates"));
   assert.match(philosophy, /objective_not_due/);
   assert.match(registry, /\.slice\(0, project\.review\.sessionSize\)/);
   assert.match(read(".env.example"), /^STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED=$/m);
@@ -38,8 +38,8 @@ test("ReviewSession uses existing durable Objective outbox and only Kuzushiji re
   assert.doesNotMatch(session, /STUDY_GRAPH_PHILOSOPHY_PILOT_ISSUANCE_ENABLED/);
 });
 
-test("this slice adds no database migration or offline protocol version", () => {
-  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 22);
+test("Objective writers and offline protocol stay unchanged with the additive schedule reader", () => {
+  assert.equal(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql")).length, 23);
   assert.match(read("src/lib/review/offline/attempt-outbox.ts"), /ATTEMPT_OUTBOX_DB_VERSION = 1/);
   assert.match(read("src/lib/review/offline/model-core.ts"), /OFFLINE_RECEIPT_DESCRIPTOR_VERSION = 1/);
   assert.doesNotMatch(philosophy, /recordKuzushijiPilotAttempt|recordKuzushijiObjectivePilotAttempt|p_srs_plan/);

@@ -118,7 +118,7 @@ test("environment and rollback documentation keep production issuance off", () =
 
 test("migration set keeps 1-20 unchanged and adds only the approved additive migrations", () => {
   const files = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((name) => name.endsWith(".sql"));
-  assert.equal(files.length, 22);
+  assert.equal(files.length, 23);
   for (const name of [
     "20260917021000_phase_5a_1b_objective_opportunity_rpc_foundation.sql",
     "20260918010500_phase_5a_1b_objective_issuer_lock_order.sql",
@@ -145,6 +145,7 @@ test("migration set keeps 1-20 unchanged and adds only the approved additive mig
     const expected = parentHasMigration20 ? [] : ["supabase/migrations/20260921100000_fix_pilot_archive_conflict_target.sql"];
     if (!parentHasMigration21) expected.push("supabase/migrations/20260922100000_phase_5a_3a_generic_objective_archive.sql");
     if (changedFiles.includes("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql")) expected.push("supabase/migrations/20260925120000_phase_5a_4a_atomic_offline_objective_v2.sql");
+    if (changedFiles.includes("supabase/migrations/20261007110253_review_schedule_read.sql")) expected.push("supabase/migrations/20261007110253_review_schedule_read.sql");
     assert.deepEqual(changedFiles.sort(), expected.sort());
   }
 });
