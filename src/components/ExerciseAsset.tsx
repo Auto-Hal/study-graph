@@ -21,6 +21,8 @@ function validRegion(region: ReviewAssetRegion | undefined): region is ReviewAss
 }
 
 export default function ExerciseAsset({ asset }: { asset: ReviewAsset }) {
+  const licenseHref = asset.license === "CC BY 2.0" ? "https://creativecommons.org/licenses/by/2.0/"
+    : asset.license === "CC BY-SA 4.0" ? "https://creativecommons.org/licenses/by-sa/4.0/" : null;
   const width = Math.max(1, Math.round(asset.width ?? 1200));
   const height = Math.max(1, Math.round(asset.height ?? 800));
   const region = validRegion(asset.region) ? asset.region : undefined;
@@ -76,7 +78,7 @@ export default function ExerciseAsset({ asset }: { asset: ReviewAsset }) {
                 asset.attribution
               )}
               {asset.attribution && asset.license ? " · " : ""}
-              {asset.license}
+              {licenseHref ? <a href={licenseHref} target="_blank" rel="noreferrer">{asset.license}</a> : asset.license}
             </small>
           )}
         </figcaption>

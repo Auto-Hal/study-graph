@@ -46,7 +46,7 @@ export type HistoryRecord = {
   evaluationKind: 'explanation' | 'short-answer' | 'legacy'; gradingStatus: 'graded' | 'ungraded'; correct: boolean | null;
   selfEvaluation: ReviewGrade | null; srsApplied: boolean; srsReason: string; dueAt: string | null; currentDueAt: string | null;
   sourceUrl: string | null; needsReview: boolean; detail: null | {
-    rawAnswer: string | null; answer: string | null; explanation: string | null; rubric: ExplanationRubric | null; asset: ReviewAsset | null;
+    rawAnswer: string | null; answer: string | null; explanation: string | null; rubric: ExplanationRubric | null; asset: ReviewAsset | null; comparisonAssets: ReviewAsset[];
   };
 };
 function object(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
@@ -93,7 +93,12 @@ export function decodeHistoryRecord(value: unknown): HistoryRecord {
     if (kind === 'explanation' && !rubric) throw new Error('invalid_history_response');
     detail = { rawAnswer, answer: kind !== 'explanation' && spec && strings(spec.acceptedAnswers) ? spec.acceptedAnswers.join('／') : null,
       explanation: explanation ? text(explanation.summary) : null, rubric,
-      asset: object(revision) && Array.isArray(revision.visualAssets) ? decodeAsset(revision.visualAssets[0]) : null };
+      asset: object(revision) && Array.isArray(revision.visualAssets) ? decodeAsset(revision.visualAssets[0]) : null,
+      comparisonAssets: object(revision) && Array.isArray(revision.visualAssets) && Array.isArray(revision.stimuli)
+        ? revision.stimuli.filter(s => object(s) && s.role === "secondary").map(s => {
+          const asset = (revision.visualAssets as unknown[]).find(a => object(a) && a.assetId === s.assetId);
+          const decoded = decodeAsset(asset); if (!decoded) throw new Error("invalid_history_response"); return decoded;
+        }) : [] };
   }
   return { id: value.record_id, projectId: value.project_id as string, unitId: value.unit_id as string | null, acceptedAt: value.submitted_at,
     front: value.front, prompt: text(value.prompt), evaluationKind: kind, gradingStatus: value.grading_status as HistoryRecord['gradingStatus'],

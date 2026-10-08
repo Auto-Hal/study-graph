@@ -2,6 +2,7 @@ import { canonicalizeJson, getExerciseRevisionPayload, sha256Hex } from "../exer
 import type { ResolvedObjectiveInstanceArchive } from "../../supabase/objective-archive.ts";
 import type { ObjectiveInstanceRouting } from "../objective-runtime-core.ts";
 import { ObjectiveRuntimeError } from "../objective-runtime-core.ts";
+import type { VisualAsset } from "../exercises/types.ts";
 import type { ReviewCard } from "../types.ts";
 import { getStudyUnit } from "./catalog.ts";
 import { findUnitExercise, type UnitExercise } from "./registry.ts";
@@ -51,15 +52,20 @@ export function assertUnitRouting(routing: ObjectiveInstanceRouting, decoded: Re
   }
 }
 
+function asReviewAsset(asset: VisualAsset) {
+  return { type: "image" as const, src: asset.src, alt: asset.alt, width: asset.width, height: asset.height, presentation: "full" as const, attribution: asset.source.attribution, sourceUrl: asset.source.url, license: asset.source.license };
+}
+
 export function unitCardFromPersisted(decoded: ReturnType<typeof decodeUnitInstance>): ReviewCard {
   const { unit, entry, instance } = decoded;
   const revision = instance.revision_payload as UnitExercise["revisionPayload"];
   const rubric = revision.explanation.rubric;
   const asset = revision.visualAssets[0];
+  const comparisonAssets = revision.stimuli.filter(s => s.role === "secondary").map(s => revision.visualAssets.find(a => a.assetId === s.assetId)!).map(asReviewAsset);
   return {
     id: entry.exerciseId, exerciseId: entry.exerciseId, projectId: unit.projectId,
     kind: unit.projectId === "kuzushiji" ? "character" : "knowledge",
-    kindLabel: rubric ? "説明・自己評価" : asset ? "字形の読み" : "短答",
+    kindLabel: rubric ? "説明・自己評価" : asset ? unit.projectId === "kuzushiji" ? "字形の読み" : "画像を見て短答" : "短答",
     eyebrow: unit.title, label: revision.front,
     prompt: revision.prompt, front: revision.front, frontStyle: "title",
     reason: "単元練習",
@@ -69,11 +75,8 @@ export function unitCardFromPersisted(decoded: ReturnType<typeof decodeUnitInsta
       { label: "解説", value: revision.explanation.summary },
     ],
     sourceUrl: entry.scopeSubjectUrl,
-    ...(asset ? { asset: {
-      type: "image" as const, src: asset.src, alt: asset.alt, width: asset.width, height: asset.height,
-      presentation: "full" as const, attribution: asset.source.attribution,
-      sourceUrl: asset.source.url, license: asset.source.license,
-    } } : {}),
+    ...(asset ? { asset: asReviewAsset(asset) } : {}),
+    ...(comparisonAssets.length ? { comparisonAssets } : {}),
     persistenceKind: "versioned-pilot", instanceId: instance.instance_id,
   };
 }

@@ -387,11 +387,15 @@ try {
     { id: 'kuzushiji-kana-1', project: projects[0], answers: ['あ','い','う','い','あ','う'] },
     { id: 'art-prehistory-1', project: projects[2], answers: ['旧石器時代','誇張','抽象化','France','スペイン王国','石灰石','胸やお腹を大きく表している。豊かさを願う像かもしれないが、用途は決まっていない。'] },
     { id: 'philosophy-arche-1', project: projects[1], answers: ['水','アペイロン','空気','世界の多様なものに共通する元を、自然の側から考えた。','水は特定のものだが、アペイロンは性質を限定しない根源だ。','空気が薄まったり、濃く集まったりして、違う物が生じると考えた。'] },
+    { id:'kuzushiji-kana-2', project:projects[0], answers:['あ','う','い','あ','い','う'] },
+    { id:'art-megaliths-2', project:projects[2], answers:['Stonehenge','メンヒル','ドルメン','クロムレック','トリリトン','England','新石器時代後期','埋葬の跡があり、共同体が儀礼を共有する場所だった可能性もある。観測だけが使い道とは決められない。'] },
+    { id:'philosophy-change-2', project:projects[1], answers:['ヘラクリトス','Parmenides','Logos','水は入れ替わるが、流れる道や流れが続くことから同じ川と呼べる。','変わり方にも共通の仕組みがあるので、ばらばらの混乱とは違う。','どちらも世界のあり方を問う。ヘラクレイトスは秩序ある変化を、パルメニデスは本当にあるものの不変を考える。','何もないところからあるものは出てこず、あるものが完全な無にもならないので、真の存在は生成・消滅しない。'] },
   ];
   async function schedules() {
     return (await pool.query('select to_jsonb(s) as value from private.objective_review_state s order by objective_id')).rows;
   }
   async function unitAnswer(page, answer, rubric = false, doubleClick = false) {
+    assert.equal(await page.locator('.glyph-comparison').count(), 0, 'Comparison must remain hidden before the answer');
     await page.getByRole('textbox', { name: '回答', exact: true }).fill(answer);
     await page.getByRole('button', { name: '回答する', exact: true }).click();
     if (rubric) {
@@ -400,6 +404,14 @@ try {
       for (const label of ['必要な要点','許容する言い換え','重大な誤解']) await page.getByRole('heading', { name: label, exact: true }).waitFor();
       await page.screenshot({ path: path.join(workspace, 'explanation-rubric-' + page.viewportSize().width + '.png'), fullPage: true });
     } else await page.locator('.answer-verdict.correct').waitFor();
+    if (await page.locator('.glyph-comparison').count()) {
+      assert.equal(await page.locator('.glyph-comparison img').count(), 2);
+      await page.getByText('今回の字形',{exact:true}).waitFor();
+      await page.getByText('前の単元の同じ読み',{exact:true}).waitFor();
+      await eventually(async()=>assert.equal(await page.locator('.glyph-comparison img').evaluateAll(images=>images.every(i=>i.complete&&i.naturalWidth>0)),true),'Comparison images failed to load');
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await page.screenshot({path:path.join(workspace,'glyph-comparison-revealed-'+page.viewportSize().width+'.png'),fullPage:true});
+    }
     const grade = page.getByRole('button', { name: /^できた/ });
     if (doubleClick) await grade.dblclick(); else await grade.click();
     await page.locator('.answer-panel').waitFor({ state: 'hidden' });
@@ -421,7 +433,7 @@ try {
       const beforeSchedule = await schedules(); setUnitFixtures(true);
       const before = await learningFingerprint();
       await page.goto(appUrl + '/units');
-      assert.equal(await page.locator('.unit-list-card').count(), 3);
+      assert.equal(await page.locator('.unit-list-card').count(), 6);
       await page.goto(appUrl + '/units/' + unit.id);
       assert.equal(await page.locator('[data-unit-id]').getAttribute('data-unit-status'), 'ready');
       assert.deepEqual(await learningFingerprint(), before, 'Unit overview must be read-only');
@@ -469,6 +481,8 @@ try {
       await page.locator(`a[data-history-record="${record.attempt_id}"]`).click();
       await page.locator('[data-history-detail]').waitFor();assert.equal(await page.locator('[data-history-raw-answer]').textContent(),record.raw_answer);
       await page.getByText('追加練習として保存・復習予定は変更なし',{exact:true}).waitFor();
+      if(unit.project.id==='kuzushiji') {const bounds=await page.locator('.history-detail-section .exercise-asset-image').first().boundingBox();assert.ok(bounds&&bounds.height<=210,'Archived glyph must keep a readable size');}
+      if(unit.id==='kuzushiji-kana-2') {assert.equal(await page.locator('.glyph-comparison img').count(),2);await page.getByText('前の単元の同じ読み',{exact:true}).waitFor();}
       if(record.grading_status==='ungraded') {await page.getByText('説明・自己評価',{exact:true}).waitFor();await page.getByRole('heading',{name:'許容する言い換え',exact:true}).waitFor();}
       await page.screenshot({path:path.join(workspace,`history-detail-${unit.id}-${width}.png`),fullPage:true});
       await page.getByRole('link',{name:'学習履歴',exact:true}).click();await page.locator('[data-history-state="ready"]').waitFor();
@@ -561,7 +575,7 @@ try {
     finally {historyReadFailure=false;await context.close();}
   }
   passed = true;
-  console.log('PASS 48 browser scenarios (40 previous + 6 unit histories + 1 empty history + 1 history read recovery); no hosted credentials or production database used');
+  console.log(`PASS ${30+units.length*6} browser scenarios (30 common + ${units.length} units × 6 completion/history/recovery cases); no hosted credentials or production database used`);
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);

@@ -1,65 +1,11 @@
-import { createContentRelease, createContentReleaseManifest, createExerciseRevision, getExerciseRevisionPayload } from "../exercises/revision.ts";
-import type { ExerciseDefinition, ExplanationRubric, VisualAsset } from "../exercises/types.ts";
-import type { ExerciseObjectiveBinding, ObjectiveDefinition } from "../objectives.ts";
+import type { ExplanationRubric } from "../exercises/types.ts";
 import { philosophyObjectiveRegistry } from "../philosophy-objective-registry.ts";
 import { westernArtObjectiveRegistry } from "../western-art-objective-registry.ts";
-import { getStudyUnit, type UnitProjectId } from "./catalog.ts";
+import { getStudyUnit } from "./catalog.ts";
+import { buildUnitExercise as build, type UnitExercise } from "./exercise-builder.ts";
+export type { UnitExercise } from "./exercise-builder.ts";
 import glyphAssets from "./glyph-assets.ts";
-
-export type UnitExercise = Readonly<{
-  exerciseId: string;
-  objectiveId: string;
-  scopeSubjectId: string;
-  scopeSubjectUrl: string;
-  srsEpoch: number;
-  revision: ReturnType<typeof createExerciseRevision>;
-  revisionPayload: ReturnType<typeof getExerciseRevisionPayload>;
-  contentRelease: ReturnType<typeof createContentRelease>;
-  objectiveDefinition: ObjectiveDefinition;
-  objectiveBinding: ExerciseObjectiveBinding;
-}>;
-
-function build(facts: {
-  projectId: UnitProjectId; exerciseId: string; subjectId: string; subjectUrl: string;
-  title: string; prompt: string; explanation: string; answers?: string[];
-  rubric?: ExplanationRubric; asset?: VisualAsset; lectureUrl: string;
-}): UnitExercise {
-  const definition: ExerciseDefinition = {
-    schemaVersion: 1, exerciseId: facts.exerciseId, exerciseVersion: 1,
-    projectId: facts.projectId, domain: facts.projectId, objectiveId: facts.exerciseId,
-    skill: facts.rubric ? "explain" : "recall", category: "introductory-unit",
-    prompt: facts.prompt, front: facts.title,
-    stimuli: facts.asset ? [{ assetId: facts.asset.assetId, assetVersion: 1, role: "primary" }] : [],
-    // A rubric deliberately has no exact-match answers. Its self-evaluation is stored separately.
-    answerSpec: { type: "text", acceptedAnswers: facts.answers ?? [] },
-    gradingSpec: { strategyId: facts.rubric ? "rubric-self-evaluation-v1" : "legacy-text-v1", strategyVersion: 1, normalization: "review-session-ja-v1" },
-    explanation: { summary: facts.explanation, ...(facts.rubric ? { rubric: facts.rubric } : {}) },
-    sources: [
-      { kind: "text-reference", title: "Notion 講義", url: facts.lectureUrl, attribution: "Study Graph Notion 教材" },
-      { kind: "text-reference", title: facts.title, url: facts.subjectUrl, attribution: "Study Graph Notion 知識" },
-      ...(facts.asset ? [facts.asset.source] : []),
-    ],
-    provenance: { status: "curated", approvedFrom: "manual-curation" },
-    origin: "curated", status: "approved",
-    relatedKnowledgeBindings: [{ source: "notion", externalId: facts.subjectId, role: "scope-subject" }],
-  };
-  const revision = createExerciseRevision(definition, new Map(facts.asset ? [[facts.asset.assetId, facts.asset]] : []), null);
-  const objectiveDefinition: ObjectiveDefinition = {
-    projectId: facts.projectId, objectiveId: facts.exerciseId, objectiveVersion: 1,
-    title: facts.title, target: facts.title, action: facts.prompt,
-    responseMode: facts.rubric ? "production" : "recall",
-    conditions: "単元練習。解答前にヒントを表示しない。",
-    successCriterion: facts.rubric ? "模範解答と評価観点を読み、言い換えを許容して自己評価する。自動正誤判定はしない。" : "保存した短答の別表記と照合する。",
-  };
-  return {
-    exerciseId: facts.exerciseId, objectiveId: facts.exerciseId,
-    scopeSubjectId: facts.subjectId, scopeSubjectUrl: facts.subjectUrl, srsEpoch: 1,
-    revision, revisionPayload: getExerciseRevisionPayload(revision),
-    contentRelease: createContentRelease(createContentReleaseManifest([revision])),
-    objectiveDefinition,
-    objectiveBinding: { revisionContentHash: revision.contentHash, objectiveId: facts.exerciseId, objectiveVersion: 1, evidenceUse: "practice-only" },
-  };
-}
+import { kuzComparisonQuestions, artMegalithQuestions, philosophyChangeQuestions } from "./next-registry.ts";
 
 const notionUrl = (id: string) => "https://app.notion.com/p/" + id.replaceAll("-", "");
 const kuzLecture = "https://app.notion.com/p/3ccd2793413481819baff81888996b38";
@@ -139,6 +85,9 @@ const questions: Record<string, readonly UnitExercise[]> = {
   "kuzushiji-kana-1": kuzQuestions,
   "art-prehistory-1": artQuestions,
   "philosophy-arche-1": phiQuestions,
+  "kuzushiji-kana-2": kuzComparisonQuestions,
+  "art-megaliths-2": artMegalithQuestions,
+  "philosophy-change-2": philosophyChangeQuestions,
 };
 
 export function getUnitExercises(unitId: string): readonly UnitExercise[] {

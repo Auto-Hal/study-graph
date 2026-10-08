@@ -34,3 +34,18 @@ test('legacy IDs retain bigint precision; absent originals and unsafe reference 
 test('archived detail identity mismatch fails closed instead of showing another question', () => {
   const r = row(); assert.throws(() => decodeHistoryRecord({...r,detail:{rawAnswer:'自分の回答',revision:{projectId:'kuzushiji',front:r.front,prompt:r.prompt}}}));
 });
+
+test('history reads comparison assets from archived secondary stimuli, including source links', () => {
+  const base=row();
+  const asset=(assetId: string,src: string)=>({assetId,src,alt:'字形',width:50,height:80,source:{url:'https://codh.rois.ac.jp/char-shape/',attribution:'CODH',license:'CC BY-SA 4.0'}});
+  const revision={projectId:base.project_id,front:base.front,prompt:base.prompt,answerSpec:{acceptedAnswers:['あ']},explanation:{summary:'同じ読み'},visualAssets:[asset('primary','/assets/primary.jpg'),asset('reference','/assets/reference.jpg')],stimuli:[{assetId:'primary',role:'primary'},{assetId:'reference',role:'secondary'}]};
+  const detail={rawAnswer:'あ',revision};
+  const r={...base,evaluation_kind:'short-answer',grading_status:'graded',is_correct:true,detail};
+  const decoded=decodeHistoryRecord(r);
+  assert.equal(decoded.detail?.asset?.src,'/assets/primary.jpg');
+  assert.equal(decoded.detail?.comparisonAssets[0].src,'/assets/reference.jpg');
+  assert.equal(decoded.detail?.comparisonAssets[0].sourceUrl,'https://codh.rois.ac.jp/char-shape/');
+  assert.throws(()=>decodeHistoryRecord({...r,detail:{...detail,revision:{...revision,visualAssets:revision.visualAssets.slice(0,1)}}}),/invalid_history_response/);
+  const unsafe=structuredClone(r); unsafe.detail.revision.visualAssets[1].src='javascript:alert(1)';
+  assert.throws(()=>decodeHistoryRecord(unsafe),/invalid_history_response/);
+});
