@@ -75,6 +75,34 @@ unitRows.set('3b1d2793-4134-80a5-b3ce-000b80fc800c',[
   ['3bdd2793-4134-81b4-b386-d872b3aedec5','ヴィレンドルフのヴィーナス'],
 ].map(([id,label])=>page(id,{作品名:title(label)})));
 
+// Learned second lectures, independent of the default one-question fixture.
+unitRows.get('3b0d2793-4134-80d7-8954-000b3aa060ba').push(page('3ccd2793-4134-811a-b6ae-ebf187c27663', {
+  講義タイトル:title('E2E 哲学史 第2回'),回:{number:2},状態:{status:{name:'受講済'}},
+  哲学者辞典:relations('3ccd2793-4134-8125-874d-ce67b171d099','3ccd2793-4134-8191-b6d1-dd663388a764'),
+  '📚 用語辞典':relations('3bdd2793-4134-81e7-a2a2-c61c53c9b821','3ccd2793-4134-8101-9a85-de7079bb5c0d'),
+}));
+unitRows.get('3b0d2793-4134-80df-b566-000b80f95459').push(
+  page('3ccd2793-4134-8125-874d-ce67b171d099',{哲学者名:title('ヘラクレイトス')}),
+  page('3ccd2793-4134-8191-b6d1-dd663388a764',{哲学者名:title('パルメニデス')}),
+);
+unitRows.get('3b0d2793-4134-8016-8c60-000b7db6e6e4').push(
+  page('3bdd2793-4134-81e7-a2a2-c61c53c9b821',{用語:title('ロゴス')}),
+  page('3ccd2793-4134-8101-9a85-de7079bb5c0d',{用語:title('同一性')}),
+);
+const secondArt=structuredClone(unitRows.get('3b1d2793-4134-80a1-bb5f-000bf3dd62b7')[0]);
+unitRows.get('3b1d2793-4134-80a1-bb5f-000bf3dd62b7')[0]=secondArt;
+secondArt.properties={...secondArt.properties,
+  用語:relations(projects[2].subject,'3c5d2793-4134-8110-a446-dbd92583d83f','3c5d2793-4134-8130-8458-c3aa11c784dd','3c5d2793-4134-8134-9e8b-d0721b3a9376'),
+  作品:relations('3c5d2793-4134-8154-94d5-d9d86589916c'),時代:relations('3c5d2793-4134-8120-8829-f034d209ec9e'),
+};
+unitRows.get('3b1d2793-4134-80e1-b185-000bd0cddaf9').push(...[
+  ['3c5d2793-4134-8110-a446-dbd92583d83f','メンヒル'],
+  ['3c5d2793-4134-8130-8458-c3aa11c784dd','ドルメン'],
+  ['3c5d2793-4134-8134-9e8b-d0721b3a9376','トリリトン'],
+].map(([id,label])=>page(id,{用語:title(label)})));
+unitRows.get('3b1d2793-4134-8088-8422-000b6fb72ad7').push(page('3c5d2793-4134-8120-8829-f034d209ec9e',{時代名:title('新石器時代')}));
+unitRows.get('3b1d2793-4134-80a5-b3ce-000b80fc800c').push(page('3c5d2793-4134-8154-94d5-d9d86589916c',{作品名:title('ストーンヘンジ')}));
+
 export function notionResponse(path) {
   const match = /^\/notion\/v1\/data_sources\/([a-f0-9-]+)\/query$/.exec(path);
   if (!match) throw new Error('Unsupported Notion fixture request: ' + path);

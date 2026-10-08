@@ -1,3 +1,4 @@
+import GlyphComparison from "@/src/components/GlyphComparison";
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import AppHeader from '@/src/components/AppHeader';
@@ -22,7 +23,7 @@ export default async function HistoryDetailPage({ params, searchParams }: { para
   const record = state.status === 'ready' ? state.records[0] : null;
   if (record && !record.detail) throw new Error('History detail is missing');
   const unit = record?.unitId ? getStudyUnit(record.unitId) : null;
-  return <main className="phase5-shell" data-history-state={state.status} data-history-detail={record?.id}>
+  return <main className="phase5-shell" data-history-state={state.status} data-history-detail={record?.id} data-history-project={record?.projectId}>
     <AppHeader context="回答の振り返り" backHref={backHref} backLabel="学習履歴" />
     <section className="phase5-page-heading"><div><p className="phase5-eyebrow">{historyProjects.find(p => p.id === record?.projectId)?.title ?? '学習履歴'}</p><h1 className="phase5-page-title">回答の振り返り</h1>{record && <p className="phase5-context"><time dateTime={record.acceptedAt}>{format.format(new Date(record.acceptedAt))}</time> · {unit?.title ?? (record.evaluationKind === 'legacy' ? '以前の形式の記録' : record.unitId ? '以前の単元練習' : '日々の復習・練習')}</p>}</div></section>
     {!record ? <section className="history-empty" role="status"><h2>回答を取得できません</h2><p>保存済みの回答はそのまま残っています。通信が戻ってから、もう一度お試しください。</p><HistoryRefreshButton /></section> : <>
@@ -38,6 +39,7 @@ export default async function HistoryDetailPage({ params, searchParams }: { para
       {(record.detail?.rubric || record.detail?.answer || record.detail?.explanation) && <section className="history-detail-section" aria-labelledby="history-explanation"><h2 id="history-explanation">答えと解説を振り返る</h2>
         {record.detail.rubric ? <ExplanationRubricPanel rubric={record.detail.rubric} /> : <>{record.detail.answer && <p><strong>正答：</strong>{record.detail.answer}</p>}<p className="history-copy">{record.detail.explanation}</p></>}
       </section>}
+      {!!record.detail?.comparisonAssets.length && <GlyphComparison current={record.detail.asset ?? undefined} references={record.detail.comparisonAssets} />}
       <section className="history-detail-section" aria-labelledby="history-saving"><h2 id="history-saving">保存と復習予定</h2><dl className="history-facts"><div><dt>回答の保存</dt><dd>サーバー保存済み</dd></div><div><dt>この回答の反映</dt><dd>{scheduleLabel(record)}</dd></div>{record.srsApplied && record.dueAt && <div><dt>回答当時の次回予定</dt><dd>{format.format(new Date(record.dueAt))}</dd></div>}<div><dt>この学習項目の保存済み予定</dt><dd>{record.currentDueAt ? format.format(new Date(record.currentDueAt)) : '保存済みの予定はありません'}</dd></div></dl><p className="history-note">保存済みの予定は、ほかの回答で変わる場合があります。現在取り組める内容は「今日の復習予定」で確認できます。</p></section>
       <nav className="history-learning-links" aria-label="この回答から学び直す">
         {unit && <Link className="phase5-secondary-action" href={'/units/' + unit.id}>同じ単元を練習する</Link>}

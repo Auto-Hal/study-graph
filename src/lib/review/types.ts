@@ -59,6 +59,8 @@ export type ReviewCard = {
   answerRows: Array<{ label: string; value: string }>;
   sourceUrl: string;
   asset?: ReviewAsset;
+  /** Same-reading examples shown only after the answer is revealed. */
+  comparisonAssets?: ReviewAsset[];
   /** Stable content boundary used only by the Phase 4C pilot runtime path. */
   persistenceKind?: "legacy" | "versioned-pilot";
   definitionId?: string;

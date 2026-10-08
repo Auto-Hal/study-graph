@@ -21,7 +21,14 @@
 .unit-result-list li { padding: .75rem; border: 1px solid var(--p5-line); border-radius: 10px; }
 .unit-result-list strong, .unit-result-list span { display: block; }
 .unit-result-list span { margin-top: .25rem; color: var(--p5-muted); }
-.phase5-session-shell[data-unit-id="kuzushiji-kana-1"] .exercise-asset-image { height: 200px; object-fit: contain; padding: .75rem; }
+.phase5-session-shell[data-unit-id^="kuzushiji-kana-"] .exercise-asset-image { height: 200px; object-fit: contain; padding: .75rem; }
 .unit-result-list .exercise-asset { margin: .75rem 0; max-width: none; }
 .phase5-session-shell .unit-result-list .exercise-asset-image { height: 80px; }
 @media (max-width: 680px) { .unit-actions { flex-direction: column; } .unit-actions > * { width: 100%; text-align: center; } }
+
+.phase5-shell[data-history-project="kuzushiji"] .exercise-asset-image { height: 200px; object-fit: contain; padding: .75rem; }
+.glyph-comparison { margin: 1.25rem 0; text-align: left; line-height: 1.7; }
+.glyph-comparison h3 { font-size: 1rem; }
+.glyph-comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.glyph-comparison-grid .exercise-asset { margin: 0; max-width: none; min-width: 0; }
+.glyph-comparison .glyph-comparison-grid .exercise-asset-image { height: 140px; object-fit: contain; padding: .5rem; }
