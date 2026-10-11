@@ -42,7 +42,7 @@ export default async function HistoryDetailPage({ params, searchParams }: { para
       {!!record.detail?.comparisonAssets.length && <GlyphComparison current={record.detail.asset ?? undefined} references={record.detail.comparisonAssets} />}
       <section className="history-detail-section" aria-labelledby="history-saving"><h2 id="history-saving">保存と復習予定</h2><dl className="history-facts"><div><dt>回答の保存</dt><dd>サーバー保存済み</dd></div><div><dt>この回答の反映</dt><dd>{scheduleLabel(record)}</dd></div>{record.srsApplied && record.dueAt && <div><dt>回答当時の次回予定</dt><dd>{format.format(new Date(record.dueAt))}</dd></div>}<div><dt>この学習項目の保存済み予定</dt><dd>{record.currentDueAt ? format.format(new Date(record.currentDueAt)) : '保存済みの予定はありません'}</dd></div></dl><p className="history-note">保存済みの予定は、ほかの回答で変わる場合があります。現在取り組める内容は「今日の復習予定」で確認できます。</p></section>
       <nav className="history-learning-links" aria-label="この回答から学び直す">
-        {unit && <Link className="phase5-secondary-action" href={'/units/' + unit.id}>同じ単元を練習する</Link>}
+        {unit && <Link className="phase5-secondary-action" href={'/units/' + unit.id} prefetch={false}>同じ単元を練習する</Link>}
         {record.projectId !== 'unknown' && <Link className="phase5-secondary-action" href={'/projects/' + record.projectId}>この科目の教材を見る</Link>}
         {record.sourceUrl && <a className="phase5-secondary-action" href={record.sourceUrl} target="_blank" rel="noreferrer">元教材をNotionで開く ↗</a>}
         <Link className="phase5-secondary-action" href="/review">今日の復習予定</Link><Link href={backHref}>学習履歴へ戻る</Link>

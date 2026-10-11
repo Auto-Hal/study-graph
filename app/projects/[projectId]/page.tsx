@@ -54,7 +54,7 @@ export default async function ProjectWorkspacePage({
           <h2 id="workspace-learning-title">学習</h2>
         </div>
         <div className="phase5-workspace-links">
-          {unit && <Link className="phase5-workspace-entry" href={`/units/${unit.id}`}><span className="phase5-workspace-entry-main"><strong>単元練習</strong><span>{unit.title} · {unit.questionCount}問</span></span><span className="phase5-workspace-entry-arrow" aria-hidden="true">→</span></Link>}
+          {unit && <Link className="phase5-workspace-entry" href={`/units/${unit.id}`} prefetch={false}><span className="phase5-workspace-entry-main"><strong>単元練習</strong><span>{unit.title} · {unit.questionCount}問</span></span><span className="phase5-workspace-entry-arrow" aria-hidden="true">→</span></Link>}
           {learningSections.map((section) => (
             <Link className="phase5-workspace-entry" href={`/projects/${workspace.id}/${section.slug}`} key={section.slug}>
               <span className="phase5-workspace-entry-main"><strong>{section.label}</strong><span>講義を開く</span></span>
