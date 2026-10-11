@@ -38,6 +38,7 @@ const logPath = path.join(workspace, 'next.log');
 let pool, server, next, log, databaseCreated = false, passed = false;
 let fixtureRequests = 0;
 let scheduleReadFailure = false, scopeReadFailure = false, historyReadFailure = false;
+let notionThrottleNext = false, notionThrottleResponses = 0;
 
 function safeProcessEnv() {
   const allowed = new Set(['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR', 'HOME', 'USERPROFILE',
@@ -216,7 +217,15 @@ try {
       let payload = ''; for await (const chunk of request) payload += chunk;
       const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
       let result;
-      if (pathname.startsWith('/notion/')) { fixtureRequests++; if (scopeReadFailure) throw new Error('Fixture scope unavailable'); result = notionResponse(pathname); }
+      if (pathname.startsWith('/notion/')) {
+        fixtureRequests++; if (scopeReadFailure) throw new Error('Fixture scope unavailable');
+        if (notionThrottleNext) {
+          notionThrottleNext = false; notionThrottleResponses++;
+          response.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '0' });
+          response.end(JSON.stringify({code:'rate_limited'})); return;
+        }
+        result = notionResponse(pathname);
+      }
       else if (request.method === 'POST' && pathname.startsWith('/rest/v1/rpc/')) { if (scheduleReadFailure && pathname.endsWith('/study_graph_objective_review_schedule')) throw new Error('Fixture schedule unavailable'); if (historyReadFailure && pathname.endsWith('/study_graph_learning_history')) throw new Error('Fixture history unavailable'); result = await rpc(pathname.split('/').at(-1), JSON.parse(payload), request.headers.apikey); }
       else throw new Error('Unsupported fixture endpoint');
       response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(result));
@@ -557,6 +566,23 @@ try {
   }
 
   }
+  let notionScenarios = 0;
+  for (const unit of units.slice(0, 3)) {
+    await resetLearning(); setUnitFixtures(true);
+    const context = await launchContext(path.join(workspace, 'profiles', 'notion-retry-' + unit.id), 390);
+    try {
+      const page = context.pages()[0], before = await learningFingerprint(), throttledBefore = notionThrottleResponses;
+      notionThrottleNext = true;
+      await page.goto(appUrl + '/units/' + unit.id);
+      assert.equal(await page.locator('[data-unit-id]').getAttribute('data-unit-status'), 'ready');
+      assert.equal(notionThrottleResponses - throttledBefore, 1);
+      assert.equal(await page.getByRole('button', {name:'単元を練習する',exact:true}).isEnabled(), true);
+      assert.equal(await page.locator('.answer-entry').count(), 0);
+      assert.deepEqual(await learningFingerprint(), before, 'Notion read retry must not issue or save answers');
+      notionScenarios++;
+      console.log('PASS Notion 429 recovery ' + unit.id + ': fresh Scope ready, no issuance or answer writes');
+    } finally { notionThrottleNext = false; setUnitFixtures(false); await context.close(); }
+  }
   const draftScenarios = await verifyUnitDrafts({ units, appUrl, workspace, launchContext, resetLearning,
     setUnitFixtures, unitAnswer, startUnit, learningFingerprint, schedules, outbox, pool });
 
@@ -590,8 +616,8 @@ try {
   }
   }
   passed = true;
-  const scenarioCount = draftsOnly ? draftScenarios : 30 + units.length * 6 + draftScenarios;
-  console.log(`PASS ${scenarioCount} browser scenarios${draftsOnly ? " (unit draft focus)" : " (30 common + " + units.length + " units × 6 completion/history/recovery cases + " + draftScenarios + " draft cases)"}; no hosted credentials or production database used`);
+  const scenarioCount = draftScenarios + notionScenarios + (draftsOnly ? 0 : 30 + units.length * 6);
+  console.log(`PASS ${scenarioCount} browser scenarios${draftsOnly ? " (unit draft + Notion read focus)" : " (30 common + " + units.length + " units × 6 completion/history/recovery cases + " + draftScenarios + " draft cases + " + notionScenarios + " Notion read cases)"}; no hosted credentials or production database used`);
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);

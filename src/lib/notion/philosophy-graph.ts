@@ -1,3 +1,4 @@
+import { readNotionWithRetry } from "./read-retry";
 import type { GraphData, GraphEdge, GraphNode } from "@/src/lib/graph/types";
 import { nextCursorOrThrow } from "./pagination";
 
@@ -47,7 +48,7 @@ async function queryAllDataSource(dataSourceId: string, token: string) {
   let startCursor: string | null = null;
 
   do {
-    const response = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
+    const response = await readNotionWithRetry(() => fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -59,7 +60,7 @@ async function queryAllDataSource(dataSourceId: string, token: string) {
         ...(startCursor ? { start_cursor: startCursor } : {}),
       }),
       cache: "no-store",
-    });
+    }));
 
     if (!response.ok) {
       const body = await response.text();
