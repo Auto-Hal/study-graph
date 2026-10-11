@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { chromium } from 'playwright';
 import { projects, learnerId, notionResponse, displaySnapshots, setUnitFixtures } from './e2e/fixtures.mjs';
+import { verifyUnitDrafts } from './e2e/unit-drafts.mjs';
 
 // PostgREST encodes PostgreSQL bigint as a JSON number. Match that transport;
 // node-postgres normally exposes bigint as a string to protect large values.
@@ -465,7 +466,11 @@ try {
       assert.ok(attempts.filter(a=>!a.srs_applied).every(a=>a.receipt.reason==='practice-only'));
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
       await page.screenshot({path:path.join(workspace,`${unit.id}-complete-${width}.png`),fullPage:true});
-      const beforeReload=await learningFingerprint(); await page.reload();
+      const beforeReload=await learningFingerprint();
+      await page.getByRole('button',{name:'単元の概要に戻る',exact:true}).click();
+      await page.getByRole('button',{name:'前回の結果を見る',exact:true}).waitFor();
+      assert.deepEqual(await learningFingerprint(),beforeReload,'Returning to overview must not issue or save again');
+      await page.reload();
       await page.getByRole('button',{name:'前回の結果を見る',exact:true}).click();
       await page.getByText('回答と自己評価を保存しました。単元練習は復習予定を変更しません。',{exact:true}).waitFor();
       assert.deepEqual(await learningFingerprint(),beforeReload,'Viewing a completed run must not issue or save again');
@@ -547,6 +552,9 @@ try {
     } finally {setUnitFixtures(false);await context.close();}
   }
 
+  const draftScenarios = await verifyUnitDrafts({ units, appUrl, workspace, launchContext, resetLearning,
+    setUnitFixtures, unitAnswer, startUnit, learningFingerprint, schedules, outbox, pool });
+
   for (const mode of ['subjects-off', 'v2-off']) {
     await resetLearning(); await stopApp();
     const flags = { ...env,
@@ -575,7 +583,7 @@ try {
     finally {historyReadFailure=false;await context.close();}
   }
   passed = true;
-  console.log(`PASS ${30+units.length*6} browser scenarios (30 common + ${units.length} units × 6 completion/history/recovery cases); no hosted credentials or production database used`);
+  console.log(`PASS ${30+units.length*6+draftScenarios} browser scenarios (30 common + ${units.length} units × 6 completion/history/recovery cases + ${draftScenarios} draft cases); no hosted credentials or production database used`);
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);

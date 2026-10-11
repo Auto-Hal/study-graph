@@ -276,7 +276,9 @@ h1 {
 }
 .review-progress-row > div { display: flex; align-items: baseline; gap: 10px; }
 .review-progress-row .eyebrow { margin: 0; }
-.review-progress-row span, .review-progress-row a { color: var(--muted); font-size: 11px; font-weight: 700; }
+.review-progress-row span, .review-progress-row a, .review-progress-row .review-exit { color: var(--muted); font-size: 11px; font-weight: 700; }
+.review-exit { border: 0; padding: 0; background: transparent; font-family: inherit; cursor: pointer; }
+.review-exit:disabled { opacity: .5; cursor: wait; }
 
 .progress-track {
   width: 100%;
