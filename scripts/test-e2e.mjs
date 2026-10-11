@@ -18,6 +18,7 @@ pg.types.setTypeParser(20, (value) => {
 });
 
 // All mutation is confined to a newly created localhost database. Never load dotenv.
+const draftsOnly = process.env.STUDY_GRAPH_E2E_DRAFTS_ONLY === '1';
 assert.equal(process.env.STUDY_GRAPH_ISOLATED_DB, '1', 'Explicit isolated DB opt-in required');
 const admin = new URL(process.env.STUDY_GRAPH_TEST_DATABASE_URL ?? '');
 assert.ok(['postgres:', 'postgresql:'].includes(admin.protocol));
@@ -249,6 +250,7 @@ try {
   log = await fs.open(logPath, 'w');
   await startApp(env);
   console.log('PASS isolated app + exact migrations + localhost RPC transport ready');
+  if (!draftsOnly) {
   for (const width of [390, 820]) {
     const context = await launchContext(path.join(workspace, 'profiles', 'entry-' + width), width);
     try {
@@ -384,6 +386,7 @@ try {
       console.log('PASS start feedback ' + project.id + ': immediate pending, deliberate single issuance, no answer');
     } finally { release(); await context.close(); }
   }
+  }
   const units = [
     { id: 'kuzushiji-kana-1', project: projects[0], answers: ['あ','い','う','い','あ','う'] },
     { id: 'art-prehistory-1', project: projects[2], answers: ['旧石器時代','誇張','抽象化','France','スペイン王国','石灰石','胸やお腹を大きく表している。豊かさを願う像かもしれないが、用途は決まっていない。'] },
@@ -423,6 +426,7 @@ try {
     await page.getByRole('button', { name: '単元を練習する', exact: true }).click();
     await page.getByRole('textbox', { name: '回答', exact: true }).waitFor();
   }
+  if (!draftsOnly) {
   for (const width of [390, 820]) for (const unit of units) {
     setUnitFixtures(false); await resetLearning();
     const context = await launchContext(path.join(workspace, 'profiles', unit.id + '-' + width), width);
@@ -552,9 +556,11 @@ try {
     } finally {setUnitFixtures(false);await context.close();}
   }
 
+  }
   const draftScenarios = await verifyUnitDrafts({ units, appUrl, workspace, launchContext, resetLearning,
     setUnitFixtures, unitAnswer, startUnit, learningFingerprint, schedules, outbox, pool });
 
+  if (!draftsOnly) {
   for (const mode of ['subjects-off', 'v2-off']) {
     await resetLearning(); await stopApp();
     const flags = { ...env,
@@ -582,8 +588,10 @@ try {
     try { const page=context.pages()[0];const before=await learningFingerprint();historyReadFailure=true;await page.goto(appUrl+'/history');await page.getByRole('heading',{name:'学習履歴を取得できません',exact:true}).waitFor();assert.equal(await page.locator('[data-history-record]').count(),0);assert.equal(await page.getByText('保存済みの回答はまだありません',{exact:true}).count(),0);historyReadFailure=false;await page.getByRole('button',{name:'もう一度読み込む',exact:true}).click();await page.locator('[data-history-state="ready"]').waitFor();assert.deepEqual(await learningFingerprint(),before);console.log('PASS history read failure/recovery: no false zero, retry is read-only'); }
     finally {historyReadFailure=false;await context.close();}
   }
+  }
   passed = true;
-  console.log(`PASS ${30+units.length*6+draftScenarios} browser scenarios (30 common + ${units.length} units × 6 completion/history/recovery cases + ${draftScenarios} draft cases); no hosted credentials or production database used`);
+  const scenarioCount = draftsOnly ? draftScenarios : 30 + units.length * 6 + draftScenarios;
+  console.log(`PASS ${scenarioCount} browser scenarios${draftsOnly ? " (unit draft focus)" : " (30 common + " + units.length + " units × 6 completion/history/recovery cases + " + draftScenarios + " draft cases)"}; no hosted credentials or production database used`);
 } catch (error) {
   console.error(error);
   console.error('Isolated E2E artifacts: ' + workspace);

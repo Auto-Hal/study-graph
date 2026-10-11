@@ -88,7 +88,7 @@ export async function verifyUnitDrafts({ units, appUrl, workspace, launchContext
         assert.deepEqual(await learningFingerprint(), explainedBefore);
         await page.screenshot({ path: path.join(workspace, `draft-explanation-${unit.id}-${width}.png`), fullPage: true });
         await grade(page);
-        const saved = (await pool.query('select raw_answer,grading_status,is_correct,self_evaluation from private.exercise_attempts where raw_answer=$1', [explanation])).rows;
+        const saved = (await pool.query('select raw_answer,grading_status,is_correct,self_evaluation from private.exercise_attempts where raw_answer=$1::jsonb', [JSON.stringify(explanation)])).rows;
         assert.equal(saved.length, 1); assert.equal(saved[0].grading_status, 'ungraded');
         assert.equal(saved[0].is_correct, null); assert.equal(saved[0].self_evaluation, 'good');
         assert.equal((await schedules()).length, 0);
