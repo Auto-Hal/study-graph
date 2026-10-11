@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clearUnitAnswerDraft, matchesUnitAnswerDraft, readUnitAnswerDraft, writeUnitAnswerDraft } from "./draft-store.ts";
+import { clearUnitAnswerDraft, matchesUnitAnswerDraft, readUnitAnswerDraft, writeUnitAnswerDraft, unitDraftElapsedTime } from "./draft-store.ts";
 import type { ReviewCard } from "../types.ts";
 
 const scope = { unitId: "philosophy-change-2", runId: "run-first" };
@@ -71,6 +71,13 @@ test("failed writes, reads and cleanup propagate; retry preserves the latest inp
   assert.equal(readUnitAnswerDraft(scope, card, storage)?.rawAnswer, input.rawAnswer);
   writeUnitAnswerDraft(scope, card, { ...input, rawAnswer: "最新の文" }, storage);
   assert.equal(readUnitAnswerDraft(scope, card, storage)?.rawAnswer, "最新の文");
+});
+
+test("resumed elapsed time respects the existing one-hour save limit and a clock rollback", () => {
+  assert.equal(unitDraftElapsedTime(4567, 1000, 2000), 5567);
+  assert.equal(unitDraftElapsedTime(3600000, 1000, 2000), 3600000);
+  assert.equal(unitDraftElapsedTime(9000000, 1000, 2000), 3600000);
+  assert.equal(unitDraftElapsedTime(4567, 2000, 1000), 4567);
 });
 
 test("storage cannot be used without a stable versioned instance identity", () => {

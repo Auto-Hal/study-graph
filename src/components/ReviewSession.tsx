@@ -20,7 +20,7 @@ import { syncObjectiveStateMirror } from "@/src/lib/review/offline/objective-sta
 import { recoverAndFlushPilotOutbox } from "@/src/lib/review/offline/foreground-sync";
 import { reconcilePilotResults, type PilotSessionResult } from "@/src/lib/review/offline/result-reconciliation";
 
-import { clearUnitAnswerDraft, matchesUnitAnswerDraft, writeUnitAnswerDraft,
+import { clearUnitAnswerDraft, matchesUnitAnswerDraft, writeUnitAnswerDraft, unitDraftElapsedTime,
   type UnitAnswerDraft, type UnitDraftScope } from "@/src/lib/review/units/draft-store";
 
 export type { ReviewCard } from "@/src/lib/review/types";
@@ -108,7 +108,7 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
   const [answerValue, setAnswerValue] = useState(initialDraft?.rawAnswer ?? "");
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(initialCorrect);
   const [recommended, setRecommended] = useState<Grade | null>(initialCorrect !== null && initialDraft ? suggestedGrade(initialCorrect, initialDraft.responseMs) : null);
-  const [responseMs, setResponseMs] = useState(initialDraft?.revealed ? initialDraft.responseMs : 0);
+  const [responseMs, setResponseMs] = useState(initialDraft?.revealed ? unitDraftElapsedTime(initialDraft.responseMs, 0, 0) : 0);
   const [results, setResults] = useState<Result[]>(initialResults);
   const [finished, setFinished] = useState(cards.length > 0 && initialResults.length === cards.length);
   const [saving, setSaving] = useState(false);
@@ -227,6 +227,7 @@ export default function ReviewSession({ cards, persistence: requestedPersistence
   const progress = ((index + 1) / cards.length) * 100;
 
   function elapsedTime() {
+    if (unitDraft) return unitDraftElapsedTime(elapsedBeforeResume.current, startedAt.current);
     return Math.min(Number.MAX_SAFE_INTEGER, elapsedBeforeResume.current + Math.max(0, Date.now() - startedAt.current));
   }
 

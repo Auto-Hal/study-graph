@@ -14,6 +14,11 @@ type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const PREFIX = "study-graph-unit-draft-v1:";
 const MAX_LENGTH = 2000;
 
+/** The existing attempt API/PostgreSQL response_ms contract permits 0..1h. */
+export function unitDraftElapsedTime(savedMs: number, startedAt: number, now = Date.now()): number {
+  return Math.min(3600000, Math.max(0, savedMs) + Math.max(0, now - startedAt));
+}
+
 function browserStorage(): DraftStorage {
   // The getter itself can throw when browser storage is disabled.
   if (!globalThis.localStorage) throw new Error("unit_draft_storage_unavailable");

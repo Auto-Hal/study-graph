@@ -37,6 +37,11 @@ export async function verifyUnitDrafts({ units, appUrl, workspace, launchContext
       await page.getByRole('textbox', { name: '回答', exact: true }).fill('');
       await reloadResume(page, unit, 0);
       assert.equal(await page.getByRole('textbox', { name: '回答', exact: true }).inputValue(), '');
+      // Resume at the existing one-hour save boundary: subsequent typing and
+      // reveal must still submit a valid duration instead of blocking the answer.
+      const longDraft = (await drafts(page))[0];
+      await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify({ ...value, responseMs: 3600000 })), longDraft);
+      await reloadResume(page, unit, 0);
       await page.getByRole('textbox', { name: '回答', exact: true }).fill(raw);
       await page.getByRole('button', { name: '下書きを残して終了', exact: true }).click();
       await resume(page, unit, 0);
