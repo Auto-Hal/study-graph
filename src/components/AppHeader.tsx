@@ -14,12 +14,12 @@ export default function AppHeader({
     <header className="phase5-header">
       <div className="phase5-header-leading">
         {backHref && (
-          <Link className="phase5-back" href={backHref} prefetch aria-label={backLabel ?? "戻る"}>
+          <Link className="phase5-back" href={backHref} prefetch={false} aria-label={backLabel ?? "戻る"}>
             <span aria-hidden="true">←</span>
             <span className="phase5-back-label">{backLabel ?? "戻る"}</span>
           </Link>
         )}
-        <Link className="phase5-brand" href="/" prefetch aria-label="Study Graph 今日へ">
+        <Link className="phase5-brand" href="/" prefetch={false} aria-label="Study Graph 今日へ">
           <span className="phase5-brand-mark" aria-hidden="true">sg</span>
           <span>
             <strong>Study Graph</strong>
