@@ -1,3 +1,4 @@
+import { readNotionWithRetry } from "./read-retry";
 const LECTURES_DATA_SOURCE_ID = "1da45577-aa7d-44e1-a304-9e33e5feb9e2";
 const CHARACTERS_DATA_SOURCE_ID = "4a9814ba-7c44-47ec-8c46-e5d558a62085";
 const MISTAKES_DATA_SOURCE_ID = "12c37554-c7fa-424f-9590-f2f756bf284a";
@@ -79,7 +80,7 @@ function getNotionToken() {
 }
 
 async function queryDataSource(dataSourceId: string, token: string): Promise<NotionQueryResponse> {
-  const response = await fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
+  const response = await readNotionWithRetry(() => fetch(`https://api.notion.com/v1/data_sources/${dataSourceId}/query`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -88,7 +89,7 @@ async function queryDataSource(dataSourceId: string, token: string): Promise<Not
     },
     body: JSON.stringify({ page_size: 100 }),
     cache: "no-store",
-  });
+  }));
 
   if (!response.ok) {
     const body = await response.text();

@@ -155,7 +155,7 @@ function DashboardView({ dashboard, cached, snapshotState, syncing, syncError, o
       <section className="phase5-workspace-section" aria-labelledby="kuzushiji-learning-title">
         <div className="phase5-section-heading"><h2 id="kuzushiji-learning-title">学習</h2></div>
         <div className="phase5-workspace-links">
-          <Link className="phase5-workspace-entry" href="/units/kuzushiji-kana-1"><span className="phase5-workspace-entry-main"><strong>単元練習</strong><span>あ・い・うを字形から読む · 6問</span></span><span className="phase5-workspace-entry-arrow" aria-hidden="true">→</span></Link>
+          <Link className="phase5-workspace-entry" href="/units/kuzushiji-kana-1" prefetch={false}><span className="phase5-workspace-entry-main"><strong>単元練習</strong><span>あ・い・うを字形から読む · 6問</span></span><span className="phase5-workspace-entry-arrow" aria-hidden="true">→</span></Link>
           <Link className="phase5-workspace-entry" href="/projects/kuzushiji/lectures">
             <span className="phase5-workspace-entry-main"><strong>講義</strong><span>講義を見る</span></span>
             <span className="phase5-workspace-entry-arrow" aria-hidden="true">→</span>
